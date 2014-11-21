@@ -8,6 +8,13 @@ Sequins!!!
 Sequins is a dead-simple static database. It indexes and serves [SequenceFiles][1]
 over HTTP, so it's perfect for serving data created with Hadoop.
 
+Installing
+----------
+
+There are tarballs on the [releases page](https://github.com/stripe/sequins/releases).
+There's also a [docker image](https://registry.hub.docker.com/u/colinmarc/sequins/),
+if you're into that.
+
 Building
 --------
 
@@ -25,8 +32,6 @@ Or, to install a binary to `$GOPATH/bin`:
 $ make install
 ```
 
-There's also a [docker image](https://registry.hub.docker.com/u/colinmarc/sequins/).
-
 Usage
 -----
 
@@ -35,7 +40,8 @@ $ sequins -b ':9599' -cr 1m hdfs://namenode:8020/path/to/mydata
 ```
 
 That tells sequins to load your data from HDFS, and check every minute for new
-versions. The URL can point to HDFS, or s3, or just be a local path.
+versions, and then bind to the port 9599 and listen for requests. The URL can
+point to HDFS, or s3, or just be a local path.
 
 Sequins expects your data to be versioned. Inside the top-level directory you
 you specify, you should have subdirectories, like this:

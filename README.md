@@ -3,7 +3,7 @@
 Sequins!!!
 ==========
 
-[![build](https://travis-ci.org/colinmarc/sequins.svg?branch=master)](https://travis-ci.org/colinmarc/sequins)
+[![build](https://travis-ci.org/stripe/sequins.svg?branch=master)](https://travis-ci.org/stripe/sequins)
 
 Sequins is a dead-simple static database. It indexes and serves [SequenceFiles][1]
 over HTTP, so it's perfect for serving data created with Hadoop.
@@ -12,7 +12,7 @@ Installing
 ----------
 
 There are tarballs on the [releases page](https://github.com/stripe/sequins/releases).
-There's also a [docker image](https://registry.hub.docker.com/u/colinmarc/sequins/),
+There's also a [docker image](https://registry.hub.docker.com/u/stripe/sequins/),
 if you're into that.
 
 Building
@@ -21,7 +21,7 @@ Building
 To create a `sequins` binary (you'll need `go` on your path):
 
 ```sh
-$ git clone https://github.com/colinmarc/sequins
+$ git clone https://github.com/stripe/sequins
 $ cd sequins
 $ make
 ```

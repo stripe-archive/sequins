@@ -4,7 +4,7 @@ RELEASE_NAME = sequins-$(SEQUINS_VERSION)
 
 all: sequins
 
-sequins: get-deps clean
+sequins: get-deps
 	go build
 
 install: get-deps

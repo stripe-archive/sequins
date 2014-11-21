@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/colinmarc/sequins/sequencefile"
+	"github.com/stripe/sequins/sequencefile"
 	"github.com/syndtr/goleveldb/leveldb"
 	"io"
 	"io/ioutil"

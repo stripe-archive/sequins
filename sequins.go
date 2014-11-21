@@ -2,8 +2,8 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/colinmarc/sequins/backend"
-	"github.com/colinmarc/sequins/index"
+	"github.com/stripe/sequins/backend"
+	"github.com/stripe/sequins/index"
 	"log"
 	"net/http"
 	"os"

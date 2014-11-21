@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/colinmarc/hdfs"
-	"github.com/colinmarc/sequins/backend"
+	"github.com/stripe/sequins/backend"
 	"github.com/crowdmob/goamz/aws"
 	"github.com/crowdmob/goamz/s3"
 	"gopkg.in/alecthomas/kingpin.v1"

@@ -2,7 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/colinmarc/sequins/backend"
+	"github.com/stripe/sequins/backend"
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"

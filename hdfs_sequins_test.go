@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"github.com/colinmarc/hdfs"
-	"github.com/colinmarc/sequins/backend"
+	"github.com/stripe/sequins/backend"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"net/http"

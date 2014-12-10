@@ -2,8 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/stripe/sequins/backend"
-	"github.com/stripe/sequins/index"
 	"log"
 	"net/http"
 	"os"
@@ -11,6 +9,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/stripe/sequins/backend"
+	"github.com/stripe/sequins/index"
 )
 
 type sequinsOptions struct {
@@ -116,6 +117,13 @@ func (s *sequins) refresh() error {
 }
 
 func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if origin := r.Header.Get("Origin"); origin != "" {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS, HEAD")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+	}
+
 	if r.URL.Path == "/" {
 		count, err := s.index.Count()
 		if err != nil {

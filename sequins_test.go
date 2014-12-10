@@ -2,12 +2,13 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/stripe/sequins/backend"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stripe/sequins/backend"
 )
 
 func getSequins(t *testing.T, opts sequinsOptions) *sequins {
@@ -61,4 +62,15 @@ func TestSequinsNoValidDirectories(t *testing.T) {
 	s := newSequins(backend, sequinsOptions{"test_data/0", false})
 	err := s.start("localhost:0")
 	assert.Error(t, err)
+}
+
+func TestSequinsCors(t *testing.T) {
+	ts := getSequins(t, sequinsOptions{"test_data", false})
+
+	req, _ := http.NewRequest("GET", "/Alice", nil)
+	req.Header.Add("Origin", "something.org")
+	w := httptest.NewRecorder()
+	ts.ServeHTTP(w, req)
+	assert.Equal(t, 200, w.Code)
+	assert.Equal(t, []string{"something.org"}, w.HeaderMap["Access-Control-Allow-Origin"])
 }

@@ -104,6 +104,12 @@ func (s *S3Backend) Download(version string, destPath string) error {
 
 		for _, key := range resp.Contents {
 			name := strings.TrimPrefix(key.Key, versionPrefix)
+
+			// S3 sometimes has keys that are the same as the "directory"
+			if strings.TrimSpace(name) == "" {
+				continue
+			}
+
 			err = s.downloadFile(key.Key, filepath.Join(destPath, name))
 			if err != nil {
 				return err

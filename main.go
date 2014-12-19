@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 	"github.com/colinmarc/hdfs"
-	"github.com/stripe/sequins/backend"
 	"github.com/crowdmob/goamz/aws"
 	"github.com/crowdmob/goamz/s3"
+	"github.com/stripe/sequins/backend"
 	"gopkg.in/alecthomas/kingpin.v1"
 	"io/ioutil"
 	"log"
@@ -104,7 +104,7 @@ func main() {
 			for _ = range ticker.C {
 				err = s.reloadLatest()
 				if err != nil {
-					log.Println(err)
+					log.Println(fmt.Errorf("Error reloading: %s", s))
 				}
 			}
 		}()
@@ -116,7 +116,7 @@ func main() {
 	for _ = range sighups {
 		err = s.reloadLatest()
 		if err != nil {
-			log.Println(err)
+			log.Println(fmt.Errorf("Error reloading: %s", s))
 		}
 	}
 }

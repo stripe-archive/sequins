@@ -2,11 +2,11 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/stripe/sequins/backend"
 	"github.com/crowdmob/goamz/aws"
 	"github.com/crowdmob/goamz/s3"
 	"github.com/crowdmob/goamz/s3/s3test"
 	"github.com/stretchr/testify/assert"
+	"github.com/stripe/sequins/backend"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"

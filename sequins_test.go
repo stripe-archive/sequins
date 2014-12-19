@@ -2,8 +2,8 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/stripe/sequins/backend"
 	"github.com/stretchr/testify/assert"
+	"github.com/stripe/sequins/backend"
 	"net/http"
 	"net/http/httptest"
 	"testing"

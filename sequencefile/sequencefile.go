@@ -240,12 +240,12 @@ func (sf *SequenceFile) readRecord() (*Record, error) {
 		return nil, err
 	}
 
-	if totalKeyLength < 0 {
-		return nil, fmt.Errorf("Invalid key length: %d", totalKeyLength)
-	}
-
 	keyOffset := sf.offset + 4 // skip four for BytesWritable length
 	keyLength := int64(totalKeyLength) - 4
+
+	if keyLength < 0 {
+		return nil, fmt.Errorf("Invalid key length: %d", keyLength)
+	}
 
 	valueOffset := sf.offset + int64(totalKeyLength) + 4
 	valueLength := int64(totalLength - totalKeyLength - 4)

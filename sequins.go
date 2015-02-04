@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"github.com/stripe/sequins/backend"
 	"github.com/stripe/sequins/index"
@@ -150,6 +151,6 @@ func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(err)
 		w.WriteHeader(http.StatusInternalServerError)
 	} else {
-		http.ServeContent(w, r, key, s.updated, res)
+		http.ServeContent(w, r, key, s.updated, bytes.NewReader(res))
 	}
 }

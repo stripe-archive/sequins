@@ -3,66 +3,57 @@ package sequencefile
 import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"io"
-	"io/ioutil"
+	"os"
 	"testing"
 )
 
-func readKeyValue(t *testing.T, r *Record) (string, string) {
-	keyBytes, err := ioutil.ReadAll(r.Key)
-	require.Nil(t, err)
-
-	valueBytes, err := ioutil.ReadAll(r.Value)
-	require.Nil(t, err)
-
-	return string(keyBytes), string(valueBytes)
-}
-
 func TestReadFile(t *testing.T) {
-	f, err := New("../test_data/0/part-00000")
+	file, err := os.Open("../test_data/0/part-00000")
 	require.Nil(t, err)
 
-	assert.Equal(t, f.Path, "../test_data/0/part-00000")
-	assert.Equal(t, f.Header.Version, 6)
-	assert.Equal(t, f.Header.Compression, NotCompressed)
-	assert.Equal(t, f.Header.CompressionCodecClassName, "")
-	assert.Equal(t, f.Header.KeyClassName, "org.apache.hadoop.io.BytesWritable")
-	assert.Equal(t, f.Header.ValueClassName, "org.apache.hadoop.io.BytesWritable")
-	assert.Equal(t, f.Header.Metadata, map[string]string{})
+	r := New(file)
+	r.ReadHeader()
+	assert.Equal(t, r.Header.Version, 6)
+	assert.Equal(t, r.Header.Compression, NotCompressed)
+	assert.Equal(t, r.Header.CompressionCodecClassName, "")
+	assert.Equal(t, r.Header.KeyClassName, "org.apache.hadoop.io.BytesWritable")
+	assert.Equal(t, r.Header.ValueClassName, "org.apache.hadoop.io.BytesWritable")
+	assert.Equal(t, r.Header.Metadata, map[string]string{})
 
-	var r *Record
-	r, err = f.ReadNextRecord()
-	require.Nil(t, err)
+	offset1, _ := file.Seek(0, 1)
+	ok := r.ScanKey()
+	require.True(t, ok)
+	require.Nil(t, r.Err())
 
-	key, value := readKeyValue(t, r)
-	assert.Equal(t, "Alice", key)
-	assert.Equal(t, "Practice", value)
-	assert.Equal(t, 29, r.TotalLength)
-	offset1 := r.Offset
+	assert.Equal(t, "Alice", string(r.Key()))
+	assert.Equal(t, []byte(nil), r.Value())
 
-	r, err = f.ReadNextRecord()
-	require.Nil(t, err)
+	offset2, _ := file.Seek(0, 1)
+	ok = r.Scan()
+	require.True(t, ok)
+	require.Nil(t, r.Err())
 
-	key, value = readKeyValue(t, r)
-	assert.Equal(t, "Bob", key)
-	assert.Equal(t, "Hope", value)
-	offset2 := r.Offset
+	assert.Equal(t, "Bob", string(r.Key()))
+	assert.Equal(t, "Hope", string(r.Value()))
 
-	r, err = f.ReadNextRecord()
-	assert.Equal(t, io.EOF, err)
+	// EOF
+	ok = r.Scan()
+	require.False(t, ok)
+	require.Nil(t, r.Err())
 
-	r, err = f.ReadRecordAtOffset(offset1)
-	require.Nil(t, err)
+	file.Seek(offset1, 0)
+	ok = r.Scan()
+	require.True(t, ok)
+	require.Nil(t, r.Err())
 
-	key, value = readKeyValue(t, r)
-	assert.Equal(t, "Alice", key)
-	assert.Equal(t, "Practice", value)
-	assert.Equal(t, 29, r.TotalLength)
+	assert.Equal(t, "Alice", string(r.Key()))
+	assert.Equal(t, "Practice", string(r.Value()))
 
-	r, err = f.ReadRecordAtOffset(offset2)
-	require.Nil(t, err)
+	file.Seek(offset2, 0)
+	ok = r.ScanKey()
+	require.True(t, ok)
+	require.Nil(t, r.Err())
 
-	key, value = readKeyValue(t, r)
-	assert.Equal(t, "Bob", key)
-	assert.Equal(t, "Hope", value)
+	assert.Equal(t, "Bob", string(r.Key()))
+	assert.Equal(t, []byte(nil), r.Value())
 }

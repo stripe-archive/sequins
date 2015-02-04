@@ -3,7 +3,6 @@ package index
 import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"io/ioutil"
 	"testing"
 )
 
@@ -17,15 +16,12 @@ func TestDB(t *testing.T) {
 
 	assert.Equal(t, index.Path, "../test_data/0")
 	assert.Equal(t, len(index.files), 2)
-	assert.Equal(t, index.files[0].Path, "../test_data/0/part-00000")
-	assert.Equal(t, index.files[1].Path, "../test_data/0/part-00001")
+	assert.Equal(t, index.files[0].file.Name(), "../test_data/0/part-00000")
+	assert.Equal(t, index.files[1].file.Name(), "../test_data/0/part-00001")
 
 	val, err := index.Get("Alice")
 	require.Nil(t, err)
-
-	valBytes, err := ioutil.ReadAll(val)
-	require.Nil(t, err)
-	assert.Equal(t, string(valBytes), "Practice")
+	assert.Equal(t, string(val), "Practice")
 
 	val, err = index.Get("foo")
 	assert.Equal(t, ErrNotFound, err)

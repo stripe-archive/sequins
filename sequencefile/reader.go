@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"os"
 )
 
 // A Reader reads key/value pairs from an input stream.
@@ -122,7 +123,7 @@ func (r *Reader) scan(readValues bool) bool {
 		// just copy to /dev/null.
 		valueLength := int64(totalLength - totalKeyLength)
 		if seeker, ok := r.reader.(io.Seeker); ok {
-			_, err = seeker.Seek(valueLength, 1)
+			_, err = seeker.Seek(valueLength, os.SEEK_CUR)
 		} else {
 			_, err = io.CopyN(ioutil.Discard, r.reader, valueLength)
 		}

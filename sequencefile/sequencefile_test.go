@@ -20,7 +20,7 @@ func TestReadFile(t *testing.T) {
 	assert.Equal(t, r.Header.ValueClassName, "org.apache.hadoop.io.BytesWritable")
 	assert.Equal(t, r.Header.Metadata, map[string]string{})
 
-	offset1, _ := file.Seek(0, 1)
+	offset1, _ := file.Seek(0, os.SEEK_CUR)
 	ok := r.ScanKey()
 	require.True(t, ok)
 	require.Nil(t, r.Err())
@@ -28,7 +28,7 @@ func TestReadFile(t *testing.T) {
 	assert.Equal(t, "Alice", string(r.Key()))
 	assert.Equal(t, []byte(nil), r.Value())
 
-	offset2, _ := file.Seek(0, 1)
+	offset2, _ := file.Seek(0, os.SEEK_CUR)
 	ok = r.Scan()
 	require.True(t, ok)
 	require.Nil(t, r.Err())
@@ -41,7 +41,7 @@ func TestReadFile(t *testing.T) {
 	require.False(t, ok)
 	require.Nil(t, r.Err())
 
-	file.Seek(offset1, 0)
+	file.Seek(offset1, os.SEEK_SET)
 	ok = r.Scan()
 	require.True(t, ok)
 	require.Nil(t, r.Err())
@@ -49,7 +49,7 @@ func TestReadFile(t *testing.T) {
 	assert.Equal(t, "Alice", string(r.Key()))
 	assert.Equal(t, "Practice", string(r.Value()))
 
-	file.Seek(offset2, 0)
+	file.Seek(offset2, os.SEEK_SET)
 	ok = r.ScanKey()
 	require.True(t, ok)
 	require.Nil(t, r.Err())

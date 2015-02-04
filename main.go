@@ -101,10 +101,10 @@ func main() {
 		ticker := time.NewTicker(refresh)
 		go func() {
 			log.Println("Automatically checking for new versions every", refresh.String())
-			for _ = range ticker.C {
+			for range ticker.C {
 				err = s.reloadLatest()
 				if err != nil {
-					log.Println(fmt.Errorf("Error reloading: %s", s))
+					log.Println(fmt.Errorf("Error reloading: %s", err))
 				}
 			}
 		}()
@@ -113,10 +113,10 @@ func main() {
 	sighups := make(chan os.Signal)
 	signal.Notify(sighups, syscall.SIGHUP)
 
-	for _ = range sighups {
+	for range sighups {
 		err = s.reloadLatest()
 		if err != nil {
-			log.Println(fmt.Errorf("Error reloading: %s", s))
+			log.Println(fmt.Errorf("Error reloading: %s", err))
 		}
 	}
 }

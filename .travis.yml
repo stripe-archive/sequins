@@ -12,4 +12,3 @@ deploy:
     repo: stripe/sequins
     tags: true
     all_branches: true
-    condition: "$TRAVIS_GO_VERSION =~ ^go1.4"

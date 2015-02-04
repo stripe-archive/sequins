@@ -18,30 +18,22 @@ import (
 var ErrNotFound = errors.New("That key doesn't exist.")
 
 type indexFile struct {
-	lock   sync.Mutex
 	file   *os.File
 	reader *sequencefile.Reader
-}
-
-type indexer struct {
-	index     *Index
-	fileIndex int
-	path      string
-	err       error
 }
 
 type Index struct {
 	Path  string
 	Ready bool
 
-	files []indexFile
+	files     []indexFile
+	readLocks []sync.Mutex
 
 	ldb   *leveldb.DB
 	count int
-
-	readLocks []sync.Mutex
 }
 
+// New creates a new Index instance.
 func New(path string) *Index {
 	index := Index{
 		Path:  path,
@@ -51,6 +43,8 @@ func New(path string) *Index {
 	return &index
 }
 
+// BuildIndex reads each of the files and adds a key -> (file, offset) pair
+// to the master index for every key in every file.
 func (index *Index) BuildIndex() error {
 	err := index.buildFileList()
 	if err != nil {
@@ -67,88 +61,23 @@ func (index *Index) BuildIndex() error {
 	if err != nil {
 		return err
 	}
+
 	index.ldb = ldb
 
-	indexers := make([]indexer, 0, len(index.files))
-	wg := sync.WaitGroup{}
-	wg.Add(len(index.files))
-
-	for i := range index.files {
-		path := index.files[i].file.Name()
+	for i, f := range index.files {
+		path := f.file.Name()
 		log.Printf("Indexing %s...\n", path)
-		indexer := newIndexer(path, i, index)
-		indexers = append(indexers, indexer)
 
-		go func() {
-			indexer.start()
-			wg.Done()
-		}()
-	}
-
-	wg.Wait()
-
-	for _, indexer := range indexers {
-		if indexer.err != nil {
-			return indexer.err
+		err = index.buildIndexOverFile(i, f)
+		if err != nil {
+			return err
 		}
+
+		log.Println("Finished indexing", path)
 	}
 
 	index.Ready = true
 	return nil
-}
-
-func (index *Index) Get(key string) ([]byte, error) {
-	if !index.Ready {
-		return nil, errors.New("Index isn't finished being built yet.")
-	}
-
-	bytes, err := index.ldb.Get([]byte(key), nil)
-	if err == leveldb.ErrNotFound {
-		return nil, ErrNotFound
-	} else if err != nil {
-		return nil, err
-	}
-
-	if len(bytes) != 12 {
-		return nil, fmt.Errorf("Invalid value length: %d", len(bytes))
-	}
-
-	fileIndex, offset := deserializeIndexEntry(bytes)
-	f := index.files[fileIndex]
-
-	f.lock.Lock()
-	defer f.lock.Unlock()
-
-	_, err = f.file.Seek(offset, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	ok := f.reader.Scan()
-	if !ok {
-		if f.reader.Err() != nil {
-			return nil, f.reader.Err()
-		} else {
-			return nil, io.ErrUnexpectedEOF
-		}
-	}
-
-	return f.reader.Value(), nil
-}
-
-func (index *Index) Count() (int, error) {
-	if !index.Ready {
-		return -1, errors.New("Index isn't finished being built yet.")
-	}
-
-	return index.count, nil
-}
-
-func (index *Index) Close() {
-	index.ldb.Close()
-	for i := range index.files {
-		index.files[i].file.Close()
-	}
 }
 
 func (index *Index) buildFileList() error {
@@ -158,6 +87,7 @@ func (index *Index) buildFileList() error {
 	}
 
 	index.files = make([]indexFile, 0, len(infos))
+	index.readLocks = make([]sync.Mutex, len(infos))
 
 	for _, info := range infos {
 		if !info.IsDir() && !strings.HasPrefix(info.Name(), "_") {
@@ -193,59 +123,93 @@ func (index *Index) addFile(subPath string) error {
 	return nil
 }
 
-func newIndexer(path string, fileIndex int, index *Index) indexer {
-	indexer := indexer{
-		index:     index,
-		fileIndex: fileIndex,
-		path:      path,
-	}
-
-	return indexer
-}
-
-func (i *indexer) start() {
-	file, err := os.Open(i.path)
-
-	sf := sequencefile.New(file)
-	err = sf.ReadHeader()
-	if err != nil {
-		i.err = err
-		return
-	}
-
+func (index *Index) buildIndexOverFile(fileId int, f indexFile) error {
 	entry := make([]byte, 12)
+
 	for {
-		offset, err := file.Seek(0, 1)
+		offset, err := f.file.Seek(0, os.SEEK_CUR)
 		if err != nil {
-			i.err = err
-			return
+			return err
 		}
 
-		if !sf.ScanKey() {
+		if !f.reader.ScanKey() {
 			break
 		}
 
-		serializeIndexEntry(entry, i.fileIndex, offset)
-		i.index.ldb.Put(sf.Key(), entry, nil)
-		i.index.count++
+		serializeIndexEntry(entry, fileId, offset)
+		index.ldb.Put(f.reader.Key(), entry, nil)
+		index.count++
 	}
 
-	if sf.Err() != nil {
-		i.err = sf.Err()
-		return
-	}
-
-	log.Println("Finished indexing", i.path)
+	return f.reader.Err()
 }
 
-func serializeIndexEntry(b []byte, fileIndex int, offset int64) {
-	binary.BigEndian.PutUint32(b, uint32(fileIndex))
+// Get returns the value for a given key.
+func (index *Index) Get(key string) ([]byte, error) {
+	if !index.Ready {
+		return nil, errors.New("Index isn't finished being built yet.")
+	}
+
+	bytes, err := index.ldb.Get([]byte(key), nil)
+	if err == leveldb.ErrNotFound {
+		return nil, ErrNotFound
+	} else if err != nil {
+		return nil, err
+	}
+
+	if len(bytes) != 12 {
+		return nil, fmt.Errorf("Invalid value length: %d", len(bytes))
+	}
+
+	fileId, offset := deserializeIndexEntry(bytes)
+	f := index.files[fileId]
+
+	readLock := index.readLocks[fileId]
+	readLock.Lock()
+	defer readLock.Unlock()
+
+	_, err = f.file.Seek(offset, os.SEEK_SET)
+	if err != nil {
+		return nil, err
+	}
+
+	ok := f.reader.Scan()
+	if !ok {
+		if f.reader.Err() != nil {
+			return nil, f.reader.Err()
+		} else {
+			return nil, io.ErrUnexpectedEOF
+		}
+	}
+
+	return f.reader.Value(), err
+}
+
+// Count returns the total number of keys in the index.
+func (index *Index) Count() (int, error) {
+	if !index.Ready {
+		return -1, errors.New("Index isn't finished being built yet.")
+	}
+
+	return index.count, nil
+}
+
+// Close closes the index, and any open files it has.
+func (index *Index) Close() {
+	index.ldb.Close()
+	for _, f := range index.files {
+		f.file.Close()
+	}
+}
+
+func serializeIndexEntry(b []byte, fileId int, offset int64) {
+	binary.BigEndian.PutUint32(b, uint32(fileId))
 	binary.BigEndian.PutUint64(b[4:], uint64(offset))
 }
 
 func deserializeIndexEntry(bytes []byte) (int, int64) {
-	fileIndex := binary.BigEndian.Uint32(bytes[:4])
+	fileId := binary.BigEndian.Uint32(bytes[:4])
 	offset := binary.BigEndian.Uint64(bytes[4:12])
 
-	return int(fileIndex), int64(offset)
+	return int(fileId), int64(offset)
 }

@@ -152,6 +152,10 @@ func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(fmt.Errorf("Error fetching value for %s: %s", key, err))
 		w.WriteHeader(http.StatusInternalServerError)
 	} else {
+		// Explicitly unset Content-Type, so ServeContent doesn't try to do any
+		// sniffing.
+		w.Header()["Content-Type"] = nil
+
 		http.ServeContent(w, r, key, s.updated, bytes.NewReader(res))
 	}
 }

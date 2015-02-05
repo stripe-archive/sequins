@@ -164,9 +164,8 @@ func (index *Index) Get(key string) ([]byte, error) {
 	fileId, offset := deserializeIndexEntry(b)
 	f := index.files[fileId]
 
-	readLock := index.readLocks[fileId]
-	readLock.Lock()
-	defer readLock.Unlock()
+	index.readLocks[fileId].Lock()
+	defer index.readLocks[fileId].Unlock()
 
 	_, err = f.file.Seek(offset, os.SEEK_SET)
 	if err != nil {

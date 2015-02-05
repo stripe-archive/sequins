@@ -149,10 +149,11 @@ func (r *Reader) checkSyncAndScan(readValues bool) bool {
 
 	// If we never read the Header, infer the sync marker from the first time we
 	// see it.
-	if r.syncMarkerBytes == nil {
-		r.syncMarkerBytes = b
+	if r.syncMarkerBytes == []byte(nil) {
+		r.syncMarkerBytes = make([]byte, SyncSize)
+		copy(r.syncMarkerBytes, b)
 	} else if !bytes.Equal(b, r.syncMarkerBytes) {
-		r.close(fmt.Errorf("Invalid sync marker: %x", b))
+		r.close(fmt.Errorf("Invalid sync marker: %x vs %x", b, r.syncMarkerBytes))
 		return false
 	}
 

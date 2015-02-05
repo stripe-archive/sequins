@@ -94,6 +94,7 @@ func (r *Reader) scan(readValues bool) bool {
 	totalKeyLength := int(int32(binary.BigEndian.Uint32(b)))
 	if totalKeyLength < 4 {
 		r.close(fmt.Errorf("Invalid key length: %d", totalKeyLength))
+		return false
 	}
 
 	// Both the key and value have an extra 4 bytes of junk at the beginning for

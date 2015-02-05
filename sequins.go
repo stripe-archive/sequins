@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/stripe/sequins/backend"
 	"github.com/stripe/sequins/index"
 	"log"
@@ -103,7 +104,7 @@ func (s *sequins) refresh() error {
 		index := index.New(path)
 		err = index.BuildIndex()
 		if err != nil {
-			return err
+			return fmt.Errorf("Error while indexing: %s", err)
 		}
 
 		log.Println("Switching to new directory!")
@@ -148,7 +149,7 @@ func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err == index.ErrNotFound {
 		w.WriteHeader(http.StatusNotFound)
 	} else if err != nil {
-		log.Fatal(err)
+		log.Fatal(fmt.Errorf("Error fetching value for %s: %s", key, err))
 		w.WriteHeader(http.StatusInternalServerError)
 	} else {
 		http.ServeContent(w, r, key, s.updated, bytes.NewReader(res))

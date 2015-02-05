@@ -150,18 +150,18 @@ func (index *Index) Get(key string) ([]byte, error) {
 		return nil, errors.New("Index isn't finished being built yet.")
 	}
 
-	bytes, err := index.ldb.Get([]byte(key), nil)
+	b, err := index.ldb.Get([]byte(key), nil)
 	if err == leveldb.ErrNotFound {
 		return nil, ErrNotFound
 	} else if err != nil {
 		return nil, err
 	}
 
-	if len(bytes) != 12 {
-		return nil, fmt.Errorf("Invalid value length: %d", len(bytes))
+	if len(b) != 12 {
+		return nil, fmt.Errorf("Invalid value length: %d", len(b))
 	}
 
-	fileId, offset := deserializeIndexEntry(bytes)
+	fileId, offset := deserializeIndexEntry(b)
 	f := index.files[fileId]
 
 	readLock := index.readLocks[fileId]
@@ -182,7 +182,9 @@ func (index *Index) Get(key string) ([]byte, error) {
 		}
 	}
 
-	return f.reader.Value(), err
+	val := make([]byte, len(f.reader.Value()))
+	copy(val, f.reader.Value())
+	return val, err
 }
 
 // Count returns the total number of keys in the index.
@@ -207,9 +209,9 @@ func serializeIndexEntry(b []byte, fileId int, offset int64) {
 	binary.BigEndian.PutUint64(b[4:], uint64(offset))
 }
 
-func deserializeIndexEntry(bytes []byte) (int, int64) {
-	fileId := binary.BigEndian.Uint32(bytes[:4])
-	offset := binary.BigEndian.Uint64(bytes[4:12])
+func deserializeIndexEntry(b []byte) (int, int64) {
+	fileId := binary.BigEndian.Uint32(b[:4])
+	offset := binary.BigEndian.Uint64(b[4:])
 
 	return int(fileId), int64(offset)
 }

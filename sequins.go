@@ -107,9 +107,14 @@ func (s *sequins) refresh() error {
 			return fmt.Errorf("Error while indexing: %s", err)
 		}
 
-		log.Println("Switching to new directory!")
+		log.Println("Switching to new version!")
+		oldIndex := s.index
 		s.currentVersion = version
 		s.index = index
+
+		if oldIndex != nil {
+			oldIndex.Close()
+		}
 	} else {
 		log.Printf("%s is already the newest version, so not reloading.", version)
 	}

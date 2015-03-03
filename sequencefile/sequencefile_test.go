@@ -9,7 +9,7 @@ import (
 
 func TestReadFile(t *testing.T) {
 	file, err := os.Open("../test_data/0/part-00000")
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	r := New(file)
 	r.ReadHeader()

@@ -6,6 +6,7 @@ import (
 	"github.com/crowdmob/goamz/s3"
 	"github.com/crowdmob/goamz/s3/s3test"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stripe/sequins/backend"
 	"io/ioutil"
 	"net/http"
@@ -65,11 +66,11 @@ func TestS3Backend(t *testing.T) {
 	s := setupS3()
 
 	version, err := s.LatestVersion(false)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "1", version)
 
 	version, err = s.LatestVersion(true)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "0", version)
 }
 
@@ -97,7 +98,7 @@ func TestS3Sequins(t *testing.T) {
 	now := time.Now().Unix() - 1
 	status := &status{}
 	err := json.Unmarshal(w.Body.Bytes(), status)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 200, w.Code)
 	assert.Equal(t, "s3://sequinstest/test_data/1", status.Path)
 	assert.True(t, status.Started >= now)

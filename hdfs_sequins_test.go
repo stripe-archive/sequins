@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"github.com/colinmarc/hdfs"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/assert"
 	"github.com/stripe/sequins/backend"
 	"io/ioutil"
@@ -51,11 +52,11 @@ func TestHdfsBackend(t *testing.T) {
 	h := setupHdfs(t)
 
 	version, err := h.LatestVersion(false)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, version, "1")
 
 	version, err = h.LatestVersion(true)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, version, "0")
 }
 
@@ -83,7 +84,7 @@ func TestHdfsSequins(t *testing.T) {
 	now := time.Now().Unix() - 1
 	status := &status{}
 	err := json.Unmarshal(w.Body.Bytes(), status)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 200, w.Code)
 	assert.True(t, status.Started >= now)
 	assert.Equal(t, 3, status.Count)

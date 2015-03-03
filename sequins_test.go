@@ -49,7 +49,7 @@ func TestSequins(t *testing.T) {
 	now := time.Now().Unix() - 1
 	status := &status{}
 	err := json.Unmarshal(w.Body.Bytes(), status)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 200, w.Code, 200)
 	assert.Equal(t, "test_data/1", status.Path)
 	assert.True(t, status.Started >= now)

@@ -43,16 +43,97 @@ func New(path string) *Index {
 	return &index
 }
 
-// BuildIndex reads each of the files and adds a key -> (file, offset) pair
-// to the master index for every key in every file.
-func (index *Index) BuildIndex() error {
+// Load reads each of the files and adds a key -> (file, offset) pair to the
+// master index for every key in every file. If a manifest file and index
+// already exist in the directory, it'll use that.
+func (index *Index) Load() error {
 	err := index.buildFileList()
 	if err != nil {
 		return err
 	}
 
+	// Try loading and checking the manifest first.
+	manifestPath := filepath.Join(index.Path, ".manifest")
+	manifest, err := readManifest(manifestPath)
+	if err == nil {
+		log.Println("Loading index from existing manifest at", manifestPath)
+		err = index.loadIndexFromManifest(manifest)
+		if err != nil {
+			log.Println("Failed to load existing manifest with error:", err)
+		} else {
+			index.Ready = true
+			return nil
+		}
+	}
+
+	err = index.buildNewIndex()
+	if err != nil {
+		return err
+	}
+
+	index.Ready = true
+	return nil
+}
+
+func (index *Index) buildFileList() error {
+	infos, err := ioutil.ReadDir(index.Path)
+	if err != nil {
+		return err
+	}
+
+	index.files = make([]indexFile, 0, len(infos))
+	index.readLocks = make([]sync.Mutex, len(infos))
+
+	for _, info := range infos {
+		if !info.IsDir() && !strings.HasPrefix(info.Name(), "_") && !strings.HasPrefix(info.Name(), ".") {
+			err := index.addFile(info.Name())
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (index *Index) loadIndexFromManifest(m manifest) error {
+	for i, manifestFile := range m.Files {
+		indexFile := index.files[i]
+		baseName := filepath.Base(indexFile.file.Name())
+		if baseName != filepath.Base(manifestFile.Name) {
+			return fmt.Errorf("unmatched file: %s", manifestFile.Name)
+		}
+
+		info, err := indexFile.file.Stat()
+		if err != nil {
+			return err
+		}
+
+		if info.Size() != manifestFile.Size {
+			return fmt.Errorf("local file %s has a different size (%d) than the manifest says it should (%d)",
+				baseName, info.Size(), manifestFile.Size)
+		}
+	}
+
 	indexPath := filepath.Join(index.Path, ".index")
-	err = os.RemoveAll(indexPath)
+	info, err := os.Stat(indexPath)
+	if err != nil || !info.IsDir() {
+		return fmt.Errorf("missing or invalid ldb index at %s", indexPath)
+	}
+
+	ldb, err := leveldb.OpenFile(indexPath, nil)
+	if err != nil {
+		return err
+	}
+
+	index.ldb = ldb
+	index.count = m.Count
+	return nil
+}
+
+func (index *Index) buildNewIndex() error {
+	indexPath := filepath.Join(index.Path, ".index")
+	err := os.RemoveAll(indexPath)
 	if err != nil {
 		return err
 	}
@@ -76,29 +157,32 @@ func (index *Index) BuildIndex() error {
 		log.Println("Finished indexing", path)
 	}
 
-	index.Ready = true
+	manifest := index.buildManifest()
+	manifestPath := filepath.Join(index.Path, ".manifest")
+	log.Println("Writing manifest file to", manifestPath)
+	err = writeManifest(manifestPath, manifest)
+	if err != nil {
+		return fmt.Errorf("error writing manifest: %s", err)
+	}
+
 	return nil
 }
 
-func (index *Index) buildFileList() error {
-	infos, err := ioutil.ReadDir(index.Path)
-	if err != nil {
-		return err
+func (index *Index) buildManifest() manifest {
+	m := manifest{
+		Files: make([]manifestEntry, len(index.files)),
+		Count: index.count,
 	}
 
-	index.files = make([]indexFile, 0, len(infos))
-	index.readLocks = make([]sync.Mutex, len(infos))
-
-	for _, info := range infos {
-		if !info.IsDir() && !strings.HasPrefix(info.Name(), "_") {
-			err := index.addFile(info.Name())
-			if err != nil {
-				return err
-			}
+	for i, f := range index.files {
+		info, _ := f.file.Stat()
+		m.Files[i] = manifestEntry{
+			Name: filepath.Base(f.file.Name()),
+			Size: info.Size(),
 		}
 	}
 
-	return nil
+	return m
 }
 
 func (index *Index) addFile(subPath string) error {

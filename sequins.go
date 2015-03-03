@@ -91,23 +91,23 @@ func (s *sequins) refresh() error {
 		}
 
 		if os.IsExist(err) {
-			log.Printf("Version %s is already downloaded.", version)
+			log.Printf("Version %s is already downloaded", version)
 		} else {
-			log.Printf("Downloading version %s from %s.", version, s.backend.DisplayPath(version))
+			log.Printf("Downloading version %s from %s", version, s.backend.DisplayPath(version))
 			err = s.backend.Download(version, path)
 			if err != nil {
 				return err
 			}
 		}
 
-		log.Printf("Building index over version %s at %s.", version, path)
+		log.Printf("Preparing version %s at %s", version, path)
 		index := index.New(path)
-		err = index.BuildIndex()
+		err = index.Load()
 		if err != nil {
 			return fmt.Errorf("Error while indexing: %s", err)
 		}
 
-		log.Println("Switching to new version!")
+		log.Printf("Switching to version %s!", version)
 		oldIndex := s.index
 		s.currentVersion = version
 		s.index = index

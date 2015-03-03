@@ -3,14 +3,18 @@ package main
 import (
 	"encoding/json"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stripe/sequins/backend"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 )
 
 func getSequins(t *testing.T, opts sequinsOptions) *sequins {
+	os.RemoveAll("test_data/0/.manifest")
+	os.RemoveAll("test_data/1/.manifest")
 	backend := backend.NewLocalBackend("test_data")
 	s := newSequins(backend, opts)
 
@@ -50,7 +54,7 @@ func TestSequins(t *testing.T) {
 	status := &status{}
 	err := json.Unmarshal(w.Body.Bytes(), status)
 	require.NoError(t, err)
-	assert.Equal(t, 200, w.Code, 200)
+	assert.Equal(t, 200, w.Code)
 	assert.Equal(t, "test_data/1", status.Path)
 	assert.True(t, status.Started >= now)
 	assert.Equal(t, 3, status.Count)

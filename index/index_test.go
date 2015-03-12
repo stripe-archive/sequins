@@ -3,16 +3,15 @@ package index
 import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"os"
 	"testing"
 )
 
-func TestDB(t *testing.T) {
+func TestIndex(t *testing.T) {
+	os.Remove("../test_data/0/.manifest")
 	index := New("../test_data/0")
-	err := index.BuildIndex()
-	require.Nil(t, err)
-	if err != nil {
-		t.FailNow()
-	}
+	err := index.Load()
+	require.NoError(t, err)
 
 	assert.Equal(t, index.Path, "../test_data/0")
 	assert.Equal(t, len(index.files), 2)
@@ -20,13 +19,33 @@ func TestDB(t *testing.T) {
 	assert.Equal(t, index.files[1].file.Name(), "../test_data/0/part-00001")
 
 	val, err := index.Get("Alice")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, string(val), "Practice")
 
 	val, err = index.Get("foo")
 	assert.Equal(t, ErrNotFound, err)
 
 	count, err := index.Count()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 3, count)
+}
+
+func TestIndexManifest(t *testing.T) {
+	os.Remove("../test_data/0/.manifest")
+	index := New("../test_data/0")
+	err := index.Load()
+	require.NoError(t, err)
+
+	count, err := index.Count()
+	require.NoError(t, err)
+	assert.Equal(t, 3, count)
+
+	index.Close()
+	index = New("../test_data/0")
+	err = index.Load()
+	require.NoError(t, err)
+
+	newCount, err := index.Count()
+	require.NoError(t, err)
+	assert.Equal(t, count, newCount)
 }

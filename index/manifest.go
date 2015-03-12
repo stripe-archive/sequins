@@ -2,6 +2,8 @@ package index
 
 import (
 	"encoding/json"
+	"hash/crc32"
+	"io"
 	"io/ioutil"
 	"os"
 )
@@ -13,7 +15,7 @@ type manifest struct {
 
 type manifestEntry struct {
 	Name string `json:"name"`
-	Size int64  `json:"size"`
+	CRC  uint32 `json:"crc"`
 }
 
 func readManifest(path string) (manifest, error) {
@@ -48,4 +50,19 @@ func writeManifest(path string, m manifest) error {
 	defer writer.Close()
 	_, err = writer.Write(bytes)
 	return err
+}
+
+func fileCrc(path string) (uint32, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+
+	hash := crc32.NewIEEE()
+	_, err = io.Copy(hash, file)
+	if err != nil {
+		return 0, err
+	}
+
+	return hash.Sum32(), nil
 }

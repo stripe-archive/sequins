@@ -97,21 +97,20 @@ func (index *Index) buildFileList() error {
 }
 
 func (index *Index) loadIndexFromManifest(m manifest) error {
-	for i, manifestFile := range m.Files {
+	for i, entry := range m.Files {
 		indexFile := index.files[i]
 		baseName := filepath.Base(indexFile.file.Name())
-		if baseName != filepath.Base(manifestFile.Name) {
-			return fmt.Errorf("unmatched file: %s", manifestFile.Name)
+		if baseName != filepath.Base(entry.Name) {
+			return fmt.Errorf("unmatched file: %s", entry.Name)
 		}
 
-		info, err := indexFile.file.Stat()
+		crc, err := fileCrc(indexFile.file.Name())
 		if err != nil {
 			return err
 		}
 
-		if info.Size() != manifestFile.Size {
-			return fmt.Errorf("local file %s has a different size (%d) than the manifest says it should (%d)",
-				baseName, info.Size(), manifestFile.Size)
+		if crc != entry.CRC {
+			return fmt.Errorf("local file %s has an invalid CRC, according to the manifest", baseName)
 		}
 	}
 
@@ -157,7 +156,11 @@ func (index *Index) buildNewIndex() error {
 		log.Println("Finished indexing", path)
 	}
 
-	manifest := index.buildManifest()
+	manifest, err := index.buildManifest()
+	if err != nil {
+		return fmt.Errorf("error building manifest: %s", err)
+	}
+
 	manifestPath := filepath.Join(index.Path, ".manifest")
 	log.Println("Writing manifest file to", manifestPath)
 	err = writeManifest(manifestPath, manifest)
@@ -168,21 +171,25 @@ func (index *Index) buildNewIndex() error {
 	return nil
 }
 
-func (index *Index) buildManifest() manifest {
+func (index *Index) buildManifest() (manifest, error) {
 	m := manifest{
 		Files: make([]manifestEntry, len(index.files)),
 		Count: index.count,
 	}
 
 	for i, f := range index.files {
-		info, _ := f.file.Stat()
+		crc, err := fileCrc(f.file.Name())
+		if err != nil {
+			return m, err
+		}
+
 		m.Files[i] = manifestEntry{
 			Name: filepath.Base(f.file.Name()),
-			Size: info.Size(),
+			CRC:  crc,
 		}
 	}
 
-	return m
+	return m, nil
 }
 
 func (index *Index) addFile(subPath string) error {

@@ -23,21 +23,25 @@ type indexFile struct {
 }
 
 type Index struct {
-	Path  string
-	Ready bool
+	Path    string
+	Ready   bool
+	Version string
 
 	files     []indexFile
 	readLocks []sync.Mutex
 
 	ldb   *leveldb.DB
 	count int
+
+	refcount sync.WaitGroup
 }
 
 // New creates a new Index instance.
-func New(path string) *Index {
+func New(path, version string) *Index {
 	index := Index{
-		Path:  path,
-		Ready: false,
+		Path:    path,
+		Ready:   false,
+		Version: version,
 	}
 
 	return &index

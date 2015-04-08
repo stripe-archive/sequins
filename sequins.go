@@ -21,14 +21,13 @@ type sequinsOptions struct {
 }
 
 type sequins struct {
-	options        sequinsOptions
-	backend        backend.Backend
-	index          *index.Index
-	http           *http.Server
-	currentVersion string
-	started        time.Time
-	updated        time.Time
-	reloadLock     sync.Mutex
+	options      sequinsOptions
+	backend      backend.Backend
+	indexMonitor index.IndexReference
+	http         *http.Server
+	started      time.Time
+	updated      time.Time
+	reloadLock   sync.Mutex
 }
 
 type status struct {
@@ -46,7 +45,7 @@ func newSequins(backend backend.Backend, options sequinsOptions) *sequins {
 	}
 }
 
-func (s *sequins) start(address string) error {
+func (s *sequins) init() error {
 	err := s.refresh()
 	if err != nil {
 		return err
@@ -56,7 +55,16 @@ func (s *sequins) start(address string) error {
 	s.started = now
 	s.updated = now
 
-	defer s.index.Close()
+	return nil
+}
+
+func (s *sequins) start(address string) error {
+	// TODO: we may need a more graceful way of shutting down, since this will
+	// cause requests that start processing after this runs to 500
+	// However, this may not be a problem, since you have to shift traffic to
+	// another instance before shutting down anyway, otherwise you'd have downtime
+
+	defer s.indexMonitor.Replace(nil).Close()
 
 	log.Printf("Listening on %s", address)
 	return http.ListenAndServe(address, s)
@@ -82,7 +90,14 @@ func (s *sequins) refresh() error {
 		return err
 	}
 
-	if version != s.currentVersion {
+	// We can use unsafe ref, since closing the index would not affect the version string
+	var currentVersion string
+	currentIndex := s.indexMonitor.UnsafeGet()
+	if currentIndex != nil {
+		currentVersion = currentIndex.Version
+	}
+
+	if version != currentVersion {
 		path := filepath.Join(s.options.LocalPath, version)
 
 		err := os.Mkdir(path, 0700|os.ModeDir)
@@ -101,17 +116,15 @@ func (s *sequins) refresh() error {
 		}
 
 		log.Printf("Preparing version %s at %s", version, path)
-		index := index.New(path)
+		index := index.New(path, version)
 		err = index.Load()
 		if err != nil {
 			return fmt.Errorf("Error while indexing: %s", err)
 		}
 
 		log.Printf("Switching to version %s!", version)
-		oldIndex := s.index
-		s.currentVersion = version
-		s.index = index
 
+		oldIndex := s.indexMonitor.Replace(index)
 		if oldIndex != nil {
 			oldIndex.Close()
 		}
@@ -124,7 +137,11 @@ func (s *sequins) refresh() error {
 
 func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/" {
-		count, err := s.index.Count()
+		index := s.indexMonitor.Get()
+		count, err := index.Count()
+		currentVersion := index.Version
+		s.indexMonitor.Release(index)
+
 		if err != nil {
 			log.Fatal(err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -132,7 +149,7 @@ func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		status := status{
-			Path:    s.backend.DisplayPath(s.currentVersion),
+			Path:    s.backend.DisplayPath(currentVersion),
 			Started: s.started.Unix(),
 			Updated: s.updated.Unix(),
 			Count:   count,
@@ -150,7 +167,11 @@ func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	key := strings.TrimPrefix(r.URL.Path, "/")
-	res, err := s.index.Get(key)
+
+	currentIndex := s.indexMonitor.Get()
+	res, err := currentIndex.Get(key)
+	s.indexMonitor.Release(currentIndex)
+
 	if err == index.ErrNotFound {
 		w.WriteHeader(http.StatusNotFound)
 	} else if err != nil {

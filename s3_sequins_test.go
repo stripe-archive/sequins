@@ -46,12 +46,7 @@ func getS3Sequins(t *testing.T) *sequins {
 	tmpDir, _ := ioutil.TempDir("", "sequins-")
 	s := newSequins(backend, sequinsOptions{tmpDir, false})
 
-	go func() {
-		err := s.start("localhost:0")
-		if err != nil {
-			t.Fatal(err)
-		}
-	}()
+	require.NoError(t, s.init())
 
 	time.Sleep(100 * time.Millisecond)
 	return s

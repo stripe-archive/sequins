@@ -2,3 +2,5 @@ sequins
 testdata
 .index
 .manifest
+*.swp
+test_scratch

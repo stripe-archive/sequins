@@ -92,6 +92,11 @@ func main() {
 		s = hdfsSetup(parsed.Host, parsed.Path, opts)
 	}
 
+	err = s.init()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	go func() {
 		log.Fatal(s.start(*address))
 	}()

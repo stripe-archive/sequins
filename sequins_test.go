@@ -37,6 +37,7 @@ func TestSequins(t *testing.T) {
 
 	assert.Equal(t, 200, w.Code)
 	assert.Equal(t, "Practice", w.Body.String(), "Practice")
+	assert.Equal(t, "1", w.HeaderMap.Get("ETag"))
 
 	req, _ = http.NewRequest("GET", "/foo", nil)
 	w = httptest.NewRecorder()
@@ -44,6 +45,7 @@ func TestSequins(t *testing.T) {
 
 	assert.Equal(t, 404, w.Code)
 	assert.Equal(t, "", w.Body.String())
+	assert.Equal(t, "", w.HeaderMap.Get("ETag"))
 
 	req, _ = http.NewRequest("GET", "/", nil)
 	w = httptest.NewRecorder()
@@ -57,6 +59,7 @@ func TestSequins(t *testing.T) {
 	assert.Equal(t, "test_data/1", status.Path)
 	assert.True(t, status.Started >= now)
 	assert.Equal(t, 3, status.Count)
+	assert.Equal(t, "1", status.Version)
 }
 
 func TestSequinsNoValidDirectories(t *testing.T) {

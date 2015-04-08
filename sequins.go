@@ -35,6 +35,7 @@ type status struct {
 	Started int64  `json:"started"`
 	Updated int64  `json:"updated"`
 	Count   int    `json:"count"`
+	Version string `json:"version"`
 }
 
 func newSequins(backend backend.Backend, options sequinsOptions) *sequins {
@@ -150,6 +151,7 @@ func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		status := status{
 			Path:    s.backend.DisplayPath(currentVersion),
+			Version: currentVersion,
 			Started: s.started.Unix(),
 			Updated: s.updated.Unix(),
 			Count:   count,
@@ -170,6 +172,7 @@ func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	currentIndex := s.indexReference.Get()
 	res, err := currentIndex.Get(key)
+	currentVersion := currentIndex.Version
 	s.indexReference.Release(currentIndex)
 
 	if err == index.ErrNotFound {
@@ -181,6 +184,8 @@ func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Explicitly unset Content-Type, so ServeContent doesn't try to do any
 		// sniffing.
 		w.Header()["Content-Type"] = nil
+
+		w.Header().Add("ETag", currentVersion)
 
 		http.ServeContent(w, r, key, s.updated, bytes.NewReader(res))
 	}

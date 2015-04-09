@@ -9,7 +9,7 @@ import (
 
 func TestIndex(t *testing.T) {
 	os.Remove("../test_data/0/.manifest")
-	index := New("../test_data/0")
+	index := New("../test_data/0", "0")
 	err := index.Load()
 	require.NoError(t, err)
 
@@ -32,7 +32,7 @@ func TestIndex(t *testing.T) {
 
 func TestIndexManifest(t *testing.T) {
 	os.Remove("../test_data/0/.manifest")
-	index := New("../test_data/0")
+	index := New("../test_data/0", "0")
 	err := index.Load()
 	require.NoError(t, err)
 
@@ -41,7 +41,7 @@ func TestIndexManifest(t *testing.T) {
 	assert.Equal(t, 3, count)
 
 	index.Close()
-	index = New("../test_data/0")
+	index = New("../test_data/0", "0")
 	err = index.Load()
 	require.NoError(t, err)
 

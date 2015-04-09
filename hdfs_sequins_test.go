@@ -37,14 +37,7 @@ func getHdfsSequins(t *testing.T) *sequins {
 	tmpDir, _ := ioutil.TempDir("", "sequins-")
 	s := newSequins(backend, sequinsOptions{tmpDir, false})
 
-	go func() {
-		err := s.start("localhost:0")
-		if err != nil {
-			t.Fatal(err)
-		}
-	}()
-
-	time.Sleep(100 * time.Millisecond)
+	require.NoError(t, s.init())
 	return s
 }
 

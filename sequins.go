@@ -185,7 +185,7 @@ func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// sniffing.
 		w.Header()["Content-Type"] = nil
 
-		w.Header().Add("ETag", currentVersion)
+		w.Header().Add("X-Sequins-Version", currentVersion)
 
 		http.ServeContent(w, r, key, s.updated, bytes.NewReader(res))
 	}

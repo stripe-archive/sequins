@@ -23,7 +23,7 @@ type sequinsOptions struct {
 type sequins struct {
 	options      sequinsOptions
 	backend      backend.Backend
-	indexMonitor index.IndexReference
+	indexReference index.IndexReference
 	http         *http.Server
 	started      time.Time
 	updated      time.Time
@@ -64,7 +64,7 @@ func (s *sequins) start(address string) error {
 	// However, this may not be a problem, since you have to shift traffic to
 	// another instance before shutting down anyway, otherwise you'd have downtime
 
-	defer s.indexMonitor.Replace(nil).Close()
+	defer s.indexReference.Replace(nil).Close()
 
 	log.Printf("Listening on %s", address)
 	return http.ListenAndServe(address, s)
@@ -92,7 +92,7 @@ func (s *sequins) refresh() error {
 
 	// We can use unsafe ref, since closing the index would not affect the version string
 	var currentVersion string
-	currentIndex := s.indexMonitor.UnsafeGet()
+	currentIndex := s.indexReference.UnsafeGet()
 	if currentIndex != nil {
 		currentVersion = currentIndex.Version
 	}
@@ -124,7 +124,7 @@ func (s *sequins) refresh() error {
 
 		log.Printf("Switching to version %s!", version)
 
-		oldIndex := s.indexMonitor.Replace(index)
+		oldIndex := s.indexReference.Replace(index)
 		if oldIndex != nil {
 			oldIndex.Close()
 		}
@@ -137,10 +137,10 @@ func (s *sequins) refresh() error {
 
 func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/" {
-		index := s.indexMonitor.Get()
+		index := s.indexReference.Get()
 		count, err := index.Count()
 		currentVersion := index.Version
-		s.indexMonitor.Release(index)
+		s.indexReference.Release(index)
 
 		if err != nil {
 			log.Fatal(err)
@@ -168,9 +168,9 @@ func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	key := strings.TrimPrefix(r.URL.Path, "/")
 
-	currentIndex := s.indexMonitor.Get()
+	currentIndex := s.indexReference.Get()
 	res, err := currentIndex.Get(key)
-	s.indexMonitor.Release(currentIndex)
+	s.indexReference.Release(currentIndex)
 
 	if err == index.ErrNotFound {
 		w.WriteHeader(http.StatusNotFound)

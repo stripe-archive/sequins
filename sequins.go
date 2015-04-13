@@ -65,7 +65,9 @@ func (s *sequins) start(address string) error {
 	// However, this may not be a problem, since you have to shift traffic to
 	// another instance before shutting down anyway, otherwise you'd have downtime
 
-	defer s.indexReference.Replace(nil).Close()
+	defer func() {
+		s.indexReference.Replace(nil).Close()
+	}()
 
 	log.Printf("Listening on %s", address)
 	return http.ListenAndServe(address, s)

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"github.com/NYTimes/gziphandler"
 )
 
 type sequinsOptions struct {
@@ -70,7 +71,11 @@ func (s *sequins) start(address string) error {
 	}()
 
 	log.Printf("Listening on %s", address)
-	return http.ListenAndServe(address, s)
+	return http.ListenAndServe(address, s.handler())
+}
+
+func (s *sequins) handler() http.Handler {
+	return gziphandler.GzipHandler(s)
 }
 
 func (s *sequins) reloadLatest() error {

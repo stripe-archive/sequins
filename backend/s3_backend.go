@@ -2,13 +2,15 @@ package backend
 
 import (
 	"fmt"
-	"github.com/crowdmob/goamz/s3"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/crowdmob/goamz/s3"
 )
 
 type S3Backend struct {
@@ -89,8 +91,22 @@ func (s *S3Backend) LatestVersion(checkForSuccess bool) (string, error) {
 	}
 }
 
-func (s *S3Backend) Download(version string, destPath string) error {
+func (s *S3Backend) Download(version string, destPath string) (rterr error) {
 	versionPrefix := path.Join(s.path, version)
+
+	// To avoid loading an incomplete download (#12), download into a temp dir
+	// then rename the temp dir to destPath only if all downloads succeed.
+	baseDir := path.Dir(destPath)
+	workDir, err := ioutil.TempDir(baseDir, fmt.Sprintf("version-%v", version))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		// Clean up the temp download dir in the event of a download error
+		if err := os.RemoveAll(workDir); err != nil && !os.IsNotExist(err) {
+			rterr = err
+		}
+	}()
 
 	// we'll assume large-ish files, and only download one at a time
 	marker := ""
@@ -110,7 +126,7 @@ func (s *S3Backend) Download(version string, destPath string) error {
 				continue
 			}
 
-			err = s.downloadFile(key.Key, filepath.Join(destPath, name))
+			err = s.downloadFile(key.Key, filepath.Join(workDir, name))
 			if err != nil {
 				return err
 			}
@@ -121,6 +137,10 @@ func (s *S3Backend) Download(version string, destPath string) error {
 		} else {
 			break
 		}
+	}
+
+	if err := os.Rename(workDir, destPath); err != nil {
+		return err
 	}
 
 	return nil
@@ -142,6 +162,7 @@ func (s *S3Backend) downloadFile(src string, dest string) error {
 
 	localFile, err := os.Create(dest)
 	if err != nil {
+		// If the local file already exists, check
 		return err
 	}
 

@@ -2,11 +2,14 @@ package backend
 
 import (
 	"fmt"
-	"github.com/colinmarc/hdfs"
+	"io/ioutil"
 	"log"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/colinmarc/hdfs"
 )
 
 type HdfsBackend struct {
@@ -42,12 +45,26 @@ func (h *HdfsBackend) LatestVersion(checkForSuccess bool) (string, error) {
 	return "", fmt.Errorf("No valid versions at %s", h.displayURL(h.path))
 }
 
-func (h *HdfsBackend) Download(version string, destPath string) error {
+func (h *HdfsBackend) Download(version string, destPath string) (rterr error) {
 	versionPath := path.Join(h.path, version)
 	files, err := h.client.ReadDir(versionPath)
 	if err != nil {
 		return err
 	}
+
+	// To avoid loading an incomplete download (#12), download into a temp dir
+	// then rename the temp dir to destPath only if all downloads succeed.
+	baseDir := path.Dir(destPath)
+	workDir, err := ioutil.TempDir(baseDir, fmt.Sprintf("version-%v", version))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		// Clean up the temp download dir in the event of a download error
+		if err := os.RemoveAll(workDir); err != nil && !os.IsNotExist(err) {
+			rterr = err
+		}
+	}()
 
 	for _, file := range files {
 		if file.IsDir() {
@@ -55,13 +72,17 @@ func (h *HdfsBackend) Download(version string, destPath string) error {
 		}
 
 		src := path.Join(versionPath, file.Name())
-		dest := filepath.Join(destPath, file.Name())
+		dest := filepath.Join(workDir, file.Name())
 
 		log.Printf("Downloading %s to %s", h.displayURL(src), dest)
 		err = h.client.CopyToLocal(src, dest)
 		if err != nil {
 			return err
 		}
+	}
+
+	if err := os.Rename(workDir, destPath); err != nil {
+		return err
 	}
 
 	return nil

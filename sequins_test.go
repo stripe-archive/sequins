@@ -1,6 +1,7 @@
 package main
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/assert"
@@ -30,18 +31,35 @@ func getSequins(t *testing.T, opts sequinsOptions) *sequins {
 
 func TestSequins(t *testing.T) {
 	ts := getSequins(t, sequinsOptions{"test_data", false})
+	h := ts.handler()
 
 	req, _ := http.NewRequest("GET", "/Alice", nil)
 	w := httptest.NewRecorder()
-	ts.ServeHTTP(w, req)
+	h.ServeHTTP(w, req)
 
 	assert.Equal(t, 200, w.Code)
+	assert.Equal(t, "", w.HeaderMap.Get("Content-Encoding"))
 	assert.Equal(t, "Practice", w.Body.String(), "Practice")
+	assert.Equal(t, "1", w.HeaderMap.Get("X-Sequins-Version"))
+
+	req, _ = http.NewRequest("GET", "/Alice", nil)
+	req.Header.Add("Accept-Encoding", "gzip")
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	assert.Equal(t, 200, w.Code)
+	assert.Equal(t, "gzip", w.HeaderMap.Get("Content-Encoding"))
+	str := w.Body.String()
+	reader, err:= gzip.NewReader(w.Body)
+	assert.NoError(t, err)
+	contents, err := ioutil.ReadAll(reader)
+	assert.NoError(t, err)
+	assert.Equal(t, "Practice", string(contents), str)
 	assert.Equal(t, "1", w.HeaderMap.Get("X-Sequins-Version"))
 
 	req, _ = http.NewRequest("GET", "/foo", nil)
 	w = httptest.NewRecorder()
-	ts.ServeHTTP(w, req)
+	h.ServeHTTP(w, req)
 
 	assert.Equal(t, 404, w.Code)
 	assert.Equal(t, "", w.Body.String())
@@ -49,11 +67,11 @@ func TestSequins(t *testing.T) {
 
 	req, _ = http.NewRequest("GET", "/", nil)
 	w = httptest.NewRecorder()
-	ts.ServeHTTP(w, req)
+	h.ServeHTTP(w, req)
 
 	now := time.Now().Unix() - 1
 	status := &status{}
-	err := json.Unmarshal(w.Body.Bytes(), status)
+	err = json.Unmarshal(w.Body.Bytes(), status)
 	require.NoError(t, err)
 	assert.Equal(t, 200, w.Code)
 	assert.Equal(t, "test_data/1", status.Path)
@@ -75,6 +93,7 @@ func TestSequinsThreadsafe(t *testing.T) {
 	require.NoError(t, err)
 	createTestIndex(t, scratch, 0)
 	ts := newSequins(backend.NewLocalBackend(scratch), sequinsOptions{scratch, false})
+	h := ts.handler()
 	require.NoError(t, ts.init())
 
 	var wg sync.WaitGroup
@@ -87,7 +106,7 @@ func TestSequinsThreadsafe(t *testing.T) {
 				assert.NoError(t, err)
 
 				w := httptest.NewRecorder()
-				ts.ServeHTTP(w, req)
+				h.ServeHTTP(w, req)
 
 				if w.Code != 200 && w.Code != 404 {
 					// we might get either response, depending on which version of the db we see

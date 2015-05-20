@@ -3,7 +3,6 @@ package backend
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -94,20 +93,6 @@ func (s *S3Backend) LatestVersion(checkForSuccess bool) (string, error) {
 func (s *S3Backend) Download(version string, destPath string) (rterr error) {
 	versionPrefix := path.Join(s.path, version)
 
-	// To avoid loading an incomplete download (#12), download into a temp dir
-	// then rename the temp dir to destPath only if all downloads succeed.
-	baseDir := path.Dir(destPath)
-	workDir, err := ioutil.TempDir(baseDir, fmt.Sprintf("version-%v", version))
-	if err != nil {
-		return err
-	}
-	defer func() {
-		// Clean up the temp download dir in the event of a download error
-		if err := os.RemoveAll(workDir); err != nil && !os.IsNotExist(err) {
-			rterr = err
-		}
-	}()
-
 	// we'll assume large-ish files, and only download one at a time
 	marker := ""
 	for {
@@ -126,7 +111,7 @@ func (s *S3Backend) Download(version string, destPath string) (rterr error) {
 				continue
 			}
 
-			err = s.downloadFile(key.Key, filepath.Join(workDir, name))
+			err = s.downloadFile(key.Key, filepath.Join(destPath, name))
 			if err != nil {
 				return err
 			}
@@ -137,10 +122,6 @@ func (s *S3Backend) Download(version string, destPath string) (rterr error) {
 		} else {
 			break
 		}
-	}
-
-	if err := os.Rename(workDir, destPath); err != nil {
-		return err
 	}
 
 	return nil

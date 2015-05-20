@@ -2,9 +2,7 @@ package backend
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
-	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -52,37 +50,19 @@ func (h *HdfsBackend) Download(version string, destPath string) (rterr error) {
 		return err
 	}
 
-	// To avoid loading an incomplete download (#12), download into a temp dir
-	// then rename the temp dir to destPath only if all downloads succeed.
-	baseDir := path.Dir(destPath)
-	workDir, err := ioutil.TempDir(baseDir, fmt.Sprintf("version-%v", version))
-	if err != nil {
-		return err
-	}
-	defer func() {
-		// Clean up the temp download dir in the event of a download error
-		if err := os.RemoveAll(workDir); err != nil && !os.IsNotExist(err) {
-			rterr = err
-		}
-	}()
-
 	for _, file := range files {
 		if file.IsDir() {
 			continue
 		}
 
 		src := path.Join(versionPath, file.Name())
-		dest := filepath.Join(workDir, file.Name())
+		dest := filepath.Join(destPath, file.Name())
 
 		log.Printf("Downloading %s to %s", h.displayURL(src), dest)
 		err = h.client.CopyToLocal(src, dest)
 		if err != nil {
 			return err
 		}
-	}
-
-	if err := os.Rename(workDir, destPath); err != nil {
-		return err
 	}
 
 	return nil

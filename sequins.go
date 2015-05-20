@@ -4,16 +4,19 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/stripe/sequins/backend"
-	"github.com/stripe/sequins/index"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 	"github.com/NYTimes/gziphandler"
+
+	"github.com/stripe/sequins/backend"
+	"github.com/stripe/sequins/index"
 )
 
 type sequinsOptions struct {
@@ -22,13 +25,13 @@ type sequinsOptions struct {
 }
 
 type sequins struct {
-	options      sequinsOptions
-	backend      backend.Backend
+	options        sequinsOptions
+	backend        backend.Backend
 	indexReference index.IndexReference
-	http         *http.Server
-	started      time.Time
-	updated      time.Time
-	reloadLock   sync.Mutex
+	http           *http.Server
+	started        time.Time
+	updated        time.Time
+	reloadLock     sync.Mutex
 }
 
 type status struct {
@@ -117,7 +120,7 @@ func (s *sequins) refresh() error {
 			log.Printf("Version %s is already downloaded", version)
 		} else {
 			log.Printf("Downloading version %s from %s", version, s.backend.DisplayPath(version))
-			err = s.backend.Download(version, path)
+			err = s.download(version, path)
 			if err != nil {
 				return err
 			}
@@ -140,6 +143,31 @@ func (s *sequins) refresh() error {
 		log.Printf("%s is already the newest version, so not reloading.", version)
 	}
 
+	return nil
+}
+
+func (s *sequins) download(version, destPath string) (rterr error) {
+	// To avoid loading an incomplete download (#12), download into a temp dir
+	// then rename the temp dir to destPath only if all downloads succeed.
+	baseDir := path.Dir(destPath)
+	workDir, err := ioutil.TempDir(baseDir, fmt.Sprintf("version-%v", version))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		// Clean up the temp download dir in the event of a download error
+		if err := os.RemoveAll(workDir); err != nil && !os.IsNotExist(err) {
+			rterr = err
+		}
+	}()
+
+	if err := s.backend.Download(version, workDir); err != nil {
+		return err
+	}
+
+	if err := os.Rename(workDir, destPath); err != nil {
+		return err
+	}
 	return nil
 }
 

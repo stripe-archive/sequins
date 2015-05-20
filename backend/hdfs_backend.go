@@ -2,11 +2,12 @@ package backend
 
 import (
 	"fmt"
-	"github.com/colinmarc/hdfs"
 	"log"
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/colinmarc/hdfs"
 )
 
 type HdfsBackend struct {

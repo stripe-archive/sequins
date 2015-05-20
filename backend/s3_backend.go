@@ -2,13 +2,14 @@ package backend
 
 import (
 	"fmt"
-	"github.com/crowdmob/goamz/s3"
 	"io"
 	"log"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/crowdmob/goamz/s3"
 )
 
 type S3Backend struct {
@@ -142,6 +143,7 @@ func (s *S3Backend) downloadFile(src string, dest string) error {
 
 	localFile, err := os.Create(dest)
 	if err != nil {
+		// If the local file already exists, check
 		return err
 	}
 

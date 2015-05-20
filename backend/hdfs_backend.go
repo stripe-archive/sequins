@@ -43,7 +43,7 @@ func (h *HdfsBackend) LatestVersion(checkForSuccess bool) (string, error) {
 	return "", fmt.Errorf("No valid versions at %s", h.displayURL(h.path))
 }
 
-func (h *HdfsBackend) Download(version string, destPath string) (rterr error) {
+func (h *HdfsBackend) Download(version string, destPath string) error {
 	versionPath := path.Join(h.path, version)
 	files, err := h.client.ReadDir(versionPath)
 	if err != nil {

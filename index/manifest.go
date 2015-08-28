@@ -2,15 +2,21 @@ package index
 
 import (
 	"encoding/json"
+	"errors"
 	"hash/crc32"
 	"io"
 	"io/ioutil"
 	"os"
 )
 
+const manifestVersion = 1
+
+var ErrWrongVersion = errors.New("Wrong manifest version")
+
 type manifest struct {
-	Files []manifestEntry `json:"files"`
-	Count int             `json:"count"`
+	Version int             `json:"version"`
+	Files   []manifestEntry `json:"files"`
+	Count   int             `json:"count"`
 }
 
 type manifestEntry struct {
@@ -33,7 +39,15 @@ func readManifest(path string) (manifest, error) {
 	}
 
 	err = json.Unmarshal(bytes, &m)
-	return m, err
+	if err != nil {
+		return m, err
+	}
+
+	if m.Version != manifestVersion {
+		return m, ErrWrongVersion
+	}
+
+	return m, nil
 }
 
 func writeManifest(path string, m manifest) error {

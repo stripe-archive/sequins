@@ -178,8 +178,9 @@ func (index *Index) buildNewIndex() error {
 
 func (index *Index) buildManifest() (manifest, error) {
 	m := manifest{
-		Files: make([]manifestEntry, len(index.files)),
-		Count: index.count,
+		Version: manifestVersion,
+		Files:   make([]manifestEntry, len(index.files)),
+		Count:   index.count,
 	}
 
 	for i, f := range index.files {

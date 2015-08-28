@@ -9,10 +9,13 @@ import (
 	"os"
 )
 
+const maxSyncRead = 102400 // 100k
+var ErrNoSync = fmt.Errorf("Couldn't find a valid sync marker within %d bytes", maxSyncRead)
+
 // A Reader reads key/value pairs from an input stream.
 type Reader struct {
-	Header          Header
-	syncMarkerBytes []byte
+	Header     Header
+	syncMarker []byte
 
 	reader io.Reader
 	closed bool
@@ -59,6 +62,56 @@ func (r *Reader) Key() []byte {
 // reused after the next call to Scan.
 func (r *Reader) Value() []byte {
 	return r.value
+}
+
+// Sync reads forward in the file until it finds the next sync marker. After
+// calling Sync, the Reader will be placed right before the next record. This
+// allows you to seek the underlying Reader to a random offset, and then realign
+// with a record.
+func (r *Reader) Sync() error {
+	var read int64
+	readNext := SyncSize
+	buf := new(bytes.Buffer)
+
+	for read < maxSyncRead {
+		buf.Grow(readNext)
+		n, err := io.CopyN(buf, r.reader, int64(readNext))
+		read += n
+		if err != nil {
+			return err
+		}
+
+		// Try to find part of the sync marker in the buffer we read. If we find any
+		// part of it that matches, pretend it is the beginning of it and only read
+		// enough to get the whole thing. That way, we never read too much.
+		//
+		// This method is heavy on read calls, but ensures that the underlying
+		// reader always has the correct offset.
+		found := false
+		b := buf.Bytes()
+		for off := 0; off < SyncSize; off++ {
+			if bytes.Compare(b[off:], r.syncMarker[:(SyncSize-off)]) == 0 {
+				if off == 0 {
+					// Found it!
+					return nil
+				}
+
+				// Found what looks like a chunk of it. Cycle the buffer forward, and
+				// prepare to read what should be the rest of the sync marker.
+				found = true
+				io.CopyN(ioutil.Discard, buf, int64(off))
+				readNext = off
+				break
+			}
+		}
+
+		if !found {
+			buf.Reset()
+			readNext = SyncSize
+		}
+	}
+
+	return ErrNoSync
 }
 
 func (r *Reader) scan(readValues bool) bool {
@@ -150,11 +203,11 @@ func (r *Reader) checkSyncAndScan(readValues bool) bool {
 
 	// If we never read the Header, infer the sync marker from the first time we
 	// see it.
-	if r.syncMarkerBytes == []byte(nil) {
-		r.syncMarkerBytes = make([]byte, SyncSize)
-		copy(r.syncMarkerBytes, b)
-	} else if !bytes.Equal(b, r.syncMarkerBytes) {
-		r.close(fmt.Errorf("Invalid sync marker: %x vs %x", b, r.syncMarkerBytes))
+	if r.syncMarker == []byte(nil) {
+		r.syncMarker = make([]byte, SyncSize)
+		copy(r.syncMarker, b)
+	} else if !bytes.Equal(b, r.syncMarker) {
+		r.close(fmt.Errorf("Invalid sync marker: %x vs %x", b, r.syncMarker))
 		return false
 	}
 

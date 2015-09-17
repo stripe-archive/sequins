@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/NYTimes/gziphandler"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -13,7 +14,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"github.com/NYTimes/gziphandler"
 
 	"github.com/stripe/sequins/backend"
 	"github.com/stripe/sequins/index"

@@ -2,11 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/colinmarc/hdfs"
-	"github.com/crowdmob/goamz/aws"
-	"github.com/crowdmob/goamz/s3"
-	"github.com/stripe/sequins/backend"
-	"gopkg.in/alecthomas/kingpin.v1"
 	"io/ioutil"
 	"log"
 	"net/url"
@@ -15,6 +10,12 @@ import (
 	"path/filepath"
 	"syscall"
 	"time"
+
+	"github.com/colinmarc/hdfs"
+	"github.com/crowdmob/goamz/aws"
+	"github.com/crowdmob/goamz/s3"
+	"github.com/stripe/sequins/backend"
+	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 const (
@@ -60,6 +61,8 @@ automatically check for new versions and update to them. Best used with
 )
 
 var (
+	version string
+
 	address             = kingpin.Flag("bind", "Address to bind to.").Short('b').Default("localhost:9599").PlaceHolder("ADDRESS").String()
 	localPath           = kingpin.Flag("local-path", localPathDesc).Short('l').String()
 	checkForSuccessFile = kingpin.Flag("check-for-success", checkForSuccessFileDesc).Short('c').Bool()
@@ -73,7 +76,7 @@ var (
 )
 
 func main() {
-	kingpin.Version(version)
+	kingpin.Version("sequins version " + version)
 	kingpin.Parse()
 
 	parsed, err := url.Parse(*uri)

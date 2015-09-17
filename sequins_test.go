@@ -50,7 +50,7 @@ func TestSequins(t *testing.T) {
 	assert.Equal(t, 200, w.Code)
 	assert.Equal(t, "gzip", w.HeaderMap.Get("Content-Encoding"))
 	str := w.Body.String()
-	reader, err:= gzip.NewReader(w.Body)
+	reader, err := gzip.NewReader(w.Body)
 	assert.NoError(t, err)
 	contents, err := ioutil.ReadAll(reader)
 	assert.NoError(t, err)

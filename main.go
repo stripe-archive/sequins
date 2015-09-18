@@ -136,7 +136,7 @@ func localSetup(localPath string, opts sequinsOptions) *sequins {
 	}
 
 	backend := backend.NewLocalBackend(absPath)
-	opts.LocalPath = absPath
+	opts.localPath = absPath
 
 	return newSequins(backend, opts)
 }
@@ -162,13 +162,13 @@ func s3Setup(bucketName string, path string, opts sequinsOptions) *sequins {
 
 	bucket := s3.New(auth, region).Bucket(bucketName)
 	backend := backend.NewS3Backend(bucket, path)
-	if opts.LocalPath == "" {
+	if opts.localPath == "" {
 		tmpDir, err := ioutil.TempDir("", "sequins-")
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		opts.LocalPath = tmpDir
+		opts.localPath = tmpDir
 	}
 
 	return newSequins(backend, opts)
@@ -181,13 +181,13 @@ func hdfsSetup(namenode string, path string, opts sequinsOptions) *sequins {
 	}
 
 	backend := backend.NewHdfsBackend(client, namenode, path)
-	if opts.LocalPath == "" {
+	if opts.localPath == "" {
 		tmpDir, err := ioutil.TempDir("", "sequins-")
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		opts.LocalPath = tmpDir
+		opts.localPath = tmpDir
 	}
 
 	return newSequins(backend, opts)

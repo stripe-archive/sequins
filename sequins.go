@@ -20,8 +20,8 @@ import (
 )
 
 type sequinsOptions struct {
-	LocalPath           string
-	CheckForSuccessFile bool
+	localPath           string
+	checkForSuccessFile bool
 }
 
 type sequins struct {
@@ -96,7 +96,7 @@ func (s *sequins) refresh() error {
 	s.reloadLock.Lock()
 	defer s.reloadLock.Unlock()
 
-	version, err := s.backend.LatestVersion(s.options.CheckForSuccessFile)
+	version, err := s.backend.LatestVersion(s.options.checkForSuccessFile)
 	if err != nil {
 		return err
 	}
@@ -109,14 +109,9 @@ func (s *sequins) refresh() error {
 	}
 
 	if version != currentVersion {
-		path := filepath.Join(s.options.LocalPath, version)
+		path := filepath.Join(s.options.localPath, version)
 
-		err := os.Mkdir(path, 0700|os.ModeDir)
-		if err != nil && !os.IsExist(err) {
-			return err
-		}
-
-		if os.IsExist(err) {
+		if _, err := os.Stat(path); err == nil {
 			log.Printf("Version %s is already downloaded", version)
 		} else {
 			log.Printf("Downloading version %s from %s", version, s.backend.DisplayPath(version))
@@ -146,28 +141,26 @@ func (s *sequins) refresh() error {
 	return nil
 }
 
-func (s *sequins) download(version, destPath string) (rterr error) {
-	// To avoid loading an incomplete download (#12), download into a temp dir
-	// then rename the temp dir to destPath only if all downloads succeed.
-	baseDir := path.Dir(destPath)
-	workDir, err := ioutil.TempDir(baseDir, fmt.Sprintf("version-%v", version))
+func (s *sequins) download(version, destPath string) error {
+	workDir, err := ioutil.TempDir(path.Dir(destPath), fmt.Sprintf("version-%s-tmp-", version))
 	if err != nil {
 		return err
 	}
-	defer func() {
-		// Clean up the temp download dir in the event of a download error
-		if err := os.RemoveAll(workDir); err != nil && !os.IsNotExist(err) {
-			rterr = err
-		}
-	}()
 
-	if err := s.backend.Download(version, workDir); err != nil {
+	// Clean up the temp download dir in the event of a download error
+	defer os.RemoveAll(workDir)
+
+	err = s.backend.Download(version, workDir)
+	if err != nil {
 		return err
 	}
 
-	if err := os.Rename(workDir, destPath); err != nil {
+	err = os.Rename(workDir, destPath)
+	if err != nil {
+		os.RemoveAll(destPath)
 		return err
 	}
+
 	return nil
 }
 

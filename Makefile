@@ -5,15 +5,17 @@ RELEASE_NAME = sequins-$(TRAVIS_TAG)-$(ARCH)
 all: sequins sequins-dump
 
 sequins: get-deps
-	go build -ldflags "-X main.version=$(TRAVIS_TAG)"
+	go build -x -ldflags "-X main.version=$(TRAVIS_TAG)"
 
 sequins-dump:
-	go build -ldflags "-X main.version=$(TRAVIS_TAG)"  ./cmd/sequins-dump
+	go build -x -ldflags "-X main.version=$(TRAVIS_TAG)"  ./cmd/sequins-dump
 
 install: get-deps
 	go install
 
 release: sequins sequins-dump
+	./sequins --version
+	./sequins-dump --version
 	mkdir -p $(RELEASE_NAME)
 	cp sequins sequins-dump README.md LICENSE.txt $(RELEASE_NAME)/
 	tar -cvzf $(RELEASE_NAME).tar.gz $(RELEASE_NAME)

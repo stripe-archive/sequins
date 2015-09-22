@@ -1,7 +1,8 @@
 language: go
-go: 1.4
+go: 1.5
+sudo: false
 script: make test
-before_deploy: make release
+before_deploy: make clean release
 deploy:
   provider: releases
   api_key:

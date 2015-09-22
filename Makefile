@@ -5,10 +5,10 @@ RELEASE_NAME = sequins-$(TRAVIS_TAG)-$(ARCH)
 all: sequins sequins-dump
 
 sequins: get-deps
-	go build -ldflags "-X main.version=$(TRAVIS_TAG)"
+	go build -x -ldflags "-X main.version=$(TRAVIS_TAG)"
 
 sequins-dump:
-	go build -ldflags "-X main.version=$(TRAVIS_TAG)"  ./cmd/sequins-dump
+	go build -x -ldflags "-X main.version=$(TRAVIS_TAG)"  ./cmd/sequins-dump
 
 install: get-deps
 	go install

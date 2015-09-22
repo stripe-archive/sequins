@@ -14,6 +14,8 @@ install: get-deps
 	go install
 
 release: sequins sequins-dump
+	./sequins --version
+	./sequins-dump --version
 	mkdir -p $(RELEASE_NAME)
 	cp sequins sequins-dump README.md LICENSE.txt $(RELEASE_NAME)/
 	tar -cvzf $(RELEASE_NAME).tar.gz $(RELEASE_NAME)

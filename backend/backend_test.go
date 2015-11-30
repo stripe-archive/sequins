@@ -8,14 +8,14 @@ import (
 )
 
 func TestBackend(t *testing.T) {
-	backend := NewLocalBackend("../test_data")
+	backend := NewLocalBackend("../test/names")
 	version, err := backend.LatestVersion(false)
 	require.NoError(t, err)
 	assert.Equal(t, version, "1")
 }
 
 func TestBackendCheckForSuccess(t *testing.T) {
-	backend := NewLocalBackend("../test_data")
+	backend := NewLocalBackend("../test/names")
 	version, err := backend.LatestVersion(true)
 	require.NoError(t, err)
 	assert.Equal(t, version, "0")

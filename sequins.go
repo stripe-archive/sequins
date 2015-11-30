@@ -39,7 +39,6 @@ type status struct {
 	Path    string `json:"path"`
 	Started int64  `json:"started"`
 	Updated int64  `json:"updated"`
-	Count   int    `json:"count"`
 	Version string `json:"version"`
 }
 
@@ -168,22 +167,14 @@ func (s *sequins) download(version, destPath string) error {
 func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/" {
 		index := s.indexReference.Get()
-		count, err := index.Count()
 		currentVersion := index.Version
 		s.indexReference.Release(index)
-
-		if err != nil {
-			log.Fatal(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
 
 		status := status{
 			Path:    s.backend.DisplayPath(currentVersion),
 			Version: currentVersion,
 			Started: s.started.Unix(),
 			Updated: s.updated.Unix(),
-			Count:   count,
 		}
 
 		jsonBytes, err := json.Marshal(status)

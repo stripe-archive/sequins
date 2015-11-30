@@ -11,7 +11,7 @@ import (
 )
 
 func TestReadFile(t *testing.T) {
-	file, err := os.Open("../test_data/0/part-00000")
+	file, err := os.Open("../test/names/0/part-00000")
 	require.NoError(t, err)
 
 	r := New(file)

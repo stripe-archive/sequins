@@ -3,8 +3,6 @@ package index
 import (
 	"encoding/json"
 	"errors"
-	"hash/crc32"
-	"io"
 	"io/ioutil"
 	"os"
 )
@@ -20,8 +18,16 @@ type manifest struct {
 }
 
 type manifestEntry struct {
-	Name string `json:"name"`
-	CRC  uint32 `json:"crc"`
+	Name            string          `json:"name"`
+	Size            int64           `json:"size"`
+	IndexProperties indexProperties `json:"index_properties"`
+}
+
+type indexProperties struct {
+	Sparse            bool   `json:"sparse"`
+	HashcodePartition int    `json:"hashcode_partition"`
+	MinKey            []byte `json:"min_key"`
+	MaxKey            []byte `json:"max_key"`
 }
 
 func readManifest(path string) (manifest, error) {
@@ -64,19 +70,4 @@ func writeManifest(path string, m manifest) error {
 	defer writer.Close()
 	_, err = writer.Write(bytes)
 	return err
-}
-
-func fileCrc(path string) (uint32, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return 0, err
-	}
-
-	hash := crc32.NewIEEE()
-	_, err = io.Copy(hash, file)
-	if err != nil {
-		return 0, err
-	}
-
-	return hash.Sum32(), nil
 }

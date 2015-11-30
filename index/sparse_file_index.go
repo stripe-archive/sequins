@@ -42,6 +42,7 @@ type sparseFileIndex struct {
 	minKey    []byte
 
 	sourceFile     *os.File
+	bufferedReader *bufferedReadSeeker
 	reader         *sequencefile.Reader
 	readLock       sync.Mutex
 }
@@ -87,7 +88,7 @@ func (sfi *sparseFileIndex) get(key []byte) ([]byte, error) {
 	}
 
 	startOffset := sfi.table[closest].offset
-	_, err := sfi.sourceFile.Seek(startOffset, os.SEEK_SET)
+	_, err := sfi.bufferedReader.Seek(startOffset, os.SEEK_SET)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +151,7 @@ func (sfi *sparseFileIndex) build() error {
 
 	// Start jumping through the file, recording keys as we go.
 	for {
-		offset, err := sfi.sourceFile.Seek(0, os.SEEK_CUR)
+		offset, err := sfi.bufferedReader.Seek(0, os.SEEK_CUR)
 		if err != nil {
 			return err
 		}
@@ -210,7 +211,7 @@ func (sfi *sparseFileIndex) build() error {
 				// reading another consecutive range of keys will help make extra sure
 				// that it's sorted.
 				sfi.skip = false
-				sfi.sourceFile.Seek(checkpoint, os.SEEK_SET)
+				sfi.bufferedReader.Seek(checkpoint, os.SEEK_SET)
 
 				// Skip the record we just read.
 				sfi.reader.ScanKey()
@@ -237,7 +238,8 @@ func (sfi *sparseFileIndex) open() error {
 	// Since we know we might be scanning for a while before we find the
 	// key, it's useful to use a buffered reader.
 	sfi.sourceFile = f
-	sfi.reader = sequencefile.New(sfi.sourceFile)
+	sfi.bufferedReader = newBufferedReadSeeker(sfi.sourceFile)
+	sfi.reader = sequencefile.New(sfi.bufferedReader)
 	return sfi.reader.ReadHeader()
 }
 
@@ -270,7 +272,7 @@ func (sfi *sparseFileIndex) manifestEntry() (manifestEntry, error) {
 }
 
 func (sfi *sparseFileIndex) skipAndSync() error {
-	_, err := sfi.sourceFile.Seek(skipSize, os.SEEK_CUR)
+	_, err := sfi.bufferedReader.Seek(skipSize, os.SEEK_CUR)
 	if err != nil {
 		return err
 	}

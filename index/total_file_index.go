@@ -24,6 +24,7 @@ type totalFileIndex struct {
 	hashcodePartition int32
 
 	sourceFile     *os.File
+	bufferedReader *bufferedReadSeeker
 	reader         *sequencefile.Reader
 	cdb            *cdb.CDB
 	readLock       sync.Mutex
@@ -56,7 +57,7 @@ func (tfi *totalFileIndex) get(key []byte) ([]byte, error) {
 	}
 
 	offset := deserializeIndexEntry(entry)
-	_, err = tfi.sourceFile.Seek(offset, os.SEEK_SET)
+	_, err = tfi.bufferedReader.Seek(offset, os.SEEK_SET)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +111,7 @@ func (tfi *totalFileIndex) build() error {
 
 	entry := make([]byte, 8)
 	for {
-		offset, err := tfi.sourceFile.Seek(0, os.SEEK_CUR)
+		offset, err := tfi.bufferedReader.Seek(0, os.SEEK_CUR)
 		if err != nil {
 			return err
 		}
@@ -154,7 +155,8 @@ func (tfi *totalFileIndex) open() error {
 	}
 
 	tfi.sourceFile = f
-	tfi.reader = sequencefile.New(tfi.sourceFile)
+	tfi.bufferedReader = newBufferedReadSeeker(tfi.sourceFile)
+	tfi.reader = sequencefile.New(tfi.bufferedReader)
 	return tfi.reader.ReadHeader()
 }
 

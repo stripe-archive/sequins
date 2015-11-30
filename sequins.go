@@ -4,18 +4,17 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/stripe/sequins/backend"
-	"github.com/stripe/sequins/index"
+	"github.com/stripe/sequins/blocks"
+	"github.com/stripe/sequins/sequencefile"
 )
 
 type sequinsOptions struct {
@@ -24,10 +23,11 @@ type sequinsOptions struct {
 }
 
 type sequins struct {
-	options        sequinsOptions
-	backend        backend.Backend
-	indexReference index.IndexReference
-	http           *http.Server
+	options    sequinsOptions
+	backend    backend.Backend
+	blockStore blocks.BlockStoreReference
+	http       *http.Server
+
 	started        time.Time
 	updated        time.Time
 	reloadLock     sync.Mutex
@@ -37,7 +37,6 @@ type status struct {
 	Path    string `json:"path"`
 	Started int64  `json:"started"`
 	Updated int64  `json:"updated"`
-	Count   int    `json:"count"`
 	Version string `json:"version"`
 }
 
@@ -67,10 +66,7 @@ func (s *sequins) start(address string) error {
 	// cause requests that start processing after this runs to 500
 	// However, this may not be a problem, since you have to shift traffic to
 	// another instance before shutting down anyway, otherwise you'd have downtime
-
-	defer func() {
-		s.indexReference.Replace(nil).Close()
-	}()
+	defer s.blockStore.Replace(nil, "").Close()
 
 	log.Printf("Listening on %s", address)
 	return http.ListenAndServe(address, s)
@@ -96,93 +92,90 @@ func (s *sequins) refresh() error {
 		return err
 	}
 
-	// We can use unsafe ref, since closing the index would not affect the version string
-	var currentVersion string
-	currentIndex := s.indexReference.UnsafeGet()
-	if currentIndex != nil {
-		currentVersion = currentIndex.Version
-	}
-
-	if version != currentVersion {
-		path := filepath.Join(s.options.localPath, version)
-
-		if _, err := os.Stat(path); err == nil {
-			log.Printf("Version %s is already downloaded", version)
-		} else {
-			log.Printf("Downloading version %s from %s", version, s.backend.DisplayPath(version))
-			err = s.download(version, path)
-			if err != nil {
-				return err
-			}
-		}
-
-		log.Printf("Preparing version %s at %s", version, path)
-		index := index.New(path, version)
-		err = index.Load()
-		if err != nil {
-			return fmt.Errorf("Error while indexing: %s", err)
-		}
-
-		log.Printf("Switching to version %s!", version)
-
-		oldIndex := s.indexReference.Replace(index)
-		if oldIndex != nil {
-			oldIndex.Close()
-		}
-	} else {
+	currentBlockStore, currentVersion := s.blockStore.Get()
+	s.blockStore.Release(currentBlockStore)
+	if version == currentVersion {
 		log.Printf("%s is already the newest version, so not reloading.", version)
+		return nil
 	}
 
+	files, err := s.backend.ListFiles(version)
+	if err != nil {
+		return err
+	}
+
+	path := filepath.Join(s.options.localPath, version)
+
+	_, err = os.Stat(filepath.Join(path, ".manifest"))
+	if err == nil {
+		log.Println("Loading version from existing manifest at", path)
+		blockStore, err := blocks.NewFromManifest(path)
+		if err == nil {
+			s.updateBlockStore(blockStore, version)
+			return nil
+		} else {
+			log.Println("Error loading version", version, "from manifest:", err)
+		}
+	}
+
+	log.Println("Loading version", version, "from", s.backend.DisplayPath(version), "into local directory", path)
+
+	log.Println("Clearing local directory", path)
+	os.RemoveAll(path)
+	err = os.MkdirAll(path, 0755 | os.ModeDir)
+	if err != nil {
+		return fmt.Errorf("Error creating local storage directory: %s", err)
+	}
+
+	blockStore := blocks.New(path, len(files), nil)
+	for _, file := range files {
+		log.Println("Reading records from", file, "at", s.backend.DisplayPath(version))
+
+		stream, err := s.backend.Open(version, file)
+		if err != nil {
+			return fmt.Errorf("Error reading file %s: %s", file, err)
+		}
+
+		sf := sequencefile.New(stream)
+		err = sf.ReadHeader()
+		if err != nil {
+			return fmt.Errorf("Error reading header from file %s: %s", file, err)
+		}
+
+		err = blockStore.AddFile(sf)
+		if err != nil {
+			return fmt.Errorf("Error loading version %s: %s", version, err)
+		}
+	}
+
+	blockStore.SaveManifest()
+	s.updateBlockStore(blockStore, version)
 	return nil
 }
 
-func (s *sequins) download(version, destPath string) error {
-	workDir, err := ioutil.TempDir(path.Dir(destPath), fmt.Sprintf("version-%s-tmp-", version))
-	if err != nil {
-		return err
+func (s *sequins) updateBlockStore(blockStore *blocks.BlockStore, version string) {
+	log.Printf("Switching to version %s!", version)
+	oldBlockStore := s.blockStore.Replace(blockStore, version)
+	if oldBlockStore != nil {
+		oldBlockStore.Close()
 	}
-
-	// Clean up the temp download dir in the event of a download error
-	defer os.RemoveAll(workDir)
-
-	err = s.backend.Download(version, workDir)
-	if err != nil {
-		return err
-	}
-
-	err = os.Rename(workDir, destPath)
-	if err != nil {
-		os.RemoveAll(destPath)
-		return err
-	}
-
-	return nil
 }
 
 func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/" {
-		index := s.indexReference.Get()
-		count, err := index.Count()
-		currentVersion := index.Version
-		s.indexReference.Release(index)
-
-		if err != nil {
-			log.Fatal(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
+		currentBlockStore, currentVersion := s.blockStore.Get()
+		s.blockStore.Release(currentBlockStore)
 
 		status := status{
 			Path:    s.backend.DisplayPath(currentVersion),
 			Version: currentVersion,
 			Started: s.started.Unix(),
 			Updated: s.updated.Unix(),
-			Count:   count,
 		}
 
 		jsonBytes, err := json.Marshal(status)
 		if err != nil {
-			log.Fatal(err)
+			log.Println("Error serving status:", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -193,15 +186,14 @@ func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	key := strings.TrimPrefix(r.URL.Path, "/")
 
-	currentIndex := s.indexReference.Get()
-	res, err := currentIndex.Get(key)
-	currentVersion := currentIndex.Version
-	s.indexReference.Release(currentIndex)
+	currentBlockStore, currentVersion := s.blockStore.Get()
+	res, err := currentBlockStore.Get(key)
+	s.blockStore.Release(currentBlockStore)
 
-	if err == index.ErrNotFound {
+	if err == blocks.ErrNotFound {
 		w.WriteHeader(http.StatusNotFound)
 	} else if err != nil {
-		log.Fatal(fmt.Errorf("Error fetching value for %s: %s", key, err))
+		log.Printf("Error fetching value for %s: %s\n", key, err)
 		w.WriteHeader(http.StatusInternalServerError)
 	} else {
 		// Explicitly unset Content-Type, so ServeContent doesn't try to do any

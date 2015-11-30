@@ -30,16 +30,16 @@ func setupS3() *backend.S3Backend {
 	bucket := s3.New(auth, fakeRegion).Bucket("sequinstest")
 	bucket.PutBucket("")
 
-	putFile(bucket, "test_data/0/part-00000")
-	putFile(bucket, "test_data/0/part-00001")
-	putFile(bucket, "test_data/0/_SUCCESS")
+	putFile(bucket, "test/names/0/part-00000")
+	putFile(bucket, "test/names/0/part-00001")
+	putFile(bucket, "test/names/0/_SUCCESS")
 
-	putFile(bucket, "test_data/1/part-00000")
-	putFile(bucket, "test_data/1/part-00001")
+	putFile(bucket, "test/names/1/part-00000")
+	putFile(bucket, "test/names/1/part-00001")
 
-	bucket.Put("test_data/foo", []byte("nothing"), "", "", s3.Options{})
+	bucket.Put("test/names/foo", []byte("nothing"), "", "", s3.Options{})
 
-	return backend.NewS3Backend(bucket, "test_data")
+	return backend.NewS3Backend(bucket, "test/names")
 }
 
 func getS3Sequins(t *testing.T) *sequins {
@@ -96,7 +96,6 @@ func TestS3Sequins(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), status)
 	require.NoError(t, err)
 	assert.Equal(t, 200, w.Code)
-	assert.Equal(t, "s3://sequinstest/test_data/1", status.Path)
+	assert.Equal(t, "s3://sequinstest/test/names/1", status.Path)
 	assert.True(t, status.Started >= now)
-	assert.Equal(t, 3, status.Count)
 }

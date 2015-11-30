@@ -136,7 +136,14 @@ func localSetup(localPath string, opts sequinsOptions) *sequins {
 	}
 
 	backend := backend.NewLocalBackend(absPath)
-	opts.localPath = absPath
+	if opts.localPath == "" {
+		tmpDir, err := ioutil.TempDir("", "sequins-")
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		opts.localPath = tmpDir
+	}
 
 	return newSequins(backend, opts)
 }

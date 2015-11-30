@@ -81,5 +81,4 @@ func TestHdfsSequins(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 200, w.Code)
 	assert.True(t, status.Started >= now)
-	assert.Equal(t, 3, status.Count)
 }

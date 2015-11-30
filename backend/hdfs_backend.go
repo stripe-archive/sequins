@@ -2,9 +2,8 @@ package backend
 
 import (
 	"fmt"
-	"log"
+	"io"
 	"path"
-	"path/filepath"
 	"strings"
 
 	"github.com/colinmarc/hdfs"
@@ -43,29 +42,34 @@ func (h *HdfsBackend) LatestVersion(checkForSuccess bool) (string, error) {
 	return "", fmt.Errorf("No valid versions at %s", h.displayURL(h.path))
 }
 
-func (h *HdfsBackend) Download(version string, destPath string) error {
-	versionPath := path.Join(h.path, version)
-	files, err := h.client.ReadDir(versionPath)
+func (h *HdfsBackend) ListFiles(version string) ([]string, error) {
+	files, err := h.client.ReadDir(path.Join(h.path, version))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-
-		src := path.Join(versionPath, file.Name())
-		dest := filepath.Join(destPath, file.Name())
-
-		log.Printf("Downloading %s to %s", h.displayURL(src), dest)
-		err = h.client.CopyToLocal(src, dest)
-		if err != nil {
-			return err
+	res := make([]string, 0, len(files))
+	for i, info := range files {
+		if !info.IsDir() {
+			name := info.Name()
+			if !strings.HasPrefix(name, "_") || !strings.HasPrefix(name, ".") {
+				res[i] = info.Name()
+			}
 		}
 	}
 
-	return nil
+	return res, nil
+}
+
+func (h *HdfsBackend) Open(version, file string) (io.ReadCloser, error) {
+	src := path.Join(h.path, version, file)
+
+	f, err := h.client.Open(src)
+	if err != nil {
+		return nil, err
+	}
+
+	return f, nil
 }
 
 func (h *HdfsBackend) DisplayPath(version string) string {

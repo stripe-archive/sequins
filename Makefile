@@ -30,7 +30,6 @@ get-deps:
 	go get github.com/crowdmob/goamz/aws
 	go get github.com/stretchr/testify/assert
 	go get github.com/stretchr/testify/require
-	go get github.com/NYTimes/gziphandler
 
 clean:
 	rm -f sequins sequins-dump sequins-*.tar.gz

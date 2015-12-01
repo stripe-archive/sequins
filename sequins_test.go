@@ -4,9 +4,6 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/stripe/sequins/backend"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -17,6 +14,10 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/stripe/sequins/backend"
 )
 
 func getSequins(t *testing.T, opts sequinsOptions) *sequins {

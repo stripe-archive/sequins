@@ -4,8 +4,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/stripe/sequins/sequencefile"
-	"github.com/syndtr/goleveldb/leveldb"
 	"io"
 	"io/ioutil"
 	"log"
@@ -13,6 +11,9 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/stripe/sequins/sequencefile"
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 var ErrNotFound = errors.New("That key doesn't exist.")

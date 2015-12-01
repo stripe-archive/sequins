@@ -2,16 +2,17 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/colinmarc/hdfs"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/stripe/sequins/backend"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/colinmarc/hdfs"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/stripe/sequins/backend"
 )
 
 func setupHdfs(t *testing.T) *backend.HdfsBackend {

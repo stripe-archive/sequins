@@ -14,8 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/NYTimes/gziphandler"
-
 	"github.com/stripe/sequins/backend"
 	"github.com/stripe/sequins/index"
 )
@@ -75,11 +73,7 @@ func (s *sequins) start(address string) error {
 	}()
 
 	log.Printf("Listening on %s", address)
-	return http.ListenAndServe(address, s.handler())
-}
-
-func (s *sequins) handler() http.Handler {
-	return gziphandler.GzipHandler(s)
+	return http.ListenAndServe(address, s)
 }
 
 func (s *sequins) reloadLatest() error {

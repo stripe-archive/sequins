@@ -56,25 +56,24 @@ func TestHdfsBackend(t *testing.T) {
 
 func TestHdfsSequins(t *testing.T) {
 	ts := getHdfsSequins(t)
-	h := ts.handler()
 
 	req, _ := http.NewRequest("GET", "/Alice", nil)
 	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
+	ts.ServeHTTP(w, req)
 
 	assert.Equal(t, 200, w.Code)
 	assert.Equal(t, "Practice", w.Body.String())
 
 	req, _ = http.NewRequest("GET", "/foo", nil)
 	w = httptest.NewRecorder()
-	h.ServeHTTP(w, req)
+	ts.ServeHTTP(w, req)
 
 	assert.Equal(t, 404, w.Code)
 	assert.Equal(t, "", w.Body.String())
 
 	req, _ = http.NewRequest("GET", "/", nil)
 	w = httptest.NewRecorder()
-	h.ServeHTTP(w, req)
+	ts.ServeHTTP(w, req)
 
 	now := time.Now().Unix() - 1
 	status := &status{}

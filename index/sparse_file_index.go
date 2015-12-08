@@ -36,15 +36,17 @@ var errNotSorted = errors.New("The sequencefile isn't sorted, so can't skip")
 type sparseFileIndex struct {
 	path      string
 	indexPath string
+	lastKey   []byte
 	skip      bool
 	table     []sparseIndexEntry
-	maxKey    []byte
-	minKey    []byte
 
 	sourceFile     *os.File
 	bufferedReader *bufferedReadSeeker
 	reader         *sequencefile.Reader
 	readLock       sync.Mutex
+
+	numFiles          int
+	partitionDetector *partitionDetector
 }
 
 type sparseIndexEntry struct {
@@ -60,6 +62,7 @@ func newSparseFileIndex(path string, numFiles int) *sparseFileIndex {
 		indexPath: filepath.Join(dir, fmt.Sprintf(".index-sparse-%s.cdb", base)),
 		table:     make([]sparseIndexEntry, 1024*1024),
 		skip:      true,
+		numFiles:  numFiles,
 	}
 }
 
@@ -68,9 +71,7 @@ func newSparseFileIndex(path string, numFiles int) *sparseFileIndex {
 // key. If it finds a key that's lexicographically greater while scanning,
 // then it knows the key isn't in the file.
 func (sfi *sparseFileIndex) get(key []byte) ([]byte, error) {
-	// TODO check java hash code
-
-	if bytes.Compare(key, sfi.minKey) < 0 || bytes.Compare(key, sfi.maxKey) > 0 {
+	if !sfi.partitionDetector.test(key) {
 		return nil, nil
 	}
 
@@ -108,8 +109,7 @@ func (sfi *sparseFileIndex) get(key []byte) ([]byte, error) {
 // load loads the existing subset of key -> offset pairs from the saved
 // file. It does not re-check that the file is sorted.
 func (sfi *sparseFileIndex) load(manifestEntry manifestEntry) error {
-	sfi.minKey = manifestEntry.IndexProperties.MinKey
-	sfi.maxKey = manifestEntry.IndexProperties.MaxKey
+	sfi.partitionDetector = newPartitionDetectorFromManifest(sfi.numFiles, manifestEntry)
 
 	err := sfi.open()
 	if err != nil {
@@ -135,6 +135,8 @@ func (sfi *sparseFileIndex) load(manifestEntry manifestEntry) error {
 // time that the file is sorted. If it detects that the file is, in fact, not
 // sorted, then it returns errNotSorted.
 func (sfi *sparseFileIndex) build() error {
+	sfi.partitionDetector = newPartitionDetector(sfi.numFiles)
+
 	err := sfi.open()
 	if err != nil {
 		return err
@@ -160,46 +162,40 @@ func (sfi *sparseFileIndex) build() error {
 			break
 		}
 
-		key := sfi.reader.Key()
+		key := make([]byte, len(sfi.reader.Key()))
+		copy(key, sfi.reader.Key())
+		sfi.partitionDetector.update(key)
 
 		// Keep track of the minimum and maximum keys, and check that the file is
 		// sorted.
-		if sfi.minKey == nil {
-			sfi.minKey = make([]byte, len(key))
-			copy(sfi.minKey, key)
-		}
 
 		include := true
-		if sfi.maxKey == nil {
-			sfi.maxKey = make([]byte, len(key))
-			copy(sfi.maxKey, key)
+		if sfi.lastKey == nil {
+			sfi.lastKey = key
 		} else {
-			compare := bytes.Compare(key, sfi.maxKey)
+			compare := bytes.Compare(key, sfi.lastKey)
 			if compare < 0 {
 				return errNotSorted
 			} else if compare == 0 {
-				// If it's the same as maxKey, it's a duplicate and we can avoid adding
-				// it to the index
+				// If it's the same as the last key, it's a duplicate and we can avoid
+				// adding it to the index
 				include = false
 			} else {
-				sfi.maxKey = make([]byte, len(key))
-				copy(sfi.maxKey, key)
+				sfi.lastKey = key
 			}
 		}
 
 		// Add key -> offset to the index, and store it on disk as well.
 		if include {
-			indexEntry := sparseIndexEntry{key: make([]byte, len(key)), offset: offset}
-			copy(indexEntry.key, key)
-
+			indexEntry := sparseIndexEntry{key: key, offset: offset}
 			sfi.table = append(sfi.table, indexEntry)
 			serializeIndexEntry(offsetBytes, offset)
-			cdbWriter.Put(sfi.reader.Key(), offsetBytes)
+			cdbWriter.Put(key, offsetBytes)
 		}
 
 		// Don't skip at all until we've read a clump of consecutive keys at the
 		// beginning of the file, so that we can fail early if the data isn't
-		// sorted, and so taht we can make sure we get minKey correct.
+		// sorted, and so that we can make sure we find the most-minimum key.
 		if sfi.skip && offset > skipSize {
 			checkpoint := offset
 			err = sfi.skipAndSync()
@@ -261,13 +257,9 @@ func (sfi *sparseFileIndex) manifestEntry() (manifestEntry, error) {
 
 	m.Name = filepath.Base(sfi.sourceFile.Name())
 	m.Size = stat.Size()
-	m.IndexProperties = indexProperties{
-		Sparse:            true,
-		HashcodePartition: 0, // TODO
-		MinKey:            sfi.minKey,
-		MaxKey:            sfi.maxKey,
-	}
+	m.IndexProperties = indexProperties{Sparse: true}
 
+	sfi.partitionDetector.updateManifest(&m)
 	return m, nil
 }
 

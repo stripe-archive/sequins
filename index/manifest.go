@@ -14,7 +14,6 @@ var ErrWrongVersion = errors.New("Wrong manifest version")
 type manifest struct {
 	Version int             `json:"version"`
 	Files   []manifestEntry `json:"files"`
-	Count   int             `json:"count"`
 }
 
 type manifestEntry struct {
@@ -24,10 +23,11 @@ type manifestEntry struct {
 }
 
 type indexProperties struct {
-	Sparse            bool   `json:"sparse"`
-	HashcodePartition int    `json:"hashcode_partition"`
-	MinKey            []byte `json:"min_key"`
-	MaxKey            []byte `json:"max_key"`
+	Sparse          bool          `json:"sparse"`
+	PartitionType   partitionType `json:"partition_type"`
+	PartitionNumber int           `json:"partition_number"`
+	MinKey          []byte        `json:"min_key"`
+	MaxKey          []byte        `json:"max_key"`
 }
 
 func readManifest(path string) (manifest, error) {

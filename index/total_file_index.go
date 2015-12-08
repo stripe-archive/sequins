@@ -17,17 +17,17 @@ import (
 // key -> offset pairs alongside the data. It's a fallback for sparseFileIndex,
 // and it doesn't require the data to be sorted.
 type totalFileIndex struct {
-	path              string
-	indexPath         string
-	minKey            []byte
-	maxKey            []byte
-	hashcodePartition int32
+	path      string
+	indexPath string
 
 	sourceFile     *os.File
 	bufferedReader *bufferedReadSeeker
 	reader         *sequencefile.Reader
 	cdb            *cdb.CDB
 	readLock       sync.Mutex
+
+	numFiles          int
+	partitionDetector *partitionDetector
 }
 
 func newTotalFileIndex(path string, numFiles int) *totalFileIndex {
@@ -36,13 +36,12 @@ func newTotalFileIndex(path string, numFiles int) *totalFileIndex {
 	return &totalFileIndex{
 		path:      path,
 		indexPath: filepath.Join(dir, fmt.Sprintf(".index-%s.cdb", base)),
+		numFiles:  numFiles,
 	}
 }
 
 func (tfi *totalFileIndex) get(key []byte) ([]byte, error) {
-	// TODO check java hash code
-
-	if bytes.Compare(key, tfi.minKey) < 0 || bytes.Compare(key, tfi.maxKey) > 0 {
+	if !tfi.partitionDetector.test(key) {
 		return nil, nil
 	}
 
@@ -79,8 +78,7 @@ func (tfi *totalFileIndex) get(key []byte) ([]byte, error) {
 }
 
 func (tfi *totalFileIndex) load(manifestEntry manifestEntry) error {
-	tfi.minKey = manifestEntry.IndexProperties.MinKey
-	tfi.maxKey = manifestEntry.IndexProperties.MaxKey
+	tfi.partitionDetector = newPartitionDetectorFromManifest(tfi.numFiles, manifestEntry)
 
 	err := tfi.open()
 	if err != nil {
@@ -99,6 +97,8 @@ func (tfi *totalFileIndex) load(manifestEntry manifestEntry) error {
 // build scans through the file and builds an index of key -> offset pairs
 // in a cdb file alongside.w
 func (tfi *totalFileIndex) build() error {
+	tfi.partitionDetector = newPartitionDetector(tfi.numFiles)
+
 	err := tfi.open()
 	if err != nil {
 		return err
@@ -120,22 +120,12 @@ func (tfi *totalFileIndex) build() error {
 			break
 		}
 
-		key := tfi.reader.Key()
-
-		// Keep track of the minimum and maximum keys.
-		if tfi.minKey == nil || bytes.Compare(key, tfi.minKey) < 0 {
-			tfi.minKey = make([]byte, len(key))
-			copy(tfi.minKey, key)
-		}
-
-		if tfi.maxKey == nil || bytes.Compare(key, tfi.maxKey) > 0 {
-			tfi.maxKey = make([]byte, len(key))
-			copy(tfi.maxKey, key)
-		}
-
 		// Add key -> offset to the index.
+		key := make([]byte, len(tfi.reader.Key()))
+		copy(key, tfi.reader.Key())
+		tfi.partitionDetector.update(key)
 		serializeIndexEntry(entry, offset)
-		cdbWriter.Put(tfi.reader.Key(), entry)
+		cdbWriter.Put(key, entry)
 	}
 
 	err = tfi.reader.Err()
@@ -178,12 +168,8 @@ func (tfi *totalFileIndex) manifestEntry() (manifestEntry, error) {
 
 	m.Name = filepath.Base(tfi.sourceFile.Name())
 	m.Size = stat.Size()
-	m.IndexProperties = indexProperties{
-		Sparse:            false,
-		HashcodePartition: 0, // TODO
-		MinKey:            tfi.minKey,
-		MaxKey:            tfi.maxKey,
-	}
+	m.IndexProperties = indexProperties{Sparse: false}
 
+	tfi.partitionDetector.updateManifest(&m)
 	return m, nil
 }

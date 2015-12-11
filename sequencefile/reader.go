@@ -9,7 +9,7 @@ import (
 	"os"
 )
 
-const maxSyncRead = 102400 // 100k
+const maxSyncRead = 104857600 // 100mb
 var ErrNoSync = fmt.Errorf("Couldn't find a valid sync marker within %d bytes", maxSyncRead)
 
 // A Reader reads key/value pairs from an input stream.

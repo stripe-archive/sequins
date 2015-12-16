@@ -97,8 +97,8 @@ func (r *Reader) ReadHeader() error {
 	}
 
 	r.Header.SyncMarker = string(marker)
-	r.syncMarkerBytes = make([]byte, SyncSize)
-	copy(r.syncMarkerBytes, marker)
+	r.syncMarker = make([]byte, SyncSize)
+	copy(r.syncMarker, marker)
 
 	return nil
 }

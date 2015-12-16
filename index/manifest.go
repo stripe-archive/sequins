@@ -2,20 +2,32 @@ package index
 
 import (
 	"encoding/json"
-	"hash/crc32"
-	"io"
+	"errors"
 	"io/ioutil"
 	"os"
 )
 
+const manifestVersion = 1
+
+var ErrWrongVersion = errors.New("Wrong manifest version")
+
 type manifest struct {
-	Files []manifestEntry `json:"files"`
-	Count int             `json:"count"`
+	Version int             `json:"version"`
+	Files   []manifestEntry `json:"files"`
 }
 
 type manifestEntry struct {
-	Name string `json:"name"`
-	CRC  uint32 `json:"crc"`
+	Name            string          `json:"name"`
+	Size            int64           `json:"size"`
+	IndexProperties indexProperties `json:"index_properties"`
+}
+
+type indexProperties struct {
+	Sparse          bool          `json:"sparse"`
+	PartitionType   partitionType `json:"partition_type"`
+	PartitionNumber int           `json:"partition_number"`
+	MinKey          []byte        `json:"min_key"`
+	MaxKey          []byte        `json:"max_key"`
 }
 
 func readManifest(path string) (manifest, error) {
@@ -33,7 +45,15 @@ func readManifest(path string) (manifest, error) {
 	}
 
 	err = json.Unmarshal(bytes, &m)
-	return m, err
+	if err != nil {
+		return m, err
+	}
+
+	if m.Version != manifestVersion {
+		return m, ErrWrongVersion
+	}
+
+	return m, nil
 }
 
 func writeManifest(path string, m manifest) error {
@@ -50,19 +70,4 @@ func writeManifest(path string, m manifest) error {
 	defer writer.Close()
 	_, err = writer.Write(bytes)
 	return err
-}
-
-func fileCrc(path string) (uint32, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return 0, err
-	}
-
-	hash := crc32.NewIEEE()
-	_, err = io.Copy(hash, file)
-	if err != nil {
-		return 0, err
-	}
-
-	return hash.Sum32(), nil
 }

@@ -25,8 +25,8 @@ test: get-deps
 
 get-deps:
 	go get gopkg.in/alecthomas/kingpin.v2
-	go get github.com/syndtr/goleveldb/leveldb
 	go get github.com/colinmarc/hdfs
+	go get github.com/colinmarc/cdb
 	go get github.com/crowdmob/goamz/aws
 	go get github.com/stretchr/testify/assert
 	go get github.com/stretchr/testify/require

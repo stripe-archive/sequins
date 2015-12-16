@@ -1,39 +1,26 @@
 package index
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
-
-	"github.com/stripe/sequins/sequencefile"
-	"github.com/syndtr/goleveldb/leveldb"
 )
 
 var ErrNotFound = errors.New("That key doesn't exist.")
 
-type indexFile struct {
-	file   *os.File
-	reader *sequencefile.Reader
-}
-
+// An index is a wrapper for all the per-file indexes, providing an entry point
+// to indexing datasets and fetching values from them.
 type Index struct {
 	Path    string
 	Ready   bool
 	Version string
 
-	files     []indexFile
-	readLocks []sync.Mutex
-
-	ldb   *leveldb.DB
-	count int
-
+	paths    []string
+	files    []fileIndex
 	refcount sync.WaitGroup
 }
 
@@ -48,14 +35,15 @@ func New(path, version string) *Index {
 	return &index
 }
 
-// Load reads each of the files and adds a key -> (file, offset) pair to the
-// master index for every key in every file. If a manifest file and index
-// already exist in the directory, it'll use that.
+// Load reads each of the files and indexes them. If a manifest file already
+// exists in the directory, it'll use that and load pre-built indexes instead.
 func (index *Index) Load() error {
-	err := index.buildFileList()
+	paths, err := index.buildFileList()
 	if err != nil {
 		return err
 	}
+
+	index.paths = paths
 
 	// Try loading and checking the manifest first.
 	manifestPath := filepath.Join(index.Path, ".manifest")
@@ -71,6 +59,8 @@ func (index *Index) Load() error {
 		}
 	}
 
+	// Either the manifest didn't exist or we failed to load from it, so build
+	// a new index over the data.
 	err = index.buildNewIndex()
 	if err != nil {
 		return err
@@ -80,85 +70,60 @@ func (index *Index) Load() error {
 	return nil
 }
 
-func (index *Index) buildFileList() error {
+func (index *Index) buildFileList() ([]string, error) {
 	infos, err := ioutil.ReadDir(index.Path)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	index.files = make([]indexFile, 0, len(infos))
-	index.readLocks = make([]sync.Mutex, len(infos))
-
+	paths := make([]string, 0, len(infos))
 	for _, info := range infos {
 		if !info.IsDir() && !strings.HasPrefix(info.Name(), "_") && !strings.HasPrefix(info.Name(), ".") {
-			err := index.addFile(info.Name())
-			if err != nil {
-				return err
-			}
+			paths = append(paths, filepath.Join(index.Path, info.Name()))
 		}
 	}
 
-	return nil
+	return paths, nil
 }
 
 func (index *Index) loadIndexFromManifest(m manifest) error {
+	index.files = make([]fileIndex, len(m.Files))
+
 	for i, entry := range m.Files {
-		indexFile := index.files[i]
-		baseName := filepath.Base(indexFile.file.Name())
-		if baseName != filepath.Base(entry.Name) {
+		if filepath.Base(index.paths[i]) != filepath.Base(entry.Name) {
 			return fmt.Errorf("unmatched file: %s", entry.Name)
 		}
 
-		crc, err := fileCrc(indexFile.file.Name())
+		var fi fileIndex
+		if entry.IndexProperties.Sparse {
+			fi = newSparseFileIndex(index.paths[i], len(index.paths))
+		} else {
+			fi = newTotalFileIndex(index.paths[i], len(index.paths))
+		}
+
+		err := fi.load(entry)
 		if err != nil {
 			return err
 		}
 
-		if crc != entry.CRC {
-			return fmt.Errorf("local file %s has an invalid CRC, according to the manifest", baseName)
-		}
+		index.files[i] = fi
 	}
 
-	indexPath := filepath.Join(index.Path, ".index")
-	info, err := os.Stat(indexPath)
-	if err != nil || !info.IsDir() {
-		return fmt.Errorf("missing or invalid ldb index at %s", indexPath)
-	}
-
-	ldb, err := leveldb.OpenFile(indexPath, nil)
-	if err != nil {
-		return err
-	}
-
-	index.ldb = ldb
-	index.count = m.Count
 	return nil
 }
 
 func (index *Index) buildNewIndex() error {
-	indexPath := filepath.Join(index.Path, ".index")
-	err := os.RemoveAll(indexPath)
-	if err != nil {
-		return err
-	}
+	index.files = make([]fileIndex, len(index.paths))
 
-	ldb, err := leveldb.OpenFile(indexPath, nil)
-	if err != nil {
-		return err
-	}
-
-	index.ldb = ldb
-
-	for i, f := range index.files {
-		path := f.file.Name()
+	for i, path := range index.paths {
 		log.Printf("Indexing %s...\n", path)
 
-		err = index.buildIndexOverFile(i, f)
+		fi, err := index.buildFileIndex(path)
 		if err != nil {
 			return err
 		}
 
-		log.Println("Finished indexing", path)
+		index.files[i] = fi
 	}
 
 	manifest, err := index.buildManifest()
@@ -176,68 +141,42 @@ func (index *Index) buildNewIndex() error {
 	return nil
 }
 
-func (index *Index) buildManifest() (manifest, error) {
-	m := manifest{
-		Files: make([]manifestEntry, len(index.files)),
-		Count: index.count,
+func (index *Index) buildFileIndex(path string) (fileIndex, error) {
+	var fi fileIndex
+
+	// First try building a sparse index, but fall back if the file is unsorted
+	// TODO: if any of the files are unsorted, assume they all are
+	fi = newSparseFileIndex(path, len(index.paths))
+	err := fi.build()
+	if err == errNotSorted {
+		log.Println("Constructing a total index for", path, "as it isn't sorted")
+		fi = newTotalFileIndex(path, len(index.paths))
+		err = fi.build()
 	}
 
-	for i, f := range index.files {
-		crc, err := fileCrc(f.file.Name())
+	if err != nil {
+		return nil, err
+	}
+
+	return fi, nil
+}
+
+func (index *Index) buildManifest() (manifest, error) {
+	m := manifest{
+		Version: manifestVersion,
+		Files:   make([]manifestEntry, len(index.files)),
+	}
+
+	for i, fi := range index.files {
+		entry, err := fi.manifestEntry()
 		if err != nil {
 			return m, err
 		}
 
-		m.Files[i] = manifestEntry{
-			Name: filepath.Base(f.file.Name()),
-			CRC:  crc,
-		}
+		m.Files[i] = entry
 	}
 
 	return m, nil
-}
-
-func (index *Index) addFile(subPath string) error {
-	path := filepath.Join(index.Path, subPath)
-
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-
-	f := indexFile{
-		file:   file,
-		reader: sequencefile.New(file),
-	}
-
-	err = f.reader.ReadHeader()
-	if err != nil {
-		return err
-	}
-
-	index.files = append(index.files, f)
-	return nil
-}
-
-func (index *Index) buildIndexOverFile(fileId int, f indexFile) error {
-	entry := make([]byte, 12)
-
-	for {
-		offset, err := f.file.Seek(0, os.SEEK_CUR)
-		if err != nil {
-			return err
-		}
-
-		if !f.reader.ScanKey() {
-			break
-		}
-
-		serializeIndexEntry(entry, fileId, offset)
-		index.ldb.Put(f.reader.Key(), entry, nil)
-		index.count++
-	}
-
-	return f.reader.Err()
 }
 
 // Get returns the value for a given key.
@@ -246,67 +185,25 @@ func (index *Index) Get(key string) ([]byte, error) {
 		return nil, errors.New("Index isn't finished being built yet.")
 	}
 
-	b, err := index.ldb.Get([]byte(key), nil)
-	if err == leveldb.ErrNotFound {
-		return nil, ErrNotFound
-	} else if err != nil {
-		return nil, err
-	}
+	keyBytes := []byte(key)
 
-	if len(b) != 12 {
-		return nil, fmt.Errorf("Invalid value length: %d", len(b))
-	}
-
-	fileId, offset := deserializeIndexEntry(b)
-	f := index.files[fileId]
-
-	index.readLocks[fileId].Lock()
-	defer index.readLocks[fileId].Unlock()
-
-	_, err = f.file.Seek(offset, os.SEEK_SET)
-	if err != nil {
-		return nil, err
-	}
-
-	ok := f.reader.Scan()
-	if !ok {
-		if f.reader.Err() != nil {
-			return nil, f.reader.Err()
-		} else {
-			return nil, io.ErrUnexpectedEOF
+	// Each file has its own index (enabling useful local optimizations)
+	// so try each one in sequence.
+	for _, fi := range index.files {
+		res, err := fi.get(keyBytes)
+		if err != nil {
+			return nil, err
+		} else if res != nil {
+			return res, nil
 		}
 	}
 
-	val := make([]byte, len(f.reader.Value()))
-	copy(val, f.reader.Value())
-	return val, err
-}
-
-// Count returns the total number of keys in the index.
-func (index *Index) Count() (int, error) {
-	if !index.Ready {
-		return -1, errors.New("Index isn't finished being built yet.")
-	}
-
-	return index.count, nil
+	return nil, ErrNotFound
 }
 
 // Close closes the index, and any open files it has.
 func (index *Index) Close() {
-	index.ldb.Close()
 	for _, f := range index.files {
-		f.file.Close()
+		f.close()
 	}
-}
-
-func serializeIndexEntry(b []byte, fileId int, offset int64) {
-	binary.BigEndian.PutUint32(b, uint32(fileId))
-	binary.BigEndian.PutUint64(b[4:], uint64(offset))
-}
-
-func deserializeIndexEntry(b []byte) (int, int64) {
-	fileId := binary.BigEndian.Uint32(b[:4])
-	offset := binary.BigEndian.Uint64(b[4:])
-
-	return int(fileId), int64(offset)
 }

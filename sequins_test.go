@@ -21,9 +21,9 @@ import (
 )
 
 func getSequins(t *testing.T, opts sequinsOptions) *sequins {
-	os.RemoveAll("test_data/0/.manifest")
-	os.RemoveAll("test_data/1/.manifest")
-	backend := backend.NewLocalBackend("test_data")
+	os.RemoveAll("test/names/0/.manifest")
+	os.RemoveAll("test/names/1/.manifest")
+	backend := backend.NewLocalBackend("test/names")
 	s := newSequins(backend, opts)
 
 	require.NoError(t, s.init())
@@ -31,7 +31,7 @@ func getSequins(t *testing.T, opts sequinsOptions) *sequins {
 }
 
 func TestSequins(t *testing.T) {
-	ts := getSequins(t, sequinsOptions{"test_data", false})
+	ts := getSequins(t, sequinsOptions{"test/names", false})
 	h := ts.handler()
 
 	req, _ := http.NewRequest("GET", "/Alice", nil)
@@ -75,15 +75,14 @@ func TestSequins(t *testing.T) {
 	err = json.Unmarshal(w.Body.Bytes(), status)
 	require.NoError(t, err)
 	assert.Equal(t, 200, w.Code)
-	assert.Equal(t, "test_data/1", status.Path)
+	assert.Equal(t, "test/names/1", status.Path)
 	assert.True(t, status.Started >= now)
-	assert.Equal(t, 3, status.Count)
 	assert.Equal(t, "1", status.Version)
 }
 
 func TestSequinsNoValidDirectories(t *testing.T) {
-	backend := backend.NewLocalBackend("test_data/0")
-	s := newSequins(backend, sequinsOptions{"test_data/0", false})
+	backend := backend.NewLocalBackend("test/names/0")
+	s := newSequins(backend, sequinsOptions{"test/names/0", false})
 	err := s.init()
 	assert.Error(t, err)
 }
@@ -186,7 +185,7 @@ func directoryCopy(t *testing.T, dest, src string) error {
 func createTestIndex(t *testing.T, scratch string, i int) {
 	t.Logf("Creating test version %d\n", i)
 	path := fmt.Sprintf("%s/%d", scratch, i)
-	src := fmt.Sprintf("test_data/%d/", i%2)
+	src := fmt.Sprintf("test/names/%d/", i%2)
 
 	require.NoError(t, directoryCopy(t, path, src))
 }

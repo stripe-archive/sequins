@@ -74,7 +74,9 @@ func (tfi *totalFileIndex) get(key []byte) ([]byte, error) {
 		return nil, errors.New("Unexpected key!")
 	}
 
-	return tfi.reader.Value(), nil
+	res := make([]byte, len(tfi.reader.Value()))
+	copy(res, tfi.reader.Value())
+	return res, nil
 }
 
 func (tfi *totalFileIndex) load(manifestEntry manifestEntry) error {

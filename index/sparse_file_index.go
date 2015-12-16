@@ -97,7 +97,9 @@ func (sfi *sparseFileIndex) get(key []byte) ([]byte, error) {
 	for sfi.reader.Scan() {
 		compare := bytes.Compare(sfi.reader.Key(), key)
 		if compare == 0 {
-			return sfi.reader.Value(), nil
+			res := make([]byte, len(sfi.reader.Value()))
+			copy(res, sfi.reader.Value())
+			return res, nil
 		} else if compare > 0 {
 			break
 		}

@@ -37,7 +37,7 @@ func getSequins(t *testing.T, opts sequinsOptions) *sequins {
 }
 
 func TestSequins(t *testing.T) {
-	ts := getSequins(t, sequinsOptions{"", false})
+	ts := getSequins(t, sequinsOptions{address: "localhost:9599", localPath: ""})
 
 	req, _ := http.NewRequest("GET", "/Alice", nil)
 	w := httptest.NewRecorder()
@@ -82,7 +82,7 @@ func TestSequins(t *testing.T) {
 
 func TestSequinsNoValidDirectories(t *testing.T) {
 	backend := backend.NewLocalBackend("test/names/0")
-	s := newSequins(backend, sequinsOptions{"test/names/0", false})
+	s := newSequins(backend, sequinsOptions{address: "localhost:9599", localPath: "test/names/0"})
 	err := s.init()
 	assert.Error(t, err)
 }
@@ -92,7 +92,8 @@ func TestSequinsThreadsafe(t *testing.T) {
 	scratch, err := ioutil.TempDir("", "sequins-")
 	require.NoError(t, err)
 	createTestIndex(t, scratch, 0)
-	ts := newSequins(backend.NewLocalBackend(scratch), sequinsOptions{filepath.Join(scratch, "blocks"), false})
+	opts := sequinsOptions{address: "localhost:9599", localPath: filepath.Join(scratch, "blocks")}
+	ts := newSequins(backend.NewLocalBackend(scratch), opts)
 	require.NoError(t, ts.init())
 
 	var wg sync.WaitGroup

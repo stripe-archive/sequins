@@ -36,7 +36,7 @@ func setupHdfs(t *testing.T) *backend.HdfsBackend {
 func getHdfsSequins(t *testing.T) *sequins {
 	backend := setupHdfs(t)
 	tmpDir, _ := ioutil.TempDir("", "sequins-")
-	s := newSequins(backend, sequinsOptions{tmpDir, false})
+	s := newSequins(backend, sequinsOptions{address: "localhost:9599", localPath: tmpDir})
 
 	require.NoError(t, s.init())
 	return s

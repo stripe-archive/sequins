@@ -79,12 +79,19 @@ func main() {
 	kingpin.Version("sequins version " + version)
 	kingpin.Parse()
 
+	opts := sequinsOptions{
+		address:             *address,
+		localPath:           *localPath,
+		checkForSuccessFile: *checkForSuccessFile,
+		zkPrefix:            "/sequins/test/123",        // TODO
+		zkServers:           []string{"localhost:2181"}, // TODO
+	}
+
 	parsed, err := url.Parse(*uri)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	opts := sequinsOptions{*localPath, *checkForSuccessFile}
 	var s *sequins
 	switch parsed.Scheme {
 	case "", "file":
@@ -101,7 +108,7 @@ func main() {
 	}
 
 	go func() {
-		log.Fatal(s.start(*address))
+		log.Fatal(s.start())
 	}()
 
 	refresh := *refreshPeriod

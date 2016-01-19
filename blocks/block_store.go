@@ -3,15 +3,16 @@ package blocks
 import (
 	"errors"
 	"math"
+	"os"
 	"path/filepath"
 	"sync"
-	"os"
 
 	"github.com/stripe/sequins/sequencefile"
 )
 
-var ErrNoManifest = errors.New("No manifest could be found")
-var ErrNotFound = errors.New("That key doesn't exist.")
+var ErrNoManifest = errors.New("no manifest file found")
+var ErrNotFound = errors.New("key doesn't exist")
+var ErrMissingPartitions = errors.New("existing block store missing partitions")
 
 // A BlockStore stores ingested key/value data in discrete blocks, each stored
 // as a separate CDB file. The blocks are arranged and sorted in a way that
@@ -21,8 +22,9 @@ type BlockStore struct {
 	numPartitions      int
 	selectedPartitions map[int]bool
 
-	Blocks       []*Block
-	BlockMap     map[int][]*Block
+	Blocks   []*Block
+	BlockMap map[int][]*Block
+
 	blockMapLock sync.RWMutex
 }
 
@@ -37,7 +39,7 @@ func New(path string, numPartitions int, selectedPartitions map[int]bool) *Block
 	}
 }
 
-func NewFromManifest(path string) (*BlockStore, error) {
+func NewFromManifest(path string, selectedPartitions map[int]bool) (*BlockStore, error) {
 	manifestPath := filepath.Join(path, ".manifest")
 	manifest, err := readManifest(manifestPath)
 	if os.IsNotExist(err) {
@@ -46,7 +48,27 @@ func NewFromManifest(path string) (*BlockStore, error) {
 		return nil, err
 	}
 
-	store := New(path, manifest.NumPartitions, nil)
+	// TODO: don't throw away everything if we just need a few more partitions
+	// TODO: GC blocks that aren't relevant
+	if manifest.SelectedPartitions != nil {
+		if selectedPartitions == nil {
+			return nil, ErrMissingPartitions
+		}
+
+		// Validate that all the partitions we requested are there.
+		manifestPartitions := make(map[int]bool)
+		for _, partition := range manifest.SelectedPartitions {
+			manifestPartitions[partition] = true
+		}
+
+		for partition := range selectedPartitions {
+			if _, ok := manifestPartitions[partition]; !ok {
+				return nil, ErrMissingPartitions
+			}
+		}
+	}
+
+	store := New(path, manifest.NumPartitions, selectedPartitions)
 	store.blockMapLock.Lock()
 	defer store.blockMapLock.Unlock()
 
@@ -64,7 +86,7 @@ func NewFromManifest(path string) (*BlockStore, error) {
 	return store, nil
 }
 
-// TODO: add files in parallel. Safe async add/remove partition operations
+// TODO: add files in parallel
 
 // AddFile ingests the key/value pairs in the given sequencefile, writing it
 // out to at least one block. If the data is not partitioned cleanly, it will
@@ -131,7 +153,7 @@ func (store *BlockStore) AddFile(reader *sequencefile.Reader) error {
 		savedBlocks[partition] = append(savedBlocks[partition], savedBlock)
 	}
 
-  // Update the block map with the new blocks.
+	// Update the block map with the new blocks.
 	store.blockMapLock.Lock()
 	defer store.blockMapLock.Unlock()
 
@@ -149,10 +171,19 @@ func (store *BlockStore) SaveManifest() error {
 	store.blockMapLock.RLock()
 	defer store.blockMapLock.RUnlock()
 
+	var partitions []int
+	if store.selectedPartitions != nil {
+		partitions = make([]int, len(store.selectedPartitions))
+		for partition := range store.selectedPartitions {
+			partitions = append(partitions, partition)
+		}
+	}
+
 	manifest := manifest{
-		Version: manifestVersion,
-		Blocks:  make([]blockManifest, len(store.Blocks)),
-		NumPartitions: store.numPartitions,
+		Version:            manifestVersion,
+		Blocks:             make([]blockManifest, len(store.Blocks)),
+		NumPartitions:      store.numPartitions,
+		SelectedPartitions: partitions,
 	}
 
 	for i, block := range store.Blocks {
@@ -185,10 +216,13 @@ func (store *BlockStore) Get(key string) ([]byte, error) {
 }
 
 // Close closes the BlockStore, and any files it has open.
-func (store *BlockStore) Close() {
+func (store *BlockStore) Close() error {
+	var err error
 	for _, block := range store.Blocks {
-		block.Close()
+		err = block.Close()
 	}
+
+	return err
 }
 
 // hashCode implements java.lang.String#hashCode.
@@ -204,6 +238,8 @@ func hashCode(b []byte) int32 {
 func partition(key []byte, totalPartitions int) int {
 	return int(hashCode(key)&math.MaxInt32) % totalPartitions
 }
+
+// TODO: better pathological case handling
 
 // isPathologicalHashCode filters out keys where the partition returned by the
 // java.lang.String#hashCode would be consistent with other keys, but the

@@ -27,8 +27,11 @@ get-deps:
 	go get gopkg.in/alecthomas/kingpin.v2
 	go get github.com/colinmarc/hdfs
 	go get github.com/colinmarc/cdb
+	go get github.com/pborman/uuid
 	go get github.com/spaolacci/murmur3
 	go get github.com/crowdmob/goamz/aws
+	go get github.com/samuel/go-zookeeper/zk
+	go get stathat.com/c/consistent
 	go get github.com/stretchr/testify/assert
 	go get github.com/stretchr/testify/require
 

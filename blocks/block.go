@@ -84,4 +84,3 @@ func (b *Block) manifest() blockManifest {
 		MaxKey:    b.maxKey,
 	}
 }
-

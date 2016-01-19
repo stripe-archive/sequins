@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"path/filepath"
 	"os"
+	"path/filepath"
 
 	"github.com/colinmarc/cdb"
 	"github.com/pborman/uuid"
@@ -50,7 +50,7 @@ func newBlock(storePath string, partition int) (*blockWriter, error) {
 
 	bw := &blockWriter{
 		partition: partition,
-		path:			 path,
+		path:      path,
 		id:        id,
 		cdbWriter: cdbWriter,
 	}

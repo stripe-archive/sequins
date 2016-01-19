@@ -12,9 +12,10 @@ const manifestVersion = 2
 var ErrWrongVersion = errors.New("Wrong manifest version")
 
 type manifest struct {
-	Version int             `json:"version"`
-	Blocks  []blockManifest `json:"blocks"`
-	NumPartitions int        `json:"num_partitions"`
+	Version            int             `json:"version"`
+	Blocks             []blockManifest `json:"blocks"`
+	NumPartitions      int             `json:"num_partitions"`
+	SelectedPartitions []int           `json:"selected_partitions,omitempty"`
 }
 
 type blockManifest struct {

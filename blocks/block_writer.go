@@ -69,7 +69,7 @@ func (bw *blockWriter) add(key, value []byte) error {
 	}
 
 	if bw.minKey == nil || bytes.Compare(key, bw.minKey) < 0 {
-		bw.maxKey = make([]byte, len(key))
+		bw.minKey = make([]byte, len(key))
 		copy(bw.minKey, key)
 	}
 

@@ -104,10 +104,10 @@ func main() {
 
 	// TODO only do this if zk config passed
 	// TODO no distributed if local path
-	err = s.initDistributed()
-	if err != nil {
-		log.Fatal(err)
-	}
+	// err = s.initDistributed()
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
 	err = s.init()
 	if err != nil {

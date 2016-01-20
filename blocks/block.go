@@ -59,9 +59,9 @@ func (b *Block) Get(key []byte) ([]byte, error) {
 	b.readLock.Lock()
 	defer b.readLock.Unlock()
 
-	if bytes.Compare(key, b.minKey) < 0 {
+	if b.minKey != nil && bytes.Compare(key, b.minKey) < 0 {
 		return nil, nil
-	} else if bytes.Compare(key, b.maxKey) > 0 {
+	} else if b.maxKey != nil && bytes.Compare(key, b.maxKey) > 0 {
 		return nil, nil
 	}
 

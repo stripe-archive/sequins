@@ -153,35 +153,46 @@ func (ds *dataset) build(be backend.Backend, storagePath string) error {
 		return ErrNoValidPartitions
 	}
 
-	// Watch remote replicas
-	partitionPath := path.Join("partitions", ds.version)
-	err := ds.zkWatcher.createPath(partitionPath)
+	// Create the partitions directory, so we can publish ephemeral
+	if ds.peers != nil {
+
+	}
+
+	err := ds.buildLocalPartitions(be, storagePath)
 	if err != nil {
 		return err
 	}
 
-	err = ds.buildLocalPartitions(be, storagePath)
-	if err != nil {
-		return err
-	}
-
-	updates := ds.zkWatcher.watchChildren(partitionPath)
-	go ds.sync(updates)
-
-	// Wait for all remote partitions
-	for {
-		ds.partitionLock.RLock()
-		ready := (ds.missingPartitions == 0)
-		ds.partitionLock.RUnlock()
-		if ready {
-			break
+	if ds.peers != nil {
+		partitionPath := path.Join("partitions", ds.version)
+		err := ds.zkWatcher.createPath(partitionPath)
+		if err != nil {
+			return err
 		}
 
-		log.Printf("Waiting for all partitions to be available (missing %d)", ds.missingPartitions)
-		t := time.NewTimer(10 * time.Second)
-		select {
-		case <-t.C:
-		case <-ds.partitionsReady:
+		// Advertise all the partitions we have locally.
+		// TODO: very short possible race, since aren't actually listening over HTTP.
+		// need some way to accept proxied requests, but then wait?
+		ds.advertisePartitions()
+
+		updates := ds.zkWatcher.watchChildren(partitionPath)
+		go ds.sync(updates)
+
+		// Wait for all remote partitions to be available.
+		for {
+			ds.partitionLock.RLock()
+			ready := (ds.missingPartitions == 0)
+			ds.partitionLock.RUnlock()
+			if ready {
+				break
+			}
+
+			log.Printf("Waiting for all partitions to be available (missing %d)", ds.missingPartitions)
+			t := time.NewTimer(10 * time.Second)
+			select {
+			case <-t.C:
+			case <-ds.partitionsReady:
+			}
 		}
 	}
 
@@ -196,7 +207,7 @@ func (ds *dataset) buildLocalPartitions(be backend.Backend, storagePath string) 
 		return err
 	}
 
-	path := filepath.Join(storagePath, version)
+	path := filepath.Join(storagePath, ds.version)
 	_, err = os.Stat(filepath.Join(path, ".manifest"))
 	if err == nil {
 		log.Println("Loading version from existing manifest at", path)
@@ -205,12 +216,12 @@ func (ds *dataset) buildLocalPartitions(be backend.Backend, storagePath string) 
 			ds.blockStore = blockStore
 			return nil
 		} else {
-			log.Println("Error loading version", version, "from manifest:", err)
+			log.Println("Error loading version", ds.version, "from manifest:", err)
 		}
 	}
 
 	// TODO: make this logging less confusing
-	log.Println("Loading version", version, "from", be.DisplayPath(version), "into local directory", path)
+	log.Println("Loading version", ds.version, "from", be.DisplayPath(version), "into local directory", path)
 
 	log.Println("Clearing local directory", path)
 	os.RemoveAll(path)
@@ -229,7 +240,6 @@ func (ds *dataset) buildLocalPartitions(be backend.Backend, storagePath string) 
 
 	blockStore.SaveManifest()
 	ds.blockStore = blockStore
-	ds.advertisePartitions()
 	return nil
 }
 

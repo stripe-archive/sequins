@@ -14,8 +14,7 @@ const peerSelf = "(self)"
 // peers represents a remote list of peers, synced with zookeeper. It's also
 // responsible for advertising this particular node's existence.
 type peers struct {
-	address    string
-	advertised string
+	address string
 
 	peers map[string]bool
 	ring  *consistent.Consistent
@@ -32,7 +31,8 @@ func watchPeers(zkWatcher *zkWatcher, address string) *peers {
 		ring:    consistent.New(),
 	}
 
-	zkWatcher.createEphemeral(path.Join("nodes", p.advertised))
+	zkWatcher.createPath("nodes")
+	zkWatcher.createEphemeral(path.Join("nodes", p.address))
 	updates := zkWatcher.watchChildren("nodes")
 	go p.sync(updates)
 
@@ -46,6 +46,9 @@ func (p *peers) sync(updates chan []string) {
 
 		newPeers := make(map[string]bool)
 		for _, node := range nodes {
+			if node == p.address {
+				continue
+			}
 			newPeers[node] = true
 		}
 
@@ -63,13 +66,13 @@ func (p *peers) updatePeers(newPeers map[string]bool) {
 
 	// Log for any lost peers.
 	for addr := range p.peers {
-		if !p.peers[addr] {
+		if !newPeers[addr] {
 			log.Println("Lost peer:", addr)
 		}
 	}
 
 	// Log for any new peers, and build a list for the ring.
-	addrs := make([]string, len(newPeers)+1)
+	addrs := make([]string, 0, len(newPeers)+1)
 	for addr := range newPeers {
 		if !p.peers[addr] {
 			log.Println("New peer:", addr)
@@ -80,6 +83,7 @@ func (p *peers) updatePeers(newPeers map[string]bool) {
 
 	addrs = append(addrs, p.address)
 	p.ring.Set(addrs)
+	p.peers = newPeers
 }
 
 func (p *peers) pick(partitionId string, n int) []string {

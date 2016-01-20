@@ -99,8 +99,9 @@ func (store *BlockStore) AddFile(reader *sequencefile.Reader) error {
 		// TODO: we need to consider pathological cases so we don't end up
 		// with a block with ~one key
 		partition := partition(reader.Key(), store.numPartitions)
-		if store.selectedPartitions != nil && store.selectedPartitions[partition] {
-
+		if store.selectedPartitions != nil && !store.selectedPartitions[partition] {
+			// TODO: detect partitioning
+			continue
 		}
 
 		block, ok := newBlocks[partition]
@@ -173,7 +174,7 @@ func (store *BlockStore) SaveManifest() error {
 
 	var partitions []int
 	if store.selectedPartitions != nil {
-		partitions = make([]int, len(store.selectedPartitions))
+		partitions = make([]int, 0, len(store.selectedPartitions))
 		for partition := range store.selectedPartitions {
 			partitions = append(partitions, partition)
 		}

@@ -70,7 +70,7 @@ func (bw *blockWriter) add(key, value []byte) error {
 
 	if bw.minKey == nil || bytes.Compare(key, bw.minKey) < 0 {
 		bw.maxKey = make([]byte, len(key))
-		copy(bw.maxKey, key)
+		copy(bw.minKey, key)
 	}
 
 	err := bw.cdbWriter.Put(key, value)

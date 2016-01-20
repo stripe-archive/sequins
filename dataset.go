@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -8,6 +9,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/stripe/sequins/backend"
 	"github.com/stripe/sequins/blocks"
@@ -23,6 +26,8 @@ import (
 //       version1/
 //         00000:node1
 //         00001:node2
+
+var ErrNoValidPartitions = errors.New("all partitions are fully replicated")
 
 // TODO: need a way to clean up zookeeper cruft
 
@@ -41,29 +46,35 @@ type dataset struct {
 	localPartitions  map[int]bool
 	remotePartitions map[int][]string
 	partitionIds     map[int]string
-	ready            chan bool
+
+	missingPartitions int
+	partitionLock     sync.RWMutex
+	partitionsReady   chan bool
 }
 
 func newDataset(version string, numPartitions int, peers *peers, zkWatcher *zkWatcher) *dataset {
 	ds := &dataset{
-		version:       version,
-		numPartitions: numPartitions,
-		peers:         peers,
-		zkWatcher:     zkWatcher,
-		ready: make(chan bool),
+		version:         version,
+		numPartitions:   numPartitions,
+		peers:           peers,
+		zkWatcher:       zkWatcher,
+		partitionsReady: make(chan bool),
 	}
 
 	// If we're running in standalone mode, these'll be nil.
 	var localPartitions map[int]bool
 	var remotePartitions map[int][]string
 	var partitionIds map[int]string
+	var missingPartitions int
 
 	if peers != nil {
 		// Select which partitions are local by iterating through them all, and
 		// checking the hashring.
 		localPartitions = make(map[int]bool)
 		partitionIds = make(map[int]string)
+		dispPartitions := make([]int, 0)
 		replication := 2 // TODO
+
 		for i := 0; i < numPartitions; i++ {
 			partitionId := ds.partitionId(i)
 			partitionIds[i] = partitionId
@@ -72,65 +83,107 @@ func newDataset(version string, numPartitions int, peers *peers, zkWatcher *zkWa
 			for _, replica := range replicas {
 				if replica == peerSelf {
 					localPartitions[i] = true
+					dispPartitions = append(dispPartitions, i)
 				}
 			}
 		}
 
-		// Watch remote replicas
-		updates := zkWatcher.watchChildren(path.Join("partitions", version))
-		go ds.sync(updates)
+		log.Printf("Selected partitions for version %s: %v\n", version, dispPartitions)
+		missingPartitions = (numPartitions - len(localPartitions))
 	} else {
-		close(ds.ready)
+		close(ds.partitionsReady)
 	}
 
 	ds.localPartitions = localPartitions
 	ds.remotePartitions = remotePartitions
 	ds.partitionIds = partitionIds
+	ds.missingPartitions = missingPartitions
 	return ds
 }
 
 // sync syncs the remote partitions from zoolander, when they change. When it
-// sees a full set of partitions, it closes ds.ready.
+// sees a full set of partitions
 func (ds *dataset) sync(updates chan []string) {
 	for {
 		nodes := <-updates
-		remotePartitions := make(map[int][]string)
-		for _, node := range nodes {
-			parts := strings.SplitN(node, "@", 2)
-			p, _ := strconv.Atoi(parts[0])
-			remotePartitions[p] = append(remotePartitions[p], parts[1])
+		ds.updatePartitions(nodes)
+	}
+}
+
+func (ds *dataset) updatePartitions(nodes []string) {
+	ds.partitionLock.Lock()
+	defer ds.partitionLock.Unlock()
+
+	remotePartitions := make(map[int][]string)
+	for _, node := range nodes {
+		parts := strings.SplitN(node, "@", 2)
+		p, _ := strconv.Atoi(parts[0])
+		remotePartitions[p] = append(remotePartitions[p], parts[1])
+	}
+
+	// Check for each partition. If there's one available somewhere, then we're ready to
+	// rumble.
+	ds.remotePartitions = remotePartitions
+	missing := 0
+	for i := 0; i < ds.numPartitions; i++ {
+		if _, ok := ds.localPartitions[i]; ok {
+			continue
 		}
 
-		// Check for each partition. If we have every one somewhere, we're ready to
-		// rumble.
-		ds.remotePartitions = remotePartitions
-		complete := true
-		for i := 0; i < ds.numPartitions; i++ {
-			if _, ok := ds.localPartitions[i]; ok {
-				continue
-			}
-			if _, ok := ds.remotePartitions[i]; ok {
-				continue
-			}
-			complete = false
+		if _, ok := ds.remotePartitions[i]; ok {
+			continue
 		}
 
-		if complete {
-			close(ds.ready)
+		missing += 1
+	}
+
+	ds.missingPartitions = missing
+	if missing == 0 {
+		select {
+		case ds.partitionsReady <- true:
+		default:
 		}
 	}
 }
 
 // build prepares the dataset, blocking until it is ready.
 func (ds *dataset) build(be backend.Backend, storagePath string) error {
-	err := ds.buildLocalPartitions(be, storagePath)
+	if ds.localPartitions != nil && len(ds.localPartitions) == 0 {
+		log.Println("All valid partitions for version", ds.version, "are already spoken for. Consider increasing the replication level.")
+		return ErrNoValidPartitions
+	}
+
+	// Watch remote replicas
+	partitionPath := path.Join("partitions", ds.version)
+	err := ds.zkWatcher.createPath(partitionPath)
 	if err != nil {
 		return err
 	}
 
-	// Wait for enough remote partitions
-	// TODO: log better here
-	<-ds.ready
+	err = ds.buildLocalPartitions(be, storagePath)
+	if err != nil {
+		return err
+	}
+
+	updates := ds.zkWatcher.watchChildren(partitionPath)
+	go ds.sync(updates)
+
+	// Wait for all remote partitions
+	for {
+		ds.partitionLock.RLock()
+		ready := (ds.missingPartitions == 0)
+		ds.partitionLock.RUnlock()
+		if ready {
+			break
+		}
+
+		log.Printf("Waiting for all partitions to be available (missing %d)", ds.missingPartitions)
+		t := time.NewTimer(10 * time.Second)
+		select {
+		case <-t.C:
+		case <-ds.partitionsReady:
+		}
+	}
 
 	return nil
 }
@@ -176,6 +229,7 @@ func (ds *dataset) buildLocalPartitions(be backend.Backend, storagePath string) 
 
 	blockStore.SaveManifest()
 	ds.blockStore = blockStore
+	ds.advertisePartitions()
 	return nil
 }
 
@@ -200,6 +254,13 @@ func (ds *dataset) addFile(bs *blocks.BlockStore, be backend.Backend, file strin
 	}
 
 	return nil
+}
+
+func (ds *dataset) advertisePartitions() {
+	for i := 0; i < ds.numPartitions; i++ {
+		node := fmt.Sprintf("%05d@%s", i, ds.peers.address)
+		ds.zkWatcher.createEphemeral(path.Join("partitions", ds.version, node))
+	}
 }
 
 // TODO: cleanup?

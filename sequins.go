@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"log"
+	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +22,7 @@ type sequinsOptions struct {
 
 	zkPrefix  string
 	zkServers []string
+	hostname  string
 }
 
 type sequins struct {
@@ -62,16 +65,35 @@ func (s *sequins) init() error {
 	s.started = now
 	s.updated = now
 
-	// hostname, err := os.Hostname()
-	// if err != nil {
-	// 	return err
-	// }
+	return nil
+}
 
-	// _, port, err := net.SplitHostPort(s.options.address)
-	// if err != nil {
-	// 	return err
-	// }
+func (s *sequins) initDistributed() error {
+	// zkWatcher := connectZookeeper(s.options.zkServers, s.options.zkPrefix) TODO
+	zkWatcher, err := connectZookeeper([]string{"localhost:2181"}, "/sequins-test")
+	if err != nil {
+		return err
+	}
 
+	hostname := s.options.hostname
+	if hostname == "" {
+		hostname, err = os.Hostname()
+		if err != nil {
+			return err
+		}
+	}
+
+	_, port, err := net.SplitHostPort(s.options.address)
+	if err != nil {
+		return err
+	}
+
+	routableAddress := net.JoinHostPort(hostname, port)
+	peers := watchPeers(zkWatcher, routableAddress)
+	peers.waitToConverge(3 * time.Second) // TODO configurable
+
+	s.zkWatcher = zkWatcher
+	s.peers = peers
 	return nil
 }
 
@@ -80,15 +102,9 @@ func (s *sequins) start() error {
 	// cause requests that start processing after this runs to 500
 	// However, this may not be a problem, since you have to shift traffic to
 	// another instance before shutting down anyway, otherwise you'd have downtime
-	defer s.dataset.replace(nil).close()
-
-	// err := s.zkSetup()
-	// if err != nil {
-	// 	log.Fatal("Zookeeper setup failed: ", err)
-	// }
-
-	// Run updates in the background
-	// go s.syncRemoteState()
+	defer func() {
+		s.dataset.replace(nil).close()
+	}()
 
 	log.Println("Listening on", s.options.address)
 	return http.ListenAndServe(s.options.address, s)
@@ -115,7 +131,7 @@ func (s *sequins) refresh() error {
 
 	ds := s.dataset.get()
 	s.dataset.release(ds)
-	if ds != nil && ds.version == ds.version {
+	if ds != nil && version == ds.version {
 		log.Printf("%s is already the newest version, so not reloading.", version)
 		return nil
 	}
@@ -140,20 +156,15 @@ func (s *sequins) refresh() error {
 	return nil
 }
 
-// TODO: clean up old data
-
-func (s *sequins) updateVersion(ds *dataset) {
-
-}
-
 func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/" {
 		ds := s.dataset.get()
+		version := ds.version
 		s.dataset.release(ds)
 
 		status := status{
-			Path:    s.backend.DisplayPath(ds.version),
-			Version: ds.version,
+			Path:    s.backend.DisplayPath(version),
+			Version: version,
 			Started: s.started.Unix(),
 			Updated: s.updated.Unix(),
 		}
@@ -165,6 +176,7 @@ func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		w.Header()["Content-Type"] = []string{"application/json"}
 		w.Write(jsonBytes)
 		return
 	}

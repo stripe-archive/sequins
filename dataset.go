@@ -153,11 +153,6 @@ func (ds *dataset) build(be backend.Backend, storagePath string) error {
 		return ErrNoValidPartitions
 	}
 
-	// Create the partitions directory, so we can publish ephemeral
-	if ds.peers != nil {
-
-	}
-
 	err := ds.buildLocalPartitions(be, storagePath)
 	if err != nil {
 		return err
@@ -172,7 +167,9 @@ func (ds *dataset) build(be backend.Backend, storagePath string) error {
 
 		// Advertise all the partitions we have locally.
 		// TODO: very short possible race, since aren't actually listening over HTTP.
-		// need some way to accept proxied requests, but then wait?
+		// We shouldn't advertise until we're listening on HTTP, and then we should
+		// block proxied requests until we see all partitions ready (possibly just refuse outside connections?)
+		// (in multiplexed world, we can just 404 if not a proxied request)
 		ds.advertisePartitions()
 
 		updates := ds.zkWatcher.watchChildren(partitionPath)
@@ -199,7 +196,7 @@ func (ds *dataset) build(be backend.Backend, storagePath string) error {
 	return nil
 }
 
-// TODO: parallelize
+// TODO: parallelize multiple files at once
 
 func (ds *dataset) buildLocalPartitions(be backend.Backend, storagePath string) error {
 	files, err := be.ListFiles(ds.version)
@@ -273,7 +270,7 @@ func (ds *dataset) advertisePartitions() {
 	}
 }
 
-// TODO: cleanup?
+// TODO: cleanup zk state. not everything is ephemeral, and we may be long-running w/ multiple versions
 
 func (ds *dataset) close() error {
 	return ds.blockStore.Close()

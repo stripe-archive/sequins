@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"errors"
 
 	"github.com/samuel/go-zookeeper/zk"
 )
@@ -28,6 +29,7 @@ type zkWatcher struct {
 	conn      *zk.Conn
 	errs      chan error
 	shutdown  chan bool
+	shutdownOnce sync.Once
 
 	hooksLock      sync.Mutex
 	ephemeralNodes []string
@@ -55,7 +57,7 @@ func connectZookeeper(zkServers []string, prefix string) (*zkWatcher, error) {
 
 func (w *zkWatcher) reconnect() error {
 	log.Println("Connecting to zookeeper at", strings.Join(w.zkServers, ","))
-	conn, _, err := zk.Connect(w.zkServers, 100*time.Millisecond)
+	conn, events, err := zk.Connect(w.zkServers, 100*time.Millisecond)
 	if err != nil {
 		return err
 	}
@@ -63,6 +65,30 @@ func (w *zkWatcher) reconnect() error {
 	// Don't log anything ever.
 	conn.SetLogger(nullLogger{})
 	w.conn = conn
+
+	// TODO: recreate permanent paths? What if zookeeper dies and loses data?
+	// TODO: clear data on setup? or just hope that it's uniquely namespaced enough
+	err = w.createPath("")
+	if err != nil {
+		return err
+	}
+
+	log.Println("Successfully connected to zookeeper!")
+
+	go func() {
+		for {
+			ev := <-events
+			log.Println("Got event:", ev)
+			if ev.Err != nil {
+				sendErr(w.errs, ev.Err)
+				return
+			} else if ev.State == zk.StateDisconnected {
+				sendErr(w.errs, errors.New("zk disconnected"))
+				return
+			}
+		}
+	}()
+
 	return nil
 }
 
@@ -89,11 +115,6 @@ func (w *zkWatcher) run() {
 
 		time.Sleep(time.Second)
 		w.reconnect()
-	}
-
-	conn := w.conn
-	if conn != nil {
-		conn.Close()
 	}
 }
 
@@ -146,7 +167,13 @@ func (w *zkWatcher) hookWatchChildren(node string, updates chan []string) {
 
 // createPath creates a node and all its parents permanently.
 func (w *zkWatcher) createPath(node string) error {
-	return w.createAll(path.Join(w.prefix, node))
+	node = path.Join(w.prefix, node)
+	err := w.createAll(node)
+	if err != nil {
+		return fmt.Errorf("create %s: %s", node, err)
+	} else {
+		return err
+	}
 }
 
 func (w *zkWatcher) createAll(fullNode string) error {
@@ -160,10 +187,17 @@ func (w *zkWatcher) createAll(fullNode string) error {
 
 	_, err := w.conn.Create(path.Clean(fullNode), nil, 0, defaultACL)
 	if err != nil && err != zk.ErrNodeExists {
-		return fmt.Errorf("create %s: %s", fullNode, err)
+		return err
 	}
 
 	return nil
+}
+
+func (w *zkWatcher) close() {
+	w.shutdownOnce.Do(func() {
+		w.shutdown <- true
+		w.conn.Close()
+	})
 }
 
 // sendErr sends the error over the channel, or discards it if the error is full.

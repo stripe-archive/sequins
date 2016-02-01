@@ -90,7 +90,7 @@ func (s *sequins) initDistributed() error {
 
 	routableAddress := net.JoinHostPort(hostname, port)
 	peers := watchPeers(zkWatcher, routableAddress)
-	peers.waitToConverge(3 * time.Second) // TODO configurable
+	peers.waitToConverge(10 * time.Second) // TODO configurable
 
 	s.zkWatcher = zkWatcher
 	s.peers = peers
@@ -102,12 +102,19 @@ func (s *sequins) start() error {
 	// cause requests that start processing after this runs to 500
 	// However, this may not be a problem, since you have to shift traffic to
 	// another instance before shutting down anyway, otherwise you'd have downtime
-	defer func() {
-		s.dataset.replace(nil).close()
-	}()
+	defer s.shutdown()
 
 	log.Println("Listening on", s.options.address)
 	return http.ListenAndServe(s.options.address, s)
+}
+
+func (s *sequins) shutdown() {
+	// Swallow errors here.
+	s.dataset.replace(nil).close()
+	zk := s.zkWatcher
+	if zk != nil{
+		zk.close()
+	}
 }
 
 func (s *sequins) reloadLatest() error {

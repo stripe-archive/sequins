@@ -13,6 +13,7 @@ import (
 var ErrNoManifest = errors.New("no manifest file found")
 var ErrNotFound = errors.New("key doesn't exist")
 var ErrMissingPartitions = errors.New("existing block store missing partitions")
+var ErrWrongPartition = errors.New("The file is cleanly partitioned, but doesn't contain a partition we want")
 
 // A BlockStore stores ingested key/value data in discrete blocks, each stored
 // as a separate CDB file. The blocks are arranged and sorted in a way that
@@ -95,12 +96,33 @@ func (store *BlockStore) AddFile(reader *sequencefile.Reader) error {
 	newBlocks := make(map[int]*blockWriter)
 	savedBlocks := make(map[int][]*Block)
 
+	canAssumePartition := true
+	assumedPartition := -1
+	assumedFor := 0
+
 	for reader.Scan() {
 		// TODO: we need to consider pathological cases so we don't end up
 		// with a block with ~one key
 		partition := KeyPartition(string(reader.Key()), store.numPartitions)
+
+		// If we see the same partition for the first 5000 keys, it's safe to assume
+		// that this file only contains that partition. This is often the case if
+		// the data has been shuffled by the output key in a way that aligns with
+		// our own partitioning scheme.
+		if canAssumePartition {
+			if assumedPartition == -1 {
+				assumedPartition = partition
+			} else if partition != assumedPartition {
+				canAssumePartition = false
+			} else {
+				assumedFor += 1
+			}
+		}
+
 		if store.selectedPartitions != nil && !store.selectedPartitions[partition] {
-			// TODO: detect partitioning
+			if canAssumePartition && assumedFor < 5000 {
+				return ErrWrongPartition
+			}
 			continue
 		}
 

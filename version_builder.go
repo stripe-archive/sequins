@@ -147,7 +147,9 @@ func (vsb *versionBuilder) addFile(bs *blocks.BlockStore, be backend.Backend, fi
 	}
 
 	err = bs.AddFile(sf)
-	if err != nil {
+	if err == blocks.ErrWrongPartition {
+		log.Println("Skipping", file, "because it contains no relevant partitions")
+	} else if err != nil {
 		return fmt.Errorf("reading %s: %s", file, err)
 	}
 

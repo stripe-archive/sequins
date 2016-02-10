@@ -98,7 +98,7 @@ func (store *BlockStore) AddFile(reader *sequencefile.Reader) error {
 	for reader.Scan() {
 		// TODO: we need to consider pathological cases so we don't end up
 		// with a block with ~one key
-		partition := partition(reader.Key(), store.numPartitions)
+		partition := KeyPartition(string(reader.Key()), store.numPartitions)
 		if store.selectedPartitions != nil && !store.selectedPartitions[partition] {
 			// TODO: detect partitioning
 			continue
@@ -197,15 +197,14 @@ func (store *BlockStore) SaveManifest() error {
 
 // Get returns the value for a given key.
 func (store *BlockStore) Get(key string) ([]byte, error) {
-	keyBytes := []byte(key)
 	store.blockMapLock.RLock()
 	defer store.blockMapLock.RUnlock()
 
 	// There can be multiple blocks for each partition - in that case, we need to
 	// check each one sequentially.
-	partition := partition(keyBytes, store.numPartitions)
+	partition := KeyPartition(key, store.numPartitions)
 	for _, block := range store.BlockMap[partition] {
-		res, err := block.Get(keyBytes)
+		res, err := block.Get([]byte(key))
 		if err != nil {
 			return nil, err
 		} else if res != nil {
@@ -236,8 +235,8 @@ func hashCode(b []byte) int32 {
 	return v
 }
 
-func partition(key []byte, totalPartitions int) int {
-	return int(hashCode(key)&math.MaxInt32) % totalPartitions
+func KeyPartition(key string, totalPartitions int) int {
+	return int(hashCode([]byte(key))&math.MaxInt32) % totalPartitions
 }
 
 // TODO: better pathological case handling

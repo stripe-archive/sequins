@@ -16,7 +16,7 @@ func (lw zkLogWriter) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-func connectZookeeperTest(t *testing.T, ts *zk.TestCluster) (*zkWatcher, *zk.TestCluster) {
+func connectZookeeperTest(t *testing.T) (*zkWatcher, *zk.TestCluster) {
 	ts, err := zk.StartTestCluster(3, nil, zkLogWriter{t})
 	if err != nil {
 		t.Fatal(err)
@@ -27,11 +27,11 @@ func connectZookeeperTest(t *testing.T, ts *zk.TestCluster) (*zkWatcher, *zk.Tes
 		hosts[i] = fmt.Sprintf("127.0.0.1:%d", srv.Port)
 	}
 
-	zkWatcher, err := connectZookeeper(hosts, "test-sequins")
+	zkWatcher, err := connectZookeeper([]string{"localhost:2181"}, "test-sequins")
 
 	return zkWatcher, ts
 }
 
 func TestZKWatcher(t *testing.T) {
-
+	connectZookeeperTest(t)
 }

@@ -1,18 +1,15 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"log"
 	"net"
 	"net/http"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/stripe/sequins/backend"
-	"github.com/stripe/sequins/blocks"
 )
 
 type sequinsOptions struct {
@@ -29,11 +26,11 @@ type sequins struct {
 	options sequinsOptions
 	http    *http.Server
 	backend backend.Backend
+	mux     *versionMux
 
 	peers     *peers
 	zkWatcher *zkWatcher
 
-	dataset    datasetReference
 	started    time.Time
 	updated    time.Time
 	reloadLock sync.Mutex
@@ -51,7 +48,7 @@ func newSequins(backend backend.Backend, options sequinsOptions) *sequins {
 		options:    options,
 		backend:    backend,
 		reloadLock: sync.Mutex{},
-		dataset:    datasetReference{},
+		mux:        newVersionMux(),
 	}
 }
 
@@ -98,10 +95,9 @@ func (s *sequins) initDistributed() error {
 }
 
 func (s *sequins) start() error {
-	// TODO: we may need a more graceful way of shutting down, since this will
-	// cause requests that start processing after this runs to 500
-	// However, this may not be a problem, since you have to shift traffic to
-	// another instance before shutting down anyway, otherwise you'd have downtime
+	// TODO: We need to gracefully shutdown. Most of the time, we just
+	// go down hard. We can use https://github.com/tylerb/graceful for
+	// this.
 	defer s.shutdown()
 
 	log.Println("Listening on", s.options.address)
@@ -110,9 +106,10 @@ func (s *sequins) start() error {
 
 func (s *sequins) shutdown() {
 	// Swallow errors here.
-	s.dataset.replace(nil).close()
+	s.mux.prepare(nil)
+	s.mux.upgrade().close()
 	zk := s.zkWatcher
-	if zk != nil{
+	if zk != nil {
 		zk.close()
 	}
 }
@@ -123,6 +120,7 @@ func (s *sequins) reloadLatest() error {
 		return err
 	}
 
+	// TODO: need to synchronize this memory write?
 	s.updated = time.Now()
 	return nil
 }
@@ -131,31 +129,42 @@ func (s *sequins) refresh() error {
 	s.reloadLock.Lock()
 	defer s.reloadLock.Unlock()
 
-	version, err := s.backend.LatestVersion(s.options.checkForSuccessFile)
+	lasestVersion, err := s.backend.LatestVersion(s.options.checkForSuccessFile)
 	if err != nil {
 		return err
 	}
 
-	ds := s.dataset.get()
-	s.dataset.release(ds)
-	if ds != nil && version == ds.version {
-		log.Printf("%s is already the newest version, so not reloading.", version)
+	currentVersion := s.mux.getCurrent()
+	s.mux.release(currentVersion)
+	if currentVersion != nil && lasestVersion == currentVersion.name {
+		// TODO: we log a lot this a bunch uneccessarily.
+		log.Printf("%s is already the newest version, so not reloading.", lasestVersion)
 		return nil
 	}
 
-	files, err := s.backend.ListFiles(version)
+	files, err := s.backend.ListFiles(lasestVersion)
 	if err != nil {
 		return err
 	}
 
-	ds = newDataset(version, len(files), s.peers, s.zkWatcher)
-	err = ds.build(s.backend, s.options.localPath)
+	builder := newVersion(lasestVersion, len(files), s.peers, s.zkWatcher)
+	vs, err := builder.build(s.backend, s.options.localPath)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("Switching to version %s!", ds.version)
-	old := s.dataset.replace(ds)
+	// Prepare the version, so that during the switching period we can respond
+	// to requests for it. TODO: this flow doesn't work for startup (but will
+	// when we multiplex)
+	s.mux.prepare(vs)
+
+	// Then, wait for all our peers to be ready. All peers should all see that
+	// everything is ready at roughly the same time.
+	vs.waitReady()
+
+	// Now, we can start serving requests for the new version to clients, as well.
+	log.Printf("Switching to version %s!", vs.name)
+	old := s.mux.upgrade()
 	if old != nil {
 		old.close()
 	}
@@ -165,15 +174,14 @@ func (s *sequins) refresh() error {
 
 func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/" {
-		ds := s.dataset.get()
-		version := ds.version
-		s.dataset.release(ds)
+		currentVersion := s.mux.getCurrent()
+		s.mux.release(currentVersion)
 
 		status := status{
-			Path:    s.backend.DisplayPath(version),
-			Version: version,
+			Path:    s.backend.DisplayPath(currentVersion.name),
+			Version: currentVersion.name,
 			Started: s.started.Unix(),
-			Updated: s.updated.Unix(),
+			Updated: s.updated.Unix(), // TODO: this may be different from Last-Modified
 		}
 
 		jsonBytes, err := json.Marshal(status)
@@ -188,21 +196,5 @@ func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key := strings.TrimPrefix(r.URL.Path, "/")
-	ds := s.dataset.get()
-	res, err := ds.blockStore.Get(key)
-	s.dataset.release(ds)
-
-	if err == blocks.ErrNotFound {
-		w.WriteHeader(http.StatusNotFound)
-	} else if err != nil {
-		log.Printf("Error fetching value for %s: %s\n", key, err)
-		w.WriteHeader(http.StatusInternalServerError)
-	} else {
-		// Explicitly unset Content-Type, so ServeContent doesn't try to do any
-		// sniffing.
-		w.Header()["Content-Type"] = nil
-		w.Header().Add("X-Sequins-Version", ds.version)
-		http.ServeContent(w, r, key, s.updated, bytes.NewReader(res))
-	}
+	s.mux.ServeHTTP(w, r)
 }

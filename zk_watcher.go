@@ -1,13 +1,13 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"path"
 	"strings"
 	"sync"
 	"time"
-	"errors"
 
 	"github.com/samuel/go-zookeeper/zk"
 )
@@ -24,11 +24,11 @@ func (n nullLogger) Printf(string, ...interface{}) {}
 // reconnects to zookeeper, and tries its best to be resilient to failures, but
 // defaults to silently not providing updates.
 type zkWatcher struct {
-	zkServers []string
-	prefix    string
-	conn      *zk.Conn
-	errs      chan error
-	shutdown  chan bool
+	zkServers    []string
+	prefix       string
+	conn         *zk.Conn
+	errs         chan error
+	shutdown     chan bool
 	shutdownOnce sync.Once
 
 	hooksLock      sync.Mutex
@@ -78,7 +78,6 @@ func (w *zkWatcher) reconnect() error {
 	go func() {
 		for {
 			ev := <-events
-			log.Println("Got event:", ev)
 			if ev.Err != nil {
 				sendErr(w.errs, ev.Err)
 				return

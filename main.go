@@ -61,7 +61,7 @@ automatically check for new versions and update to them. Best used with
 )
 
 var (
-	version string
+	sequinsVersion string
 
 	address             = kingpin.Flag("bind", "Address to bind to.").Short('b').Default("localhost:9599").PlaceHolder("ADDRESS").String()
 	localPath           = kingpin.Flag("local-path", localPathDesc).Short('l').String()
@@ -76,7 +76,7 @@ var (
 )
 
 func main() {
-	kingpin.Version("sequins version " + version)
+	kingpin.Version("sequins version " + sequinsVersion)
 	kingpin.Parse()
 
 	opts := sequinsOptions{
@@ -104,10 +104,10 @@ func main() {
 
 	// TODO only do this if zk config passed
 	// TODO no distributed if local path
-	// err = s.initDistributed()
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	err = s.initDistributed()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	err = s.init()
 	if err != nil {

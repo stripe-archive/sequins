@@ -231,6 +231,8 @@ func (vs *version) proxyRequest(key string, partition int, r *http.Request) ([]b
 		if err != nil {
 			log.Printf("Error proxying request to peer %s: %s\n", peer, err)
 			continue
+		} else if resp.StatusCode == 404 {
+			return nil, nil
 		} else if resp.StatusCode != 200 {
 			log.Printf("Error proxying request to peer %s: got %s\n", peer, resp.StatusCode)
 			continue

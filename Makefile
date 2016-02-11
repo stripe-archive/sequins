@@ -25,6 +25,7 @@ test: get-deps
 
 get-deps:
 	go get gopkg.in/alecthomas/kingpin.v2
+	go get github.com/BurntSushi/toml
 	go get github.com/colinmarc/hdfs
 	go get github.com/colinmarc/cdb
 	go get github.com/pborman/uuid

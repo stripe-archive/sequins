@@ -19,25 +19,28 @@ import (
 	"github.com/stripe/sequins/backend"
 )
 
-func getSequins(t *testing.T, opts sequinsOptions) *sequins {
-	if opts.localPath == "" {
+func getSequins(t *testing.T, backend backend.Backend, bind, localStore string) *sequins {
+	if localStore == "" {
 		tmpDir, err := ioutil.TempDir("", "sequins-")
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		opts.localPath = tmpDir
+		localStore = tmpDir
 	}
 
-	backend := backend.NewLocalBackend("test/names")
-	s := newSequins(backend, opts)
+	config := defaultConfig()
+	config.Bind = bind
+	config.LocalStore = localStore
+	s := newSequins(backend, config)
 
 	require.NoError(t, s.init())
 	return s
 }
 
 func TestSequins(t *testing.T) {
-	ts := getSequins(t, sequinsOptions{address: "localhost:9599", localPath: ""})
+	backend := backend.NewLocalBackend("test/names")
+	ts := getSequins(t, backend, "localhost:9599", "")
 
 	req, _ := http.NewRequest("GET", "/Alice", nil)
 	w := httptest.NewRecorder()
@@ -82,7 +85,7 @@ func TestSequins(t *testing.T) {
 
 func TestSequinsNoValidDirectories(t *testing.T) {
 	backend := backend.NewLocalBackend("test/names/0")
-	s := newSequins(backend, sequinsOptions{address: "localhost:9599", localPath: "test/names/0"})
+	s := newSequins(backend, defaultConfig())
 	err := s.init()
 	assert.Error(t, err)
 }
@@ -92,8 +95,11 @@ func TestSequinsThreadsafe(t *testing.T) {
 	scratch, err := ioutil.TempDir("", "sequins-")
 	require.NoError(t, err)
 	createTestIndex(t, scratch, 0)
-	opts := sequinsOptions{address: "localhost:9599", localPath: filepath.Join(scratch, "blocks")}
-	ts := newSequins(backend.NewLocalBackend(scratch), opts)
+
+	config := defaultConfig()
+	config.Root = scratch
+	config.LocalStore = filepath.Join(scratch, "blocks")
+	ts := newSequins(backend.NewLocalBackend(scratch), config)
 	require.NoError(t, ts.init())
 
 	var wg sync.WaitGroup

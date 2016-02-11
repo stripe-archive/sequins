@@ -105,6 +105,9 @@ func (mux *versionMux) getVersion(name string) *version {
 // release signifies that a request is done with a version, decrementing the
 // reference count.
 func (mux *versionMux) release(vs *version) {
+	mux.lock.RLock()
+	defer mux.lock.RUnlock()
+
 	if vs != nil {
 		mux.refcounts[vs].Done()
 	}
@@ -136,7 +139,10 @@ func (mux *versionMux) upgrade() *version {
 
 	if oldVersion != nil {
 		mux.refcounts[oldVersion].Wait()
+
+		mux.lock.Lock()
 		delete(mux.refcounts, oldVersion)
+		mux.lock.Unlock()
 	}
 
 	return oldVersion

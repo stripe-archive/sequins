@@ -44,8 +44,7 @@ func setupS3() *backend.S3Backend {
 
 func getS3Sequins(t *testing.T) *sequins {
 	backend := setupS3()
-	tmpDir, _ := ioutil.TempDir("", "sequins-")
-	s := newSequins(backend, sequinsOptions{address: "localhost:9599", localPath: tmpDir})
+	s := getSequins(t, backend, "localhost:9599", "")
 
 	require.NoError(t, s.init())
 

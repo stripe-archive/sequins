@@ -12,18 +12,8 @@ import (
 	"github.com/stripe/sequins/backend"
 )
 
-type sequinsOptions struct {
-	address             string
-	localPath           string
-	checkForSuccessFile bool
-
-	zkPrefix  string
-	zkServers []string
-	hostname  string
-}
-
 type sequins struct {
-	options sequinsOptions
+	config  sequinsConfig
 	http    *http.Server
 	backend backend.Backend
 	mux     *versionMux
@@ -43,9 +33,9 @@ type status struct {
 	Version string `json:"version"`
 }
 
-func newSequins(backend backend.Backend, options sequinsOptions) *sequins {
+func newSequins(backend backend.Backend, config sequinsConfig) *sequins {
 	return &sequins{
-		options:    options,
+		config:     config,
 		backend:    backend,
 		reloadLock: sync.Mutex{},
 		mux:        newVersionMux(),
@@ -66,13 +56,12 @@ func (s *sequins) init() error {
 }
 
 func (s *sequins) initDistributed() error {
-	// zkWatcher := connectZookeeper(s.options.zkServers, s.options.zkPrefix) TODO
-	zkWatcher, err := connectZookeeper([]string{"localhost:2181"}, "/sequins-test")
+	zkWatcher, err := connectZookeeper(s.config.ZK.Servers, s.config.ZK.Prefix)
 	if err != nil {
 		return err
 	}
 
-	hostname := s.options.hostname
+	hostname := s.config.ZK.AdvertisedHostname
 	if hostname == "" {
 		hostname, err = os.Hostname()
 		if err != nil {
@@ -80,14 +69,14 @@ func (s *sequins) initDistributed() error {
 		}
 	}
 
-	_, port, err := net.SplitHostPort(s.options.address)
+	_, port, err := net.SplitHostPort(s.config.Bind)
 	if err != nil {
 		return err
 	}
 
 	routableAddress := net.JoinHostPort(hostname, port)
 	peers := watchPeers(zkWatcher, routableAddress)
-	peers.waitToConverge(10 * time.Second) // TODO configurable
+	peers.waitToConverge(s.config.ZK.TimeToConverge.Duration)
 
 	s.zkWatcher = zkWatcher
 	s.peers = peers
@@ -100,8 +89,8 @@ func (s *sequins) start() error {
 	// this.
 	defer s.shutdown()
 
-	log.Println("Listening on", s.options.address)
-	return http.ListenAndServe(s.options.address, s)
+	log.Println("Listening on", s.config.Bind)
+	return http.ListenAndServe(s.config.Bind, s)
 }
 
 func (s *sequins) shutdown() {
@@ -129,7 +118,7 @@ func (s *sequins) refresh() error {
 	s.reloadLock.Lock()
 	defer s.reloadLock.Unlock()
 
-	lasestVersion, err := s.backend.LatestVersion(s.options.checkForSuccessFile)
+	lasestVersion, err := s.backend.LatestVersion(s.config.RequireSuccessFile)
 	if err != nil {
 		return err
 	}
@@ -137,7 +126,7 @@ func (s *sequins) refresh() error {
 	currentVersion := s.mux.getCurrent()
 	s.mux.release(currentVersion)
 	if currentVersion != nil && lasestVersion == currentVersion.name {
-		// TODO: we log a lot this a bunch uneccessarily.
+		// TODO: we log this a bunch uneccessarily.
 		log.Printf("%s is already the newest version, so not reloading.", lasestVersion)
 		return nil
 	}
@@ -148,7 +137,7 @@ func (s *sequins) refresh() error {
 	}
 
 	builder := newVersion(lasestVersion, len(files), s.peers, s.zkWatcher)
-	vs, err := builder.build(s.backend, s.options.localPath)
+	vs, err := builder.build(s.backend, s.config.LocalStore)
 	if err != nil {
 		return err
 	}
@@ -159,10 +148,12 @@ func (s *sequins) refresh() error {
 	s.mux.prepare(vs)
 
 	// Then, wait for all our peers to be ready. All peers should all see that
-	// everything is ready at roughly the same time.
+	// everything is ready at roughly the same time. If they switch before us,
+	// that's fine; we can serve the new version we've 'prepared' when peers
+	// ask for it.
 	vs.waitReady()
 
-	// Now, we can start serving requests for the new version to clients, as well.
+	// Now we can start serving requests for the new version to clients, as well.
 	log.Printf("Switching to version %s!", vs.name)
 	old := s.mux.upgrade()
 	if old != nil {

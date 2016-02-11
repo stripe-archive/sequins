@@ -97,7 +97,7 @@ func (vsb *versionBuilder) loadBlocks(be backend.Backend, storagePath string) (*
 		return nil, err
 	}
 
-	path := filepath.Join(storagePath, vsb.name)
+	path := filepath.Join(storagePath, "data", vsb.name)
 	_, err = os.Stat(filepath.Join(path, ".manifest"))
 	if err == nil {
 		log.Println("Loading version from existing manifest at", path)

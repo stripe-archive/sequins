@@ -22,6 +22,7 @@ var (
 
 	bind       = kingpin.Flag("bind", "Address to bind to. Overrides the config option of the same name.").Short('b').Default("localhost:9599").PlaceHolder("ADDRESS").String()
 	root       = kingpin.Flag("root", "Where the sequencefiles are. Overrides the config option of the same name.").Short('r').PlaceHolder("URI").String()
+	localStore = kingpin.Flag("local-store", "Where to store local data. Overrides the config option of the same name.").Short('l').PlaceHolder("PATH").String()
 	configPath = kingpin.Flag("config", "The config file to use. By default, either sequins.conf in the local directory or /etc/sequins.conf will be used.").PlaceHolder("PATH").String()
 )
 
@@ -47,6 +48,10 @@ func main() {
 
 	if *bind != "" {
 		config.Bind = *bind
+	}
+
+	if *localStore != "" {
+		config.LocalStore = *localStore
 	}
 
 	parsed, err := url.Parse(config.Root)

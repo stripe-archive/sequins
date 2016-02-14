@@ -111,12 +111,15 @@ func (vs *version) waitReady() error {
 	vs.missingPartitions = vs.numPartitions - len(vs.localPartitions)
 	vs.partitionsReady = make(chan bool)
 
+	// Create the partitions path we're going to watch, in case no one has done
+	// that yet.
 	partitionPath := path.Join("partitions", vs.name)
 	err := vs.zkWatcher.createPath(partitionPath)
 	if err != nil {
 		return err
 	}
 
+	// Watch for updates to the partitions path.
 	updates := vs.zkWatcher.watchChildren(partitionPath)
 	go vs.sync(updates)
 
@@ -133,7 +136,6 @@ func (vs *version) waitReady() error {
 			break
 		}
 
-		// TODO: seems to always wait 10s
 		log.Printf("Waiting for all partitions to be available (missing %d)", vs.missingPartitions)
 
 		t := time.NewTimer(10 * time.Second)
@@ -224,8 +226,6 @@ func (vs *version) proxyRequest(key string, partition int, r *http.Request) ([]b
 	r.RequestURI = ""
 
 	for _, peer := range shuffled {
-		log.Println("Trying peer", peer, "for key", key, "with partition", partition)
-
 		r.URL.Host = peer
 		resp, err := client.Do(r)
 		if err != nil {
@@ -244,8 +244,6 @@ func (vs *version) proxyRequest(key string, partition int, r *http.Request) ([]b
 
 	return nil, errNoAvailablePeers
 }
-
-// TODO: cleanup zk state. not everything is ephemeral, and we may be long-running w/ multiple versions
 
 func (vs *version) close() error {
 	return vs.blockStore.Close()

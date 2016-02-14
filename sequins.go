@@ -95,8 +95,9 @@ func (s *sequins) start() error {
 
 func (s *sequins) shutdown() {
 	// Swallow errors here.
-	s.mux.prepare(nil)
-	s.mux.upgrade().close()
+	vs := s.mux.getCurrent()
+	vs.close()
+
 	zk := s.zkWatcher
 	if zk != nil {
 		zk.close()
@@ -118,25 +119,25 @@ func (s *sequins) refresh() error {
 	s.reloadLock.Lock()
 	defer s.reloadLock.Unlock()
 
-	lasestVersion, err := s.backend.LatestVersion(s.config.RequireSuccessFile)
+	latestVersion, err := s.backend.LatestVersion(s.config.RequireSuccessFile)
 	if err != nil {
 		return err
 	}
 
 	currentVersion := s.mux.getCurrent()
 	s.mux.release(currentVersion)
-	if currentVersion != nil && lasestVersion == currentVersion.name {
+	if currentVersion != nil && latestVersion == currentVersion.name {
 		// TODO: we log this a bunch uneccessarily.
-		log.Printf("%s is already the newest version, so not reloading.", lasestVersion)
+		log.Printf("%s is already the newest version, so not reloading.", latestVersion)
 		return nil
 	}
 
-	files, err := s.backend.ListFiles(lasestVersion)
+	files, err := s.backend.ListFiles(latestVersion)
 	if err != nil {
 		return err
 	}
 
-	builder := newVersion(lasestVersion, len(files), s.peers, s.zkWatcher)
+	builder := newVersion(latestVersion, len(files), s.peers, s.zkWatcher)
 	vs, err := builder.build(s.backend, s.config.LocalStore)
 	if err != nil {
 		return err
@@ -150,14 +151,23 @@ func (s *sequins) refresh() error {
 	// Then, wait for all our peers to be ready. All peers should all see that
 	// everything is ready at roughly the same time. If they switch before us,
 	// that's fine; we can serve the new version we've 'prepared' when peers
-	// ask for it.
+	// ask for it. If we're not part of a cluster, this returns immediately.
 	vs.waitReady()
 
 	// Now we can start serving requests for the new version to clients, as well.
 	log.Printf("Switching to version %s!", vs.name)
-	old := s.mux.upgrade()
-	if old != nil {
-		old.close()
+	s.mux.upgrade(vs)
+
+	// Finally, clean up the old version after some amount of time and after
+	// no peers are asking for it anymore. Again, this is immediate if we're not
+	// part of a cluster.
+	if currentVersion != nil {
+		go func() {
+			shouldWait := (s.peers != nil)
+			s.mux.remove(currentVersion, shouldWait)
+			log.Println("Removing and clearing version", currentVersion.name)
+			currentVersion.close()
+		}()
 	}
 
 	return nil

@@ -46,8 +46,6 @@ func getS3Sequins(t *testing.T) *sequins {
 	backend := setupS3()
 	s := getSequins(t, backend, "localhost:9599", "")
 
-	require.NoError(t, s.init())
-
 	time.Sleep(100 * time.Millisecond)
 	return s
 }

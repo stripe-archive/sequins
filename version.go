@@ -17,16 +17,6 @@ import (
 	"github.com/stripe/sequins/blocks"
 )
 
-// /sequins/
-//   nodes/
-//     node1
-//     node2
-//   partitions/
-//     foo/
-//       version1/
-//         00000:node1
-//         00001:node2
-
 var errNoValidPartitions = errors.New("all partitions are fully replicated")
 var errNoAvailablePeers = errors.New("no available peers")
 var errProxiedIncorrectly = errors.New("this server doesn't have the requested partition")

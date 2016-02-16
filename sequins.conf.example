@@ -9,69 +9,70 @@ root = "hdfs://namenode:8020/path/to/sequins"
 # or an S3 url of the form s3://<bucket>/path/to/stuff. This should be a
 # a directory of directories of directories; each first level represents a 'db',
 # and each subdirectory therein represents a 'version' of that db. See the
-# README for more information. This must be set.
+# README for more information. This must be set, but can be overriden from the
+# command line with --root.
 
 # bind = "0.0.0.0:9599"
-# The address to bind on.
+# The address to bind on. This can be overridden from the command line with
+# --bind.
 
 # local_store = "/var/sequins/"
 # This is where sequins will store its internal copy of all the data it ingests.
+# This can be overriden from the command line with --local-store.
+
+# max_parallel_loads = 4
+# Unset by default. If this flag is set, sequins will only update this many dbs
+# at a time, minimizing disk usage while new data is being loaded. If you set
+# this to 1, then loads will be completely serialized.
+
+# refresh_period = "10m"
+# Unset by default. If this is specified, sequins will periodically download new
+# data this often (in seconds). If you enable this, you should also enable
+# 'require_success_file', or sequins may start automatically downloading a
+# partially-created set of files.
 
 # require_success_file = false
 # If this flag is set, sequins will only ingest data from directories that have
 # a _SUCCESS file (which is produced by hadoop when it completes a job).
 
-# refresh_period = "10m"
-# If this is specified, sequins will periodically download new data this often
-# (in seconds). This is disabled by default. If you enable it, you should also
-# enable 'require_success_file', or sequins may start automatically downloading
-# a partially-created set of files.
-
 # content_type = "application/json"
-# If this is set, sequins will set this Content-Type header on responses. By
-# default, no content type is specified.
-
-# You can define one of these blocks in order to override settings for one
-# specific db (the name must match the name of the subdirectory under root):
-
-# [dbs.foo]
-# content_type = "image/png"
-# refresh_period = "10s"
+# Unset by default. If this is set, sequins will set this Content-Type header on
+# responses.
 
 [s3]
 
-# The S3 region for the bucket where your data is. If unset (the default), and
-# sequins is running on EC2, this will be set to the instance region.
 # region = "us-west-1"
+# Unset by default. The S3 region for the bucket where your data is. If unset,
+# and sequins is running on EC2, this will be set to the instance region.
 
-# The access key and secret to use for S3. If unset (the default), the env
-# variables AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY will be used, or IAM
-# instance role credentials if they are available.
 # access_key_id = "AKIAIOSFODNN7EXAMPLE"
 # secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+# Unset by default. The access key and secret to use for S3. If unset, the env
+# variables AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY will be used, or IAM
+# instance role credentials if they are available.
 
 [zk]
 
-# If this is set, sequins will connect to zookeeper at the given addresses and
-# try to join the existing cluster. This is disabled by default.
 # servers = ["localhost:2181"]
+# Unset by default. If set, sequins will connect to zookeeper at the given
+# addresses and try to join the existing cluster.
 
+# cluster_name = "sequins"
 # This defines the root prefix to use for zookeeper state. If you are running
 # multiple sequins clusters using the same zookeeper for coordination, you
 # should change this so they can't conflict.
-# prefix = "/sequins"
 
+# time_to_converge = "10s"
 # Upon startup, sequins will wait this long for the set of known peers to
 # stabilize.
-# time_to_converge = "10s"
 
+# proxy_timeout = "100ms"
 # This is the total timeout (connect + request) for proxied requests to peers
 # in a sequins cluster. You may want to increase this if you're running on
 # particularly cold storage, or if there are other factors significantly
 # increasing request time.
-# proxy_timeout = "100ms"
 
-# This is the hostname sequins uses to advertise itself to peers in a cluster.
-# It should be resolvable by those peers. If left unset (the default), it will
-# be set to the hostname of the server.
 # advertised_hostname = "example.com"
+# Unset by default. This is the hostname sequins uses to advertise itself to
+# peers in a cluster. It should be resolvable by those peers. If left unset, it
+# will be set to the hostname of the server.

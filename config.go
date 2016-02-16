@@ -20,15 +20,12 @@ type sequinsConfig struct {
 	LocalStore         string   `toml:"local_store"`
 	RequireSuccessFile bool     `toml:"require_success_file"`
 	RefreshPeriod      duration `toml:"refresh_period"`
+	MaxParallelLoads   int      `toml:"max_parallel_loads"`
 	ContentType        string   `toml:"content_type"`
 
-	// DB                map[string] dbConfig `toml:"dbs"`
 	S3 s3Config `toml:"s3"`
 	ZK zkConfig `toml:"zk"`
 }
-
-// type dbConfig struct {
-// }
 
 type s3Config struct {
 	Region          string `toml:"region"`
@@ -38,7 +35,7 @@ type s3Config struct {
 
 type zkConfig struct {
 	Servers            []string `toml:"servers"`
-	Prefix             string   `toml:"prefix"`
+	ClusterName             string   `toml:"cluster_name"`
 	TimeToConverge     duration `toml:"time_to_converge"`
 	ProxyTimeout       duration `toml:"proxy_timeout"`
 	AdvertisedHostname string   `toml:"advertised_hostname"`
@@ -59,7 +56,7 @@ func defaultConfig() sequinsConfig {
 		},
 		ZK: zkConfig{
 			Servers:            nil,
-			Prefix:             "/sequins",
+			ClusterName:             "/sequins",
 			TimeToConverge:     duration{10 * time.Second},
 			ProxyTimeout:       duration{100 * time.Millisecond},
 			AdvertisedHostname: "",

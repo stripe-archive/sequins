@@ -23,46 +23,65 @@ func NewHdfsBackend(client *hdfs.Client, namenode string, hdfsPath string) *Hdfs
 	}
 }
 
-func (h *HdfsBackend) LatestVersion(checkForSuccess bool) (string, error) {
+func (h *HdfsBackend) ListDBs() ([]string, error) {
 	files, err := h.client.ReadDir(h.path)
-	if err != nil {
-		return "", err
-	}
-
-	for i := len(files) - 1; i >= 0; i-- {
-		if files[i].IsDir() {
-			name := files[i].Name()
-			fullPath := path.Join(h.path, name)
-			if !checkForSuccess || h.checkForSuccessFile(fullPath) {
-				return name, nil
-			}
-		}
-	}
-
-	return "", fmt.Errorf("No valid versions at %s", h.displayURL(h.path))
-}
-
-func (h *HdfsBackend) ListFiles(version string) ([]string, error) {
-	files, err := h.client.ReadDir(path.Join(h.path, version))
 	if err != nil {
 		return nil, err
 	}
 
-	res := make([]string, 0, len(files))
-	for i, info := range files {
-		if !info.IsDir() {
-			name := info.Name()
-			if !strings.HasPrefix(name, "_") || !strings.HasPrefix(name, ".") {
-				res[i] = info.Name()
-			}
+	var res []string
+	for _, f := range files {
+		if !f.IsDir() {
+			continue
+		}
+
+		res = append(res, f.Name())
+	}
+
+	return res, nil
+}
+
+func (h *HdfsBackend) ListVersions(db string, checkForSuccess bool) ([]string, error) {
+	files, err := h.client.ReadDir(path.Join(h.path, db))
+	if err != nil {
+		return nil, err
+	}
+
+	var res []string
+	for _, f := range files {
+		if !f.IsDir() {
+			continue
+		}
+
+		name := f.Name()
+		fullPath := path.Join(h.path, name)
+		if !checkForSuccess || h.checkForSuccessFile(fullPath) {
+			res = append(res, name)
 		}
 	}
 
 	return res, nil
 }
 
-func (h *HdfsBackend) Open(version, file string) (io.ReadCloser, error) {
-	src := path.Join(h.path, version, file)
+func (h *HdfsBackend) ListFiles(db, version string) ([]string, error) {
+	infos, err := h.client.ReadDir(path.Join(h.path, db, version))
+	if err != nil {
+		return nil, err
+	}
+
+	var res []string
+	for _, info := range infos {
+		name := info.Name()
+		if !strings.HasPrefix(name, "_") && !strings.HasPrefix(name, ".") {
+			res = append(res, path.Base(info.Name()))
+		}
+	}
+
+	return res, nil
+}
+
+func (h *HdfsBackend) Open(db, version, file string) (io.ReadCloser, error) {
+	src := path.Join(h.path, db, version, file)
 
 	f, err := h.client.Open(src)
 	if err != nil {
@@ -72,12 +91,14 @@ func (h *HdfsBackend) Open(version, file string) (io.ReadCloser, error) {
 	return f, nil
 }
 
-func (h *HdfsBackend) DisplayPath(version string) string {
-	return h.displayURL(h.path, version)
+func (h *HdfsBackend) DisplayPath(parts ...string) string {
+	allParts := []string{h.path}
+	allParts = append(allParts, parts...)
+	return h.displayURL(allParts...)
 }
 
-func (h *HdfsBackend) displayURL(pathElements ...string) string {
-	p := strings.TrimPrefix(path.Join(pathElements...), "/")
+func (h *HdfsBackend) displayURL(parts ...string) string {
+	p := strings.TrimPrefix(path.Join(parts...), "/")
 	return fmt.Sprintf("hdfs://%s/%s", h.namenode, p)
 }
 

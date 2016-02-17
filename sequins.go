@@ -1,12 +1,16 @@
 package main
 
 import (
-	"encoding/json"
+	// "encoding/json"
 	"log"
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
+	"path"
+	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/stripe/sequins/backend"
@@ -16,47 +20,80 @@ type sequins struct {
 	config  sequinsConfig
 	http    *http.Server
 	backend backend.Backend
-	mux     *versionMux
+
+	dbs     map[string]*db
+	dbsLock sync.RWMutex
 
 	peers     *peers
 	zkWatcher *zkWatcher
 
-	started    time.Time
-	updated    time.Time
-	reloadLock sync.Mutex
+	refreshLock    sync.Mutex
+	refreshWorkers chan bool
+	refreshTicker  *time.Ticker
+	sighups        chan os.Signal
 }
 
 type status struct {
-	Path    string `json:"path"`
-	Started int64  `json:"started"`
-	Updated int64  `json:"updated"`
-	Version string `json:"version"`
+	DBs map[string]dbStatus `json:"dbs"`
 }
 
 func newSequins(backend backend.Backend, config sequinsConfig) *sequins {
 	return &sequins{
-		config:     config,
-		backend:    backend,
-		reloadLock: sync.Mutex{},
-		mux:        newVersionMux(),
+		config:      config,
+		backend:     backend,
+		refreshLock: sync.Mutex{},
 	}
 }
 
 func (s *sequins) init() error {
-	err := s.refresh()
-	if err != nil {
-		return err
+	if s.config.ZK.Servers != nil {
+		err := s.initCluster()
+		if err != nil {
+			return err
+		}
 	}
 
-	now := time.Now()
-	s.started = now
-	s.updated = now
+	// To limit the number of parallel loads, create a full buffered channel.
+	// Workers grab one from the channel when they trigger a load, and put it
+	// back when they're done.
+	maxLoads := s.config.MaxParallelLoads
+	if maxLoads != 0 {
+		s.refreshWorkers = make(chan bool, maxLoads)
+		for i := 0; i < maxLoads; i++ {
+			s.refreshWorkers <- true
+		}
+	}
+
+	// Trigger loads before we start up.
+	s.refreshAll()
+
+	// Automatically refresh, if configured to do so.
+	refresh := s.config.RefreshPeriod.Duration
+	if refresh != 0 {
+		s.refreshTicker = time.NewTicker(refresh)
+		go func() {
+			log.Println("Automatically checking for new versions every", refresh.String())
+			for range s.refreshTicker.C {
+				s.refreshAll()
+			}
+		}()
+	}
+
+	// Refresh on SIGHUP.
+	s.sighups = make(chan os.Signal)
+	signal.Notify(s.sighups, syscall.SIGHUP)
+	go func() {
+		for range s.sighups {
+			s.refreshAll()
+		}
+	}()
 
 	return nil
 }
 
-func (s *sequins) initDistributed() error {
-	zkWatcher, err := connectZookeeper(s.config.ZK.Servers, s.config.ZK.Prefix)
+func (s *sequins) initCluster() error {
+	prefix := path.Join("", s.config.ZK.ClusterName)
+	zkWatcher, err := connectZookeeper(s.config.ZK.Servers, prefix)
 	if err != nil {
 		return err
 	}
@@ -94,108 +131,128 @@ func (s *sequins) start() error {
 }
 
 func (s *sequins) shutdown() {
-	// Swallow errors here.
-	vs := s.mux.getCurrent()
-	vs.close()
+	signal.Stop(s.sighups)
+
+	if s.refreshTicker != nil {
+		s.refreshTicker.Stop()
+	}
 
 	zk := s.zkWatcher
 	if zk != nil {
 		zk.close()
 	}
+
+	// TODO: stop in-progress downloads
 }
 
-func (s *sequins) reloadLatest() error {
-	err := s.refresh()
+func (s *sequins) refreshAll() {
+	s.refreshLock.Lock()
+	defer s.refreshLock.Unlock()
+
+	dbs, err := s.backend.ListDBs()
 	if err != nil {
-		return err
-	}
-
-	// TODO: need to synchronize this memory write?
-	s.updated = time.Now()
-	return nil
-}
-
-func (s *sequins) refresh() error {
-	s.reloadLock.Lock()
-	defer s.reloadLock.Unlock()
-
-	latestVersion, err := s.backend.LatestVersion(s.config.RequireSuccessFile)
-	if err != nil {
-		return err
-	}
-
-	currentVersion := s.mux.getCurrent()
-	s.mux.release(currentVersion)
-	if currentVersion != nil && latestVersion == currentVersion.name {
-		// TODO: we log this a bunch uneccessarily.
-		log.Printf("%s is already the newest version, so not reloading.", latestVersion)
-		return nil
-	}
-
-	files, err := s.backend.ListFiles(latestVersion)
-	if err != nil {
-		return err
-	}
-
-	builder := newVersion(latestVersion, len(files), s.peers, s.zkWatcher)
-	vs, err := builder.build(s.backend, s.config.LocalStore)
-	if err != nil {
-		return err
-	}
-
-	// Prepare the version, so that during the switching period we can respond
-	// to requests for it. TODO: this flow doesn't work for startup (but will
-	// when we multiplex)
-	s.mux.prepare(vs)
-
-	// Then, wait for all our peers to be ready. All peers should all see that
-	// everything is ready at roughly the same time. If they switch before us,
-	// that's fine; we can serve the new version we've 'prepared' when peers
-	// ask for it. If we're not part of a cluster, this returns immediately.
-	vs.waitReady()
-
-	// Now we can start serving requests for the new version to clients, as well.
-	log.Printf("Switching to version %s!", vs.name)
-	s.mux.upgrade(vs)
-
-	// Finally, clean up the old version after some amount of time and after
-	// no peers are asking for it anymore. Again, this is immediate if we're not
-	// part of a cluster.
-	if currentVersion != nil {
-		go func() {
-			shouldWait := (s.peers != nil)
-			s.mux.remove(currentVersion, shouldWait)
-			log.Println("Removing and clearing version", currentVersion.name)
-			currentVersion.close()
-		}()
-	}
-
-	return nil
-}
-
-func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == "/" {
-		currentVersion := s.mux.getCurrent()
-		s.mux.release(currentVersion)
-
-		status := status{
-			Path:    s.backend.DisplayPath(currentVersion.name),
-			Version: currentVersion.name,
-			Started: s.started.Unix(),
-			Updated: s.updated.Unix(), // TODO: this may be different from Last-Modified
-		}
-
-		jsonBytes, err := json.Marshal(status)
-		if err != nil {
-			log.Println("Error serving status:", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		w.Header()["Content-Type"] = []string{"application/json"}
-		w.Write(jsonBytes)
+		log.Println("Error listing DBs from", s.backend.DisplayPath(""))
 		return
 	}
 
-	s.mux.ServeHTTP(w, r)
+	// Add any new DBS, and trigger refreshes for existing ones. This
+	// Lock pattern is a bit goofy, since the lock is on the request
+	// path and we want to hold it for as short a time as possible.
+	s.dbsLock.RLock()
+
+	newDBs := make(map[string]*db)
+	for _, name := range dbs {
+		db := s.dbs[name]
+		if db == nil {
+			db = newDB(s, name)
+			// TODO: load the latest valid cached version
+		}
+
+		go s.refresh(db)
+		newDBs[name] = db
+	}
+
+	// Now, grab the full lock to switch the new map in.
+	s.dbsLock.RUnlock()
+	s.dbsLock.Lock()
+
+	oldDBs := s.dbs
+	s.dbs = newDBs
+
+	// Finally, close any dbs that we're removing.
+	s.dbsLock.Unlock()
+	s.dbsLock.RLock()
+
+	for name, db := range oldDBs {
+		if s.dbs[name] == nil {
+			db.close()
+		}
+	}
+
+	s.dbsLock.RUnlock()
+}
+
+func (s *sequins) refresh(db *db) {
+	<-s.refreshWorkers
+
+	err := db.refresh()
+	if err != nil {
+		log.Printf("Error refreshing %s: %s", db.name, err)
+	}
+
+	s.refreshWorkers <- true
+}
+
+func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if r.URL.Path == "/" {
+		s.serveStatus(w, r)
+		return
+	}
+
+	var dbName, key string
+	path := strings.TrimPrefix(r.URL.Path, "/")
+	split := strings.Index(path, "/")
+	if split == -1 {
+		dbName = path
+		key = ""
+	} else {
+		dbName = path[:split]
+		key = path[split+1:]
+	}
+
+	if dbName == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	s.dbsLock.RLock()
+	db := s.dbs[dbName]
+	s.dbsLock.RUnlock()
+
+	// If this is a proxy request, we don't want to confuse "we don't have this
+	// db" with "we don't have this key"; if this is a proxied request, then the
+	// peer apparently does have the db, and thinks we do too (which should never
+	// happen). So we use 501 Not Implemented to indicate the former. To users,
+	// we present a uniform 404.
+	if db == nil {
+		if r.URL.Query().Get("proxy") != "" {
+			w.WriteHeader(http.StatusNotImplemented)
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+
+		return
+	}
+
+	db.serveKey(w, r, key)
+}
+
+func (s *sequins) serveStatus(w http.ResponseWriter, r *http.Request) {
+	// TODO
+	w.WriteHeader(200)
 }

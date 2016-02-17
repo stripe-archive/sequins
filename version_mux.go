@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -10,9 +9,8 @@ import (
 
 const versionExpiry = 5 * time.Minute
 
-// A versionMux handles routing requests to the various versions we have
-// available. It handles two specific problems that crop up while routing
-// requests.
+// A versionMux handles routing requests to the various versions available for
+// a db. It handles two specific problems that crop up:
 //
 // First, it has the concept of "prepared" versions - versions that can serve
 // local requests, but for which the cluster doesn't forward requests to by
@@ -45,26 +43,31 @@ func newVersionMux() *versionMux {
 	return &versionMux{versions: make(map[string]versionReferenceCount)}
 }
 
-// ServeHTTP implements http.Handler.
-func (mux *versionMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+// serveKey is the entrypoint for HTTP requests.
+func (mux *versionMux) serveKey(w http.ResponseWriter, r *http.Request, key string) {
 	proxyVersion := r.URL.Query().Get("proxy")
 	var vs *version
 
 	if proxyVersion != "" {
 		vs = mux.getVersion(proxyVersion)
+
+		// If this is a proxy request, we need to indicate to the peer that we don't
+		// have the version they are asking for (although this should never happen,
+		// since they should only route to us if we're publishing that we *do* have
+		// the version).
 		if vs == nil {
-			log.Println("Got proxied request for unavailable version:", proxyVersion)
-			vs = mux.getCurrent()
+			w.WriteHeader(http.StatusNotImplemented)
+			return
 		}
 	} else {
 		vs = mux.getCurrent()
+		if vs == nil {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 	}
 
-	if vs == nil {
-		panic("no version prepared")
-	}
-
-	vs.ServeHTTP(w, r)
+	vs.serveKey(w, r, key)
 	mux.release(vs)
 }
 
@@ -101,6 +104,19 @@ func (mux *versionMux) getVersion(name string) *version {
 	}
 
 	return vs.version
+}
+
+// getAll returns a snapshot of all known versions.
+func (mux *versionMux) getAll() []*version {
+	mux.lock.RLock()
+	defer mux.lock.RUnlock()
+
+	versions := make([]*version, 0, len(mux.versions))
+	for _, vs := range mux.versions {
+		versions = append(versions, vs.version)
+	}
+
+	return versions
 }
 
 // release signifies that a request is done with a version, decrementing the

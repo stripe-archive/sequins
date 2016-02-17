@@ -39,12 +39,12 @@ func setupS3() *backend.S3Backend {
 
 	bucket.Put("test/names/foo", []byte("nothing"), "", "", s3.Options{})
 
-	return backend.NewS3Backend(bucket, "test/names")
+	return backend.NewS3Backend(bucket, "test")
 }
 
 func getS3Sequins(t *testing.T) *sequins {
 	backend := setupS3()
-	s := getSequins(t, backend, "localhost:9599", "")
+	s := getSequins(t, backend, "")
 
 	time.Sleep(100 * time.Millisecond)
 	return s
@@ -58,41 +58,42 @@ func putFile(bucket *s3.Bucket, src string) {
 func TestS3Backend(t *testing.T) {
 	s := setupS3()
 
-	version, err := s.LatestVersion(false)
+	versions, err := s.ListVersions("names", false)
 	require.NoError(t, err)
-	assert.Equal(t, "1", version)
+	assert.Equal(t, []string{"0", "1"}, versions)
 
-	version, err = s.LatestVersion(true)
+	versions, err = s.ListVersions("names", true)
 	require.NoError(t, err)
-	assert.Equal(t, "0", version)
+	assert.Equal(t, []string{"0"}, versions)
 }
 
 func TestS3Sequins(t *testing.T) {
 	ts := getS3Sequins(t)
 
-	req, _ := http.NewRequest("GET", "/Alice", nil)
+	req, _ := http.NewRequest("GET", "/names/Alice", nil)
 	w := httptest.NewRecorder()
 	ts.ServeHTTP(w, req)
 
 	assert.Equal(t, 200, w.Code)
 	assert.Equal(t, "Practice", w.Body.String())
 
-	req, _ = http.NewRequest("GET", "/foo", nil)
+	req, _ = http.NewRequest("GET", "/names/foo", nil)
 	w = httptest.NewRecorder()
 	ts.ServeHTTP(w, req)
 
 	assert.Equal(t, 404, w.Code)
 	assert.Equal(t, "", w.Body.String())
 
-	req, _ = http.NewRequest("GET", "/", nil)
+	req, _ = http.NewRequest("GET", "/names/", nil)
 	w = httptest.NewRecorder()
 	ts.ServeHTTP(w, req)
 
-	now := time.Now().Unix() - 1
 	status := &status{}
 	err := json.Unmarshal(w.Body.Bytes(), status)
 	require.NoError(t, err)
 	assert.Equal(t, 200, w.Code)
-	assert.Equal(t, "s3://sequinstest/test/names/1", status.Path)
-	assert.True(t, status.Started >= now)
+	// TODO (also hdfs)
+	// assert.Equal(t, "s3://sequinstest/test/names/1", status.Path)
+	// now := time.Now().Unix() - 1
+	// assert.True(t, status.Started >= now)
 }

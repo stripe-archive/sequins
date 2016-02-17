@@ -6,13 +6,14 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/colinmarc/hdfs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stripe/sequins/backend"
 )
+
+// TODO: we can run these tests in travis using gohdfs' minicluster script
 
 func setupHdfs(t *testing.T) *backend.HdfsBackend {
 	nn := os.Getenv("HADOOP_NAMENODE")
@@ -25,6 +26,7 @@ func setupHdfs(t *testing.T) *backend.HdfsBackend {
 		t.Fatal(err)
 	}
 
+	// TODO: we can create the test data now
 	if _, err = client.Stat("/_test_sequins"); os.IsNotExist(err) {
 		t.Skip("Skipping hdfs tests because there's no test data in /_test_sequins")
 	}
@@ -34,7 +36,7 @@ func setupHdfs(t *testing.T) *backend.HdfsBackend {
 
 func getHdfsSequins(t *testing.T) *sequins {
 	backend := setupHdfs(t)
-	s := getSequins(t, backend, "localhost:9599", "")
+	s := getSequins(t, backend, "")
 
 	require.NoError(t, s.init())
 	return s
@@ -43,13 +45,13 @@ func getHdfsSequins(t *testing.T) *sequins {
 func TestHdfsBackend(t *testing.T) {
 	h := setupHdfs(t)
 
-	version, err := h.LatestVersion(false)
+	versions, err := h.ListVersions("names", false)
 	require.NoError(t, err)
-	assert.Equal(t, version, "1")
+	assert.Equal(t, []string{"0", "1"}, versions)
 
-	version, err = h.LatestVersion(true)
+	versions, err = h.ListVersions("names", true)
 	require.NoError(t, err)
-	assert.Equal(t, version, "0")
+	assert.Equal(t, []string{"0"}, versions)
 }
 
 func TestHdfsSequins(t *testing.T) {
@@ -73,10 +75,9 @@ func TestHdfsSequins(t *testing.T) {
 	w = httptest.NewRecorder()
 	ts.ServeHTTP(w, req)
 
-	now := time.Now().Unix() - 1
 	status := &status{}
 	err := json.Unmarshal(w.Body.Bytes(), status)
 	require.NoError(t, err)
 	assert.Equal(t, 200, w.Code)
-	assert.True(t, status.Started >= now)
+	// TODO
 }

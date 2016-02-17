@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"path"
+	"sort"
 	"strings"
 
 	"github.com/crowdmob/goamz/s3"
@@ -21,54 +22,72 @@ func NewS3Backend(bucket *s3.Bucket, s3path string) *S3Backend {
 	}
 }
 
-func (s *S3Backend) LatestVersion(checkForSuccess bool) (string, error) {
+func (s *S3Backend) ListDBs() ([]string, error) {
+	return s.listDirs(s.path)
+}
+
+func (s *S3Backend) ListVersions(db string, checkForSuccess bool) ([]string, error) {
+	versions, err := s.listDirs(path.Join(s.path, db))
+	if err != nil {
+		return nil, err
+	}
+
+	if checkForSuccess {
+		var filtered []string
+		for _, version := range versions {
+			successFile := path.Join(s.path, db, version, "_SUCCESS")
+			exists, err := s.bucket.Exists(successFile)
+			if err != nil {
+				return nil, s.s3error(err)
+			}
+
+			if exists {
+				filtered = append(filtered, version)
+			}
+		}
+
+		versions = filtered
+	}
+
+	return versions, nil
+}
+
+func (s *S3Backend) listDirs(dir string) ([]string, error) {
 	// This code assumes you're using S3 like a filesystem, with directories
 	// separated by /'s. It also ignores the trailing slash on a prefix (for the
 	// purposes of sorting lexicographically), to be consistent with other
 	// backends.
-	var version, marker string
+	var res []string
+	var marker string
 
 	for {
-		resp, err := s.bucket.List(s.path+"/", "/", marker, 1000)
+		resp, err := s.bucket.List(dir+"/", "/", marker, 1000)
 
 		if err != nil {
-			return "", s.s3error(err)
+			return nil, s.s3error(err)
 		} else if resp.CommonPrefixes == nil {
 			break
 		}
 
-		var prefix string
-		// Search backwards for a valid version
-		for i := len(resp.CommonPrefixes) - 1; i >= 0; i-- {
-			prefix = strings.TrimSuffix(resp.CommonPrefixes[i], "/")
-			if path.Base(prefix) <= version {
-				continue
+		for _, p := range resp.CommonPrefixes {
+			prefix := strings.TrimSuffix(p, "/")
+
+			// List the prefix, to make sure it's a "directory"
+			isDir := false
+			resp, err := s.bucket.List(prefix, "", marker, 3)
+			if err != nil {
+				return nil, err
 			}
 
-			valid := false
-			if checkForSuccess {
-				// If the 'directory' has a key _SUCCESS inside it, that implies that
-				// there might be other keys with the same prefix
-				successFile := path.Join(prefix, "_SUCCESS")
-				exists, err := s.bucket.Exists(successFile)
-				if err != nil {
-					return "", s.s3error(err)
+			for _, key := range resp.Contents {
+				if strings.TrimSpace(path.Base(key.Key)) != "" {
+					isDir = true
+					break
 				}
-
-				valid = exists
-			} else {
-				// Otherwise, we just check the prefix itself. If it doesn't exist, then
-				// it's a prefix for some other key, and we can call it a directory
-				exists, err := s.bucket.Exists(prefix)
-				if err != nil {
-					return "", s.s3error(err)
-				}
-
-				valid = !exists
 			}
 
-			if valid {
-				version = path.Base(prefix)
+			if isDir {
+				res = append(res, path.Base(prefix))
 			}
 		}
 
@@ -79,16 +98,12 @@ func (s *S3Backend) LatestVersion(checkForSuccess bool) (string, error) {
 		}
 	}
 
-	if version != "" {
-		return version, nil
-	} else {
-		return "", fmt.Errorf("No valid versions at %s", s.displayURL(s.path))
-
-	}
+	sort.Strings(res)
+	return res, nil
 }
 
-func (s *S3Backend) ListFiles(version string) ([]string, error) {
-	versionPrefix := path.Join(s.path, version)
+func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
+	versionPrefix := path.Join(s.path, db, version)
 	marker := ""
 	res := make([]string, 0)
 
@@ -115,29 +130,32 @@ func (s *S3Backend) ListFiles(version string) ([]string, error) {
 		}
 	}
 
+	sort.Strings(res)
 	return res, nil
 }
 
-func (s *S3Backend) Open(version, file string) (io.ReadCloser, error) {
-	src := path.Join(s.path, version, file)
+func (s *S3Backend) Open(db, version, file string) (io.ReadCloser, error) {
+	src := path.Join(s.path, db, version, file)
 	reader, err := s.bucket.GetReader(src)
 	if err != nil {
-		return nil, fmt.Errorf("Error opening S3 path %s: %s", s.path, err)
+		return nil, err
 	}
 
 	return reader, nil
 }
 
-func (s *S3Backend) DisplayPath(version string) string {
-	return s.displayURL(s.path, version)
+func (s *S3Backend) DisplayPath(parts ...string) string {
+	allParts := []string{s.path}
+	allParts = append(allParts, parts...)
+	return s.displayURL(allParts...)
 }
 
-func (s *S3Backend) displayURL(pathElements ...string) string {
-	key := strings.TrimPrefix(path.Join(pathElements...), "/")
+func (s *S3Backend) displayURL(parts ...string) string {
+	key := strings.TrimPrefix(path.Join(parts...), "/")
 	return fmt.Sprintf("s3://%s/%s", s.bucket.Name, key)
 }
 
 // goamz error messages are always unqualified
 func (s *S3Backend) s3error(err error) error {
-	return fmt.Errorf("Unexpected S3 error on bucket %s: %s", s.bucket.Name, err)
+	return fmt.Errorf("unexpected S3 error on bucket %s: %s", s.bucket.Name, err)
 }

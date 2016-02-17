@@ -4,10 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
-	"os"
-	"os/signal"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"github.com/colinmarc/hdfs"
@@ -69,45 +66,12 @@ func main() {
 		s = hdfsSetup(parsed.Host, parsed.Path, config)
 	}
 
-	if config.ZK.Servers != nil {
-		err = s.initDistributed()
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-
 	err = s.init()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	go func() {
-		log.Fatal(s.start())
-	}()
-
-	refresh := config.RefreshPeriod.Duration
-	if refresh != 0 {
-		ticker := time.NewTicker(refresh)
-		go func() {
-			log.Println("Automatically checking for new versions every", refresh.String())
-			for range ticker.C {
-				err = s.reloadLatest()
-				if err != nil {
-					log.Println(fmt.Errorf("Error reloading: %s", err))
-				}
-			}
-		}()
-	}
-
-	sighups := make(chan os.Signal)
-	signal.Notify(sighups, syscall.SIGHUP)
-
-	for range sighups {
-		err = s.reloadLatest()
-		if err != nil {
-			log.Println(fmt.Errorf("Error reloading: %s", err))
-		}
-	}
+	log.Fatal(s.start())
 }
 
 func localSetup(localPath string, config sequinsConfig) *sequins {

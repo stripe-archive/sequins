@@ -35,7 +35,7 @@ type s3Config struct {
 
 type zkConfig struct {
 	Servers            []string `toml:"servers"`
-	ClusterName             string   `toml:"cluster_name"`
+	ClusterName        string   `toml:"cluster_name"`
 	TimeToConverge     duration `toml:"time_to_converge"`
 	ProxyTimeout       duration `toml:"proxy_timeout"`
 	AdvertisedHostname string   `toml:"advertised_hostname"`
@@ -56,7 +56,7 @@ func defaultConfig() sequinsConfig {
 		},
 		ZK: zkConfig{
 			Servers:            nil,
-			ClusterName:             "/sequins",
+			ClusterName:        "/sequins",
 			TimeToConverge:     duration{10 * time.Second},
 			ProxyTimeout:       duration{100 * time.Millisecond},
 			AdvertisedHostname: "",

@@ -7,35 +7,33 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/stripe/sequins/backend"
 	"github.com/stripe/sequins/blocks"
 	"github.com/stripe/sequins/sequencefile"
 )
 
 type versionBuilder struct {
+	sequins       *sequins
+	db            string
 	name          string
 	numPartitions int
-
-	peers     *peers
-	zkWatcher *zkWatcher
 
 	localPartitions  map[int]bool
 	remotePartitions map[int][]string
 }
 
-func newVersion(name string, numPartitions int, peers *peers, zkWatcher *zkWatcher) *versionBuilder {
+func newVersion(sequins *sequins, db, name string, numPartitions int) *versionBuilder {
 	vsb := &versionBuilder{
+		sequins:       sequins,
+		db:            db,
 		name:          name,
 		numPartitions: numPartitions,
-		peers:         peers,
-		zkWatcher:     zkWatcher,
 	}
 
 	// If we're running in standalone mode, these'll be nil.
 	var localPartitions map[int]bool
 	var remotePartitions map[int][]string
 
-	if peers != nil {
+	if sequins.peers != nil {
 		// Select which partitions are local by iterating through them all, and
 		// checking the hashring.
 		localPartitions = make(map[int]bool)
@@ -45,7 +43,7 @@ func newVersion(name string, numPartitions int, peers *peers, zkWatcher *zkWatch
 		for i := 0; i < numPartitions; i++ {
 			partitionId := vsb.partitionId(i)
 
-			replicas := peers.pick(partitionId, replication)
+			replicas := sequins.peers.pick(partitionId, replication)
 			for _, replica := range replicas {
 				if replica == peerSelf {
 					localPartitions[i] = true
@@ -54,7 +52,7 @@ func newVersion(name string, numPartitions int, peers *peers, zkWatcher *zkWatch
 			}
 		}
 
-		log.Printf("Selected partitions for version %s: %v\n", name, dispPartitions)
+		log.Printf("Selected partitions for %s version %s: %v\n", db, name, dispPartitions)
 	}
 
 	vsb.localPartitions = localPartitions
@@ -62,42 +60,43 @@ func newVersion(name string, numPartitions int, peers *peers, zkWatcher *zkWatch
 	return vsb
 }
 
-// build prepares the version, blocking until all *local* partitions are ready,
+// build prepares the version, blocking until all local partitions are ready,
 // then returns it.
-func (vsb *versionBuilder) build(be backend.Backend, storagePath string) (*version, error) {
-	if vsb.localPartitions != nil && len(vsb.localPartitions) == 0 {
-		log.Println("All valid partitions for version", vsb.name, "are already spoken for. Consider increasing the replication level.")
-		return nil, errNoValidPartitions
-	}
-
-	blockStore, err := vsb.loadBlocks(be, storagePath)
-	if err != nil {
-		return nil, err
-	}
-
-	db := &version{
+func (vsb *versionBuilder) build() (*version, error) {
+	vs := &version{
+		sequins:          vsb.sequins,
+		db:               vsb.db,
 		name:             vsb.name,
 		created:          time.Now(),
 		numPartitions:    vsb.numPartitions,
-		peers:            vsb.peers,
-		zkWatcher:        vsb.zkWatcher,
-		blockStore:       blockStore,
 		localPartitions:  vsb.localPartitions,
 		remotePartitions: vsb.remotePartitions,
 	}
 
-	return db, nil
-}
+	if vsb.localPartitions != nil && len(vsb.localPartitions) == 0 {
+		log.Println("All valid partitions for", vsb.db, "version", vsb.name,
+			"are already spoken for. Consider increasing the replication level.")
+		return vs, nil
+	}
 
-// TODO: parallelize building
-
-func (vsb *versionBuilder) loadBlocks(be backend.Backend, storagePath string) (*blocks.BlockStore, error) {
-	files, err := be.ListFiles(vsb.name)
+	path := filepath.Join(vsb.sequins.config.LocalStore, "data", vsb.db, vsb.name)
+	blockStore, err := vsb.loadBlocks(path)
 	if err != nil {
 		return nil, err
 	}
 
-	path := filepath.Join(storagePath, "data", vsb.name)
+	vs.blockStore = blockStore
+	return vs, nil
+}
+
+// TODO: parallelize building
+
+func (vsb *versionBuilder) loadBlocks(path string) (*blocks.BlockStore, error) {
+	files, err := vsb.sequins.backend.ListFiles(vsb.db, vsb.name)
+	if err != nil {
+		return nil, err
+	}
+
 	_, err = os.Stat(filepath.Join(path, ".manifest"))
 	if err == nil {
 		log.Println("Loading version from existing manifest at", path)
@@ -105,12 +104,12 @@ func (vsb *versionBuilder) loadBlocks(be backend.Backend, storagePath string) (*
 		if err == nil {
 			return blockStore, nil
 		} else {
-			log.Println("Error loading version", vsb.name, "from manifest:", err)
+			log.Println("Error loading", vsb.db, "version", vsb.name, "from manifest:", err)
 		}
 	}
 
-	// TODO: make this logging less confusing
-	log.Println("Loading version", vsb.name, "from", be.DisplayPath(vsb.name), "into local directory", path)
+	log.Println("Loading", vsb.db, "version", vsb.name, "from",
+		vsb.sequins.backend.DisplayPath(vsb.name), "into local directory", path)
 
 	log.Println("Clearing local directory", path)
 	os.RemoveAll(path)
@@ -121,7 +120,7 @@ func (vsb *versionBuilder) loadBlocks(be backend.Backend, storagePath string) (*
 
 	blockStore := blocks.New(path, len(files), vsb.localPartitions)
 	for _, file := range files {
-		err := vsb.addFile(blockStore, be, file)
+		err := vsb.addFile(blockStore, file)
 		if err != nil {
 			return nil, err
 		}
@@ -131,26 +130,26 @@ func (vsb *versionBuilder) loadBlocks(be backend.Backend, storagePath string) (*
 	return blockStore, nil
 }
 
-// TODO: this probably belongs in blockstore
-func (vsb *versionBuilder) addFile(bs *blocks.BlockStore, be backend.Backend, file string) error {
-	log.Println("Reading records from", file, "at", be.DisplayPath(vsb.name))
+func (vsb *versionBuilder) addFile(bs *blocks.BlockStore, file string) error {
+	disp := vsb.sequins.backend.DisplayPath(vsb.db, vsb.name, file)
+	log.Println("Reading records from", disp)
 
-	stream, err := be.Open(vsb.name, file)
+	stream, err := vsb.sequins.backend.Open(vsb.db, vsb.name, file)
 	if err != nil {
-		return fmt.Errorf("reading %s: %s", file, err)
+		return fmt.Errorf("reading %s: %s", disp, err)
 	}
 
 	sf := sequencefile.New(stream)
 	err = sf.ReadHeader()
 	if err != nil {
-		return fmt.Errorf("reading header from %s: %s", file, err)
+		return fmt.Errorf("reading header from %s: %s", disp, err)
 	}
 
 	err = bs.AddFile(sf)
 	if err == blocks.ErrWrongPartition {
-		log.Println("Skipping", file, "because it contains no relevant partitions")
+		log.Println("Skipping", disp, "because it contains no relevant partitions")
 	} else if err != nil {
-		return fmt.Errorf("reading %s: %s", file, err)
+		return fmt.Errorf("reading %s: %s", disp, err)
 	}
 
 	return nil

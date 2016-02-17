@@ -57,10 +57,8 @@ root = "hdfs://namenode:8020/path/to/sequins"
 # Unset by default. If set, sequins will connect to zookeeper at the given
 # addresses and try to join the existing cluster.
 
-# cluster_name = "sequins"
-# This defines the root prefix to use for zookeeper state. If you are running
-# multiple sequins clusters using the same zookeeper for coordination, you
-# should change this so they can't conflict.
+# replication = 2
+# This is the number of replicas responsible for each partition.
 
 # time_to_converge = "10s"
 # Upon startup, sequins will wait this long for the set of known peers to
@@ -71,6 +69,11 @@ root = "hdfs://namenode:8020/path/to/sequins"
 # in a sequins cluster. You may want to increase this if you're running on
 # particularly cold storage, or if there are other factors significantly
 # increasing request time.
+
+# cluster_name = "sequins"
+# This defines the root prefix to use for zookeeper state. If you are running
+# multiple sequins clusters using the same zookeeper for coordination, you
+# should change this so they can't conflict.
 
 # advertised_hostname = "example.com"
 # Unset by default. This is the hostname sequins uses to advertise itself to

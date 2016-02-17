@@ -1,14 +1,19 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
+	"os"
+	"regexp"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var commentedDefaultRegex = regexp.MustCompile(`# (\w+ = .+)\n(?:#.*\n)*\n*`)
 
 func createTestConfig(t *testing.T, conf string) string {
 	tmpfile, err := ioutil.TempFile("", "sequins-conf-test")
@@ -38,6 +43,35 @@ func TestExampleConfig(t *testing.T) {
 	assert.Equal(t, defaults, config, "sequins.conf.example should eval to the default config")
 }
 
+// TestExampleConfigDefaults uncomments the defaults in sequins.conf.example,
+// and then checks that against the actual defaults. It tries to skip any
+// options annotated with "Unset by default".
+func TestExampleConfigDefaults(t *testing.T) {
+	raw, err := ioutil.ReadFile("sequins.conf.example")
+	require.NoError(t, err, "sequins.conf.example should be readable")
+
+	// Uncomment all the commented defaults, and make sure they're the actual
+	// defaults. But we have to skip ones that we document as "Unset by default".
+	replaced := commentedDefaultRegex.ReplaceAllFunc(raw, func(match []byte) []byte {
+		if bytes.Index(match, []byte("Unset by default.")) == -1 {
+			return append(commentedDefaultRegex.FindSubmatch(match)[1], '\n')
+		} else {
+			return nil
+		}
+	})
+
+	t.Logf("---replaced config---\n%s\n---replaced config---", string(replaced))
+	path := createTestConfig(t, string(replaced))
+	config, err := loadConfig(path)
+	require.NoError(t, err, "the uncommented sequins.conf.example should exist and be valid")
+
+	defaults := defaultConfig()
+	defaults.Root = config.Root
+	assert.Equal(t, defaults, config, "the uncommented sequins.conf.example should eval to the default config")
+
+	os.Remove(path)
+}
+
 func TestSimpleConfig(t *testing.T) {
 	path := createTestConfig(t, `
 		root = "s3://foo/bar"
@@ -62,6 +96,8 @@ func TestSimpleConfig(t *testing.T) {
 	defaults.RefreshPeriod = config.RefreshPeriod
 	defaults.ZK.Servers = config.ZK.Servers
 	assert.Equal(t, defaults, config, "the configuration should otherwise be the default")
+
+	os.Remove(path)
 }
 
 func TestEmptyConfig(t *testing.T) {
@@ -80,6 +116,8 @@ func TestConfigSearchPath(t *testing.T) {
 
 	_, err = loadConfig(fmt.Sprintf("/this/doesnt/exist.conf:%s", path))
 	assert.NoError(t, err, "it should find the config file on the search path")
+
+	os.Remove(path)
 }
 
 func TestConfigWithExtraKeys(t *testing.T) {
@@ -96,4 +134,6 @@ func TestConfigWithExtraKeys(t *testing.T) {
 
 	_, err := loadConfig(path)
 	assert.Error(t, err, "we should throw an error if there are extra config properties")
+
+	os.Remove(path)
 }

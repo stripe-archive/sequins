@@ -17,10 +17,10 @@ var errNoConfig = errors.New("no config file found")
 type sequinsConfig struct {
 	Root               string   `toml:"root"`
 	Bind               string   `toml:"bind"`
-	LocalStore         string   `toml:"local_store"`
-	RequireSuccessFile bool     `toml:"require_success_file"`
-	RefreshPeriod      duration `toml:"refresh_period"`
 	MaxParallelLoads   int      `toml:"max_parallel_loads"`
+	LocalStore         string   `toml:"local_store"`
+	RefreshPeriod      duration `toml:"refresh_period"`
+	RequireSuccessFile bool     `toml:"require_success_file"`
 	ContentType        string   `toml:"content_type"`
 
 	S3 s3Config `toml:"s3"`
@@ -35,19 +35,21 @@ type s3Config struct {
 
 type zkConfig struct {
 	Servers            []string `toml:"servers"`
-	ClusterName        string   `toml:"cluster_name"`
+	Replication        int      `toml:"replication"`
 	TimeToConverge     duration `toml:"time_to_converge"`
 	ProxyTimeout       duration `toml:"proxy_timeout"`
+	ClusterName        string   `toml:"cluster_name"`
 	AdvertisedHostname string   `toml:"advertised_hostname"`
 }
 
 func defaultConfig() sequinsConfig {
 	return sequinsConfig{
 		Root:               "",
-		Bind:               ":9599",
+		Bind:               "0.0.0.0:9599",
 		LocalStore:         "/var/sequins/",
-		RequireSuccessFile: false,
+		MaxParallelLoads:   0,
 		RefreshPeriod:      duration{time.Duration(0)},
+		RequireSuccessFile: false,
 		ContentType:        "",
 		S3: s3Config{
 			Region:          "",
@@ -56,9 +58,10 @@ func defaultConfig() sequinsConfig {
 		},
 		ZK: zkConfig{
 			Servers:            nil,
-			ClusterName:        "/sequins",
+			Replication:        2,
 			TimeToConverge:     duration{10 * time.Second},
 			ProxyTimeout:       duration{100 * time.Millisecond},
+			ClusterName:        "sequins",
 			AdvertisedHostname: "",
 		},
 	}

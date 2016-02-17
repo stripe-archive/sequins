@@ -38,7 +38,7 @@ func newVersion(sequins *sequins, db, name string, numPartitions int) *versionBu
 		// checking the hashring.
 		localPartitions = make(map[int]bool)
 		dispPartitions := make([]int, 0)
-		replication := 2 // TODO
+		replication := vsb.sequins.config.ZK.Replication
 
 		for i := 0; i < numPartitions; i++ {
 			partitionId := vsb.partitionId(i)

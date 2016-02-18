@@ -19,6 +19,8 @@ type nullLogger struct{}
 
 func (n nullLogger) Printf(string, ...interface{}) {}
 
+func setNullLogger(c *zk.Conn) { c.SetLogger(nullLogger{}) }
+
 // A zkWatcher manages a single connection to zookeeper, watching for changes
 // to directories and managing ephemeral nodes. It lazily connects and
 // reconnects to zookeeper, and tries its best to be resilient to failures, but
@@ -57,13 +59,11 @@ func connectZookeeper(zkServers []string, prefix string) (*zkWatcher, error) {
 
 func (w *zkWatcher) reconnect() error {
 	log.Println("Connecting to zookeeper at", strings.Join(w.zkServers, ","))
-	conn, events, err := zk.Connect(w.zkServers, 100*time.Millisecond)
+	conn, events, err := zk.Connect(w.zkServers, 100*time.Millisecond, setNullLogger)
 	if err != nil {
 		return err
 	}
 
-	// Don't log anything ever.
-	conn.SetLogger(nullLogger{})
 	w.conn = conn
 
 	// TODO: recreate permanent paths? What if zookeeper dies and loses data?

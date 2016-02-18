@@ -80,14 +80,15 @@ func (s *sequins) init() error {
 	}
 
 	// Refresh on SIGHUP.
-	s.sighups = make(chan os.Signal)
-	signal.Notify(s.sighups, syscall.SIGHUP)
+	sighups := make(chan os.Signal)
+	signal.Notify(sighups, syscall.SIGHUP)
 	go func() {
-		for range s.sighups {
+		for range sighups {
 			s.refreshAll()
 		}
 	}()
 
+	s.sighups = sighups
 	return nil
 }
 

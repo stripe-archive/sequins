@@ -1,6 +1,9 @@
 language: go
 go: 1.6
 sudo: false
+before_install:
+  - wget http://apache.claz.org/zookeeper/zookeeper-3.4.6/zookeeper-3.4.6.tar.gz
+  - tar -zxvf zookeeper*tar.gz
 script: make test
 before_deploy: make clean release
 deploy:

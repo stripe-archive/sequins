@@ -37,8 +37,15 @@ func getSequins(t *testing.T, backend backend.Backend, localStore string) *sequi
 	// This is a hack to wait until all DBs are ready.
 	dbs, err := backend.ListDBs()
 	require.NoError(t, err)
+
 	for i := 0; i < len(dbs); i++ {
 		<-s.refreshWorkers
+	}
+
+	s.refreshAll()
+
+	for i := 0; i < len(dbs); i++ {
+		s.refreshWorkers <- true
 	}
 
 	return s

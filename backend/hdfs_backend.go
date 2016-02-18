@@ -54,7 +54,7 @@ func (h *HdfsBackend) ListVersions(db string, checkForSuccess bool) ([]string, e
 		}
 
 		name := f.Name()
-		fullPath := path.Join(h.path, name)
+		fullPath := path.Join(h.path, db, name)
 		if !checkForSuccess || h.checkForSuccessFile(fullPath) {
 			res = append(res, name)
 		}
@@ -72,7 +72,7 @@ func (h *HdfsBackend) ListFiles(db, version string) ([]string, error) {
 	var res []string
 	for _, info := range infos {
 		name := info.Name()
-		if !strings.HasPrefix(name, "_") && !strings.HasPrefix(name, ".") {
+		if !info.IsDir() && !strings.HasPrefix(name, "_") && !strings.HasPrefix(name, ".") {
 			res = append(res, path.Base(info.Name()))
 		}
 	}

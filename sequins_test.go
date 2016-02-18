@@ -50,8 +50,8 @@ func getSequins(t *testing.T, backend backend.Backend, localStore string) *sequi
 
 func TestSequins(t *testing.T) {
 	scratch, err := ioutil.TempDir("", "sequins-")
-	dst := filepath.Join(scratch, "names", "0")
-	require.NoError(t, directoryCopy(t, dst, "test/names/0"))
+	dst := filepath.Join(scratch, "names", "1")
+	require.NoError(t, directoryCopy(t, dst, "test/names/1"))
 
 	backend := backend.NewLocalBackend(scratch)
 	ts := getSequins(t, backend, "")
@@ -60,37 +60,25 @@ func TestSequins(t *testing.T) {
 	w := httptest.NewRecorder()
 	ts.ServeHTTP(w, req)
 
-	assert.Equal(t, 200, w.Code)
-	assert.Equal(t, "", w.HeaderMap.Get("Content-Encoding"))
-	assert.Equal(t, "Practice", w.Body.String(), "Practice")
-	assert.Equal(t, "0", w.HeaderMap.Get("X-Sequins-Version"))
-
-	req, _ = http.NewRequest("GET", "/names/Alice", nil)
-	w = httptest.NewRecorder()
-	ts.ServeHTTP(w, req)
-
-	assert.Equal(t, 200, w.Code)
-
-	str := w.Body.String()
-	assert.Equal(t, "Practice", str)
-	assert.Equal(t, "0", w.HeaderMap.Get("X-Sequins-Version"))
+	assert.Equal(t, 200, w.Code, "fetching an existing key should 200")
+	assert.Equal(t, "Practice", w.Body.String(), "fetching an existing key should return the value")
+	assert.Equal(t, "1", w.HeaderMap.Get("X-Sequins-Version"), "when fetching an existing key, the X-Sequins-Version header should be set")
 
 	req, _ = http.NewRequest("GET", "/names/foo", nil)
 	w = httptest.NewRecorder()
 	ts.ServeHTTP(w, req)
 
-	assert.Equal(t, 404, w.Code)
-	assert.Equal(t, "", w.Body.String())
-	assert.Equal(t, "", w.HeaderMap.Get("X-Sequins-Version"))
+	assert.Equal(t, 404, w.Code, "fetching a nonexistent key should 404")
+	assert.Equal(t, "", w.Body.String(), "fetching a nonexistent key should return no body")
+	assert.Equal(t, "", w.HeaderMap.Get("X-Sequins-Version"), "when fetchin a nonexistent key, the X-Sequins-Version header shouldn't be set")
 
 	req, _ = http.NewRequest("GET", "/names/", nil)
 	w = httptest.NewRecorder()
 	ts.ServeHTTP(w, req)
 
-	status := dbStatus{}
-	err = json.Unmarshal(w.Body.Bytes(), &status)
-	require.NoError(t, err)
-	assert.Equal(t, 200, w.Code)
+	err = json.Unmarshal(w.Body.Bytes(), &dbStatus{})
+	require.NoError(t, err, "fetching status should work and be valid")
+	assert.Equal(t, 200, w.Code, "fetching status should work and be valid")
 	// TODO
 	// assert.Equal(t, "test/names/1", status.Path)
 	// now := time.Now().Unix() - 1

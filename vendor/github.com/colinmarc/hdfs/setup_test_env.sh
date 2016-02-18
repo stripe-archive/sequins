@@ -36,10 +36,3 @@ echo "minicluster jar found at $MINICLUSTER_JAR"
 echo "Starting hadoop namenode..."
 $HADOOP_HOME/bin/hadoop jar $MINICLUSTER_JAR minicluster -nnport $NN_PORT -datanodes 3 -nomr -format "$@" > minicluster.log 2>&1 &
 sleep 30
-
-HADOOP_FS="$HADOOP_HOME/bin/hadoop fs -Ddfs.block.size=1048576"
-$HADOOP_FS -mkdir -p "hdfs://$HADOOP_NAMENODE/_test"
-$HADOOP_FS -chmod 777 "hdfs://$HADOOP_NAMENODE/_test"
-
-$HADOOP_FS -put ./test/foo.txt "hdfs://$HADOOP_NAMENODE/_test/foo.txt"
-$HADOOP_FS -put ./test/mobydick.txt "hdfs://$HADOOP_NAMENODE/_test/mobydick.txt"

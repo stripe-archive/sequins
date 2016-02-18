@@ -88,7 +88,7 @@ func (lb *LocalBackend) ListFiles(db, version string) ([]string, error) {
 	var res []string
 	for _, info := range infos {
 		name := info.Name()
-		if !strings.HasPrefix(name, "_") && !strings.HasPrefix(name, ".") {
+		if !info.IsDir() && !strings.HasPrefix(name, "_") && !strings.HasPrefix(name, ".") {
 			res = append(res, filepath.Base(info.Name()))
 		}
 	}

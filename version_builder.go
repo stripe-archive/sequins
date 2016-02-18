@@ -16,9 +16,6 @@ type versionBuilder struct {
 	db            string
 	name          string
 	numPartitions int
-
-	localPartitions  map[int]bool
-	remotePartitions map[int][]string
 }
 
 func newVersion(sequins *sequins, db, name string, numPartitions int) *versionBuilder {
@@ -29,34 +26,6 @@ func newVersion(sequins *sequins, db, name string, numPartitions int) *versionBu
 		numPartitions: numPartitions,
 	}
 
-	// If we're running in standalone mode, these'll be nil.
-	var localPartitions map[int]bool
-	var remotePartitions map[int][]string
-
-	if sequins.peers != nil {
-		// Select which partitions are local by iterating through them all, and
-		// checking the hashring.
-		localPartitions = make(map[int]bool)
-		dispPartitions := make([]int, 0)
-		replication := vsb.sequins.config.ZK.Replication
-
-		for i := 0; i < numPartitions; i++ {
-			partitionId := vsb.partitionId(i)
-
-			replicas := sequins.peers.pick(partitionId, replication)
-			for _, replica := range replicas {
-				if replica == peerSelf {
-					localPartitions[i] = true
-					dispPartitions = append(dispPartitions, i)
-				}
-			}
-		}
-
-		log.Printf("Selected partitions for %s version %s: %v\n", db, name, dispPartitions)
-	}
-
-	vsb.localPartitions = localPartitions
-	vsb.remotePartitions = remotePartitions
 	return vsb
 }
 
@@ -64,23 +33,29 @@ func newVersion(sequins *sequins, db, name string, numPartitions int) *versionBu
 // then returns it.
 func (vsb *versionBuilder) build() (*version, error) {
 	vs := &version{
-		sequins:          vsb.sequins,
-		db:               vsb.db,
-		name:             vsb.name,
-		created:          time.Now(),
-		numPartitions:    vsb.numPartitions,
-		localPartitions:  vsb.localPartitions,
-		remotePartitions: vsb.remotePartitions,
+		sequins:       vsb.sequins,
+		db:            vsb.db,
+		name:          vsb.name,
+		numPartitions: vsb.numPartitions,
+		created:       time.Now(),
 	}
 
-	if vsb.localPartitions != nil && len(vsb.localPartitions) == 0 {
-		log.Println("All valid partitions for", vsb.db, "version", vsb.name,
-			"are already spoken for. Consider increasing the replication level.")
-		return vs, nil
+	var local map[int]bool
+	if vsb.sequins.peers != nil {
+		vs.partitions = watchPartitions(vsb.sequins.zkWatcher, vsb.sequins.peers,
+			vsb.db, vsb.name, vsb.numPartitions, vsb.sequins.config.ZK.Replication)
+
+		local = vs.partitions.local
+		if len(local) == 0 {
+			log.Println("All valid partitions for", vsb.db, "version", vsb.name,
+				"are already spoken for. Consider increasing the replication level.")
+			return vs, nil
+		}
+
 	}
 
 	path := filepath.Join(vsb.sequins.config.LocalStore, "data", vsb.db, vsb.name)
-	blockStore, err := vsb.loadBlocks(path)
+	blockStore, err := vsb.loadBlocks(path, local)
 	if err != nil {
 		return nil, err
 	}
@@ -89,9 +64,9 @@ func (vsb *versionBuilder) build() (*version, error) {
 	return vs, nil
 }
 
-// TODO: parallelize building
+// TODO: parallelize files
 
-func (vsb *versionBuilder) loadBlocks(path string) (*blocks.BlockStore, error) {
+func (vsb *versionBuilder) loadBlocks(path string, localPartitions map[int]bool) (*blocks.BlockStore, error) {
 	files, err := vsb.sequins.backend.ListFiles(vsb.db, vsb.name)
 	if err != nil {
 		return nil, err
@@ -100,7 +75,7 @@ func (vsb *versionBuilder) loadBlocks(path string) (*blocks.BlockStore, error) {
 	_, err = os.Stat(filepath.Join(path, ".manifest"))
 	if err == nil {
 		log.Println("Loading version from existing manifest at", path)
-		blockStore, err := blocks.NewFromManifest(path, vsb.localPartitions)
+		blockStore, err := blocks.NewFromManifest(path, localPartitions)
 		if err == nil {
 			return blockStore, nil
 		} else {
@@ -118,7 +93,7 @@ func (vsb *versionBuilder) loadBlocks(path string) (*blocks.BlockStore, error) {
 		return nil, fmt.Errorf("Error creating local storage directory: %s", err)
 	}
 
-	blockStore := blocks.New(path, len(files), vsb.localPartitions)
+	blockStore := blocks.New(path, len(files), localPartitions)
 	for _, file := range files {
 		err := vsb.addFile(blockStore, file)
 		if err != nil {
@@ -153,12 +128,4 @@ func (vsb *versionBuilder) addFile(bs *blocks.BlockStore, file string) error {
 	}
 
 	return nil
-}
-
-// partitionId returns a string id for the given partition, to be used for the
-// consistent hashing ring. It's not really meant to be unique, but it should be
-// different for different versions with the same number of partitions, so that
-// they don't shard identically.
-func (vsb *versionBuilder) partitionId(partition int) string {
-	return fmt.Sprintf("%s:%05d", vsb.name, partition)
 }

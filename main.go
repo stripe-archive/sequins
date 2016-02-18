@@ -59,6 +59,7 @@ func main() {
 	var s *sequins
 	switch parsed.Scheme {
 	case "", "file":
+		// TODO: don't allow distributed setup with local paths
 		s = localSetup(config.Root, config)
 	case "s3":
 		s = s3Setup(parsed.Host, parsed.Path, config)

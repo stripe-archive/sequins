@@ -8,10 +8,6 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
-	"path"
-	"strconv"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/stripe/sequins/blocks"
@@ -34,15 +30,17 @@ type version struct {
 	db            string
 	name          string
 	created       time.Time
-	numPartitions int
 	blockStore    *blocks.BlockStore
+	partitions    *partitions
+	numPartitions int
+}
 
-	localPartitions  map[int]bool
-	remotePartitions map[int][]string
-	partitionLock    sync.RWMutex
+func (vs *version) waitForPeers() {
+	if vs.sequins.peers == nil {
+		return
+	}
 
-	missingPartitions int
-	partitionsReady   chan bool
+	vs.partitions.advertiseAndWait()
 }
 
 // serveKey is the entrypoint for incoming HTTP requests.
@@ -76,7 +74,7 @@ func (vs *version) serveKey(w http.ResponseWriter, r *http.Request, key string) 
 func (vs *version) get(key string, r *http.Request) ([]byte, error) {
 	partition := blocks.KeyPartition(key, vs.numPartitions)
 
-	if vs.localPartitions == nil || vs.localPartitions[partition] {
+	if vs.partitions == nil || vs.partitions.local[partition] {
 		res, err := vs.blockStore.Get(key)
 		if err == blocks.ErrNotFound {
 			err = nil // TODO this is silly
@@ -93,9 +91,7 @@ func (vs *version) get(key string, r *http.Request) ([]byte, error) {
 // proxyRequest proxies the request, trying each peer that should have the key
 // in turn.
 func (vs *version) proxyRequest(key string, partition int, r *http.Request) ([]byte, error) {
-	vs.partitionLock.RLock()
-	peers := vs.remotePartitions[partition]
-	vs.partitionLock.RUnlock()
+	peers := vs.partitions.getPeers(partition)
 
 	// TODO: don't blacklist nodes, but we can weight them lower
 	shuffled := make([]string, len(peers))
@@ -118,7 +114,7 @@ func (vs *version) proxyRequest(key string, partition int, r *http.Request) ([]b
 		} else if resp.StatusCode == 404 {
 			return nil, nil
 		} else if resp.StatusCode != 200 {
-			log.Printf("Error proxying request to peer %s/%s: got %s\n", peer, r.URL.String(), resp.StatusCode)
+			log.Printf("Error proxying request to peer %s/%s: got %d\n", peer, r.URL.String(), resp.StatusCode)
 			continue
 		}
 
@@ -127,108 +123,6 @@ func (vs *version) proxyRequest(key string, partition int, r *http.Request) ([]b
 	}
 
 	return nil, errNoAvailablePeers
-}
-
-// sync syncs the remote partitions from zoolander whenever they change.
-func (vs *version) sync(updates chan []string) {
-	for {
-		nodes := <-updates
-		vs.updatePartitions(nodes)
-	}
-}
-
-func (vs *version) updatePartitions(nodes []string) {
-	vs.partitionLock.Lock()
-	defer vs.partitionLock.Unlock()
-
-	remotePartitions := make(map[int][]string)
-	for _, node := range nodes {
-		parts := strings.SplitN(node, "@", 2)
-		p, _ := strconv.Atoi(parts[0])
-		host := parts[1]
-		if host != vs.sequins.peers.address {
-			remotePartitions[p] = append(remotePartitions[p], host)
-		}
-	}
-
-	// Check for each partition. If every one is available on at least one node,
-	// then we're ready to rumble.
-	vs.remotePartitions = remotePartitions
-	missing := 0
-	for i := 0; i < vs.numPartitions; i++ {
-		if _, ok := vs.localPartitions[i]; ok {
-			continue
-		}
-
-		if _, ok := vs.remotePartitions[i]; ok {
-			continue
-		}
-
-		missing += 1
-	}
-
-	vs.missingPartitions = missing
-	if missing == 0 {
-		select {
-		case vs.partitionsReady <- true:
-		default:
-		}
-	}
-}
-
-func (vs *version) waitReady() error {
-	if vs.sequins.peers == nil {
-		return nil
-	}
-
-	vs.missingPartitions = vs.numPartitions - len(vs.localPartitions)
-	vs.partitionsReady = make(chan bool)
-
-	// Create the partitions path we're going to watch, in case no one has done
-	// that yet.
-	partitionPath := path.Join("partitions", vs.db, vs.name)
-	err := vs.sequins.zkWatcher.createPath(partitionPath)
-	if err != nil {
-		return err
-	}
-
-	// Watch for updates to the partitions path.
-	updates := vs.sequins.zkWatcher.watchChildren(partitionPath)
-	go vs.sync(updates)
-
-	// Advertise that our partitions are ready. At any point after this,
-	// we could receive proxied requests for this version.
-	vs.advertisePartitions()
-
-	// Wait for all remote partitions to be available.
-	for {
-		vs.partitionLock.RLock()
-		ready := (vs.missingPartitions == 0)
-		vs.partitionLock.RUnlock()
-		if ready {
-			break
-		}
-
-		log.Printf("Waiting for all partitions of %s version %s to be available (missing %d)", vs.db, vs.name, vs.missingPartitions)
-
-		t := time.NewTimer(10 * time.Second)
-		select {
-		case <-t.C:
-		case <-vs.partitionsReady:
-		}
-	}
-
-	return nil
-}
-
-// advertisePartitions creates an ephemeral node for each partition this local
-// peer is responsible for.
-// TODO: this should maybe be a zk multi op?
-func (vs *version) advertisePartitions() {
-	for partition := range vs.localPartitions {
-		node := fmt.Sprintf("%05d@%s", partition, vs.sequins.peers.address)
-		vs.sequins.zkWatcher.createEphemeral(path.Join("partitions", vs.db, vs.name, node))
-	}
 }
 
 func (vs *version) close() error {

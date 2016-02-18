@@ -53,8 +53,6 @@ func (db *db) refresh() error {
 	currentVersion := db.mux.getCurrent()
 	db.mux.release(currentVersion)
 	if currentVersion != nil && latestVersion == currentVersion.name {
-		// TODO: we log this a bunch uneccessarily.
-		log.Println(latestVersion, "is already the newest version of", db.name, "so not reloading.")
 		return nil
 	}
 

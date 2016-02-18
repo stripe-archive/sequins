@@ -30,22 +30,19 @@ func getSequins(t *testing.T, backend backend.Backend, localStore string) *sequi
 	config.Bind = "localhost:9599"
 	config.LocalStore = localStore
 	config.MaxParallelLoads = 1
-	s := newSequins(backend, config)
 
+	s := newSequins(backend, config)
 	require.NoError(t, s.init())
 
 	// This is a hack to wait until all DBs are ready.
 	dbs, err := backend.ListDBs()
 	require.NoError(t, err)
-
-	for i := 0; i < len(dbs); i++ {
-		<-s.refreshWorkers
-	}
-
-	s.refreshAll()
-
 	for i := 0; i < len(dbs); i++ {
 		s.refreshWorkers <- true
+	}
+
+	for i := 0; i < len(dbs)*2; i++ {
+		<-s.refreshWorkers
 	}
 
 	return s
@@ -110,6 +107,7 @@ func TestSequinsThreadsafe(t *testing.T) {
 	config := defaultConfig()
 	config.Root = scratch
 	config.LocalStore = filepath.Join(scratch, "blocks")
+	config.RequireSuccessFile = true
 	ts := newSequins(backend.NewLocalBackend(filepath.Join(scratch, "data")), config)
 	require.NoError(t, ts.init())
 

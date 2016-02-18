@@ -193,14 +193,17 @@ func (s *sequins) refreshAll() {
 }
 
 func (s *sequins) refresh(db *db) {
-	<-s.refreshWorkers
+	if s.refreshWorkers != nil {
+		<-s.refreshWorkers
+		defer func() {
+			s.refreshWorkers <- true
+		}()
+	}
 
 	err := db.refresh()
 	if err != nil {
 		log.Printf("Error refreshing %s: %s", db.name, err)
 	}
-
-	s.refreshWorkers <- true
 }
 
 func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {

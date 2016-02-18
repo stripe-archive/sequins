@@ -40,6 +40,11 @@ func (vsb *versionBuilder) build() (*version, error) {
 		created:       time.Now(),
 	}
 
+	if vsb.numPartitions == 0 {
+		log.Println("Version", vsb.name, "of", vsb.db, "has no data. Loading it anyway.")
+		return vs, nil
+	}
+
 	var local map[int]bool
 	if vsb.sequins.peers != nil {
 		vs.partitions = watchPartitions(vsb.sequins.zkWatcher, vsb.sequins.peers,

@@ -36,7 +36,7 @@ type version struct {
 }
 
 func (vs *version) waitForPeers() {
-	if vs.sequins.peers == nil {
+	if vs.sequins.peers == nil || vs.numPartitions == 0 {
 		return
 	}
 
@@ -72,6 +72,10 @@ func (vs *version) serveKey(w http.ResponseWriter, r *http.Request, key string) 
 // get looks up a value locally, or, failing that, asks a peer that has it.
 // If the request was proxied, it is not proxied further.
 func (vs *version) get(key string, r *http.Request) ([]byte, error) {
+	if vs.numPartitions == 0 {
+		return nil, nil
+	}
+
 	partition := blocks.KeyPartition(key, vs.numPartitions)
 
 	if vs.partitions == nil || vs.partitions.local[partition] {
@@ -126,5 +130,9 @@ func (vs *version) proxyRequest(key string, partition int, r *http.Request) ([]b
 }
 
 func (vs *version) close() error {
-	return vs.blockStore.Close()
+	if vs.blockStore != nil {
+		return vs.blockStore.Close()
+	}
+
+	return nil
 }

@@ -2,10 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"sync"
 )
+
+var errNoVersions = errors.New("no versions available")
 
 type db struct {
 	sequins *sequins
@@ -43,7 +46,7 @@ func (db *db) refresh() error {
 	if err != nil {
 		return err
 	} else if len(versions) == 0 {
-		log.Println("No versions available for", db.name)
+		return errNoVersions
 	}
 
 	latestVersion := versions[len(versions)-1]

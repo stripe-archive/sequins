@@ -1,5 +1,5 @@
 language: go
-go: 1.5
+go: 1.6
 sudo: false
 script: make test
 before_deploy: make clean release

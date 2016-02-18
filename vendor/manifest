@@ -1,0 +1,121 @@
+{
+	"version": 0,
+	"dependencies": [
+		{
+			"importpath": "github.com/BurntSushi/toml",
+			"repository": "https://github.com/BurntSushi/toml",
+			"revision": "312db06c6c6dbfa9899e58564bacfaa584f18ab7",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/alecthomas/template",
+			"repository": "https://github.com/alecthomas/template",
+			"revision": "14fd436dd20c3cc65242a9f396b61bfc8a3926fc",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/alecthomas/units",
+			"repository": "https://github.com/alecthomas/units",
+			"revision": "2efee857e7cfd4f3d0138cc3cbb1b4966962b93a",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/colinmarc/cdb",
+			"repository": "https://github.com/colinmarc/cdb",
+			"revision": "3dc23d89c86cbd7bcfdfde03b7a63ec04646297f",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/colinmarc/hdfs",
+			"repository": "https://github.com/colinmarc/hdfs",
+			"revision": "9edc2de5544836578a4384541a30e7f09a1cc9d2",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/crowdmob/goamz/aws",
+			"repository": "https://github.com/crowdmob/goamz",
+			"revision": "3a06871fe9fc0281ca90f3a7d97258d042ed64c0",
+			"branch": "master",
+			"path": "/aws"
+		},
+		{
+			"importpath": "github.com/crowdmob/goamz/s3",
+			"repository": "https://github.com/crowdmob/goamz",
+			"revision": "3a06871fe9fc0281ca90f3a7d97258d042ed64c0",
+			"branch": "master",
+			"path": "/s3"
+		},
+		{
+			"importpath": "github.com/davecgh/go-spew/spew",
+			"repository": "https://github.com/davecgh/go-spew",
+			"revision": "5215b55f46b2b919f50a1df0eaa5886afe4e3b3d",
+			"branch": "master",
+			"path": "/spew"
+		},
+		{
+			"importpath": "github.com/golang/protobuf/proto",
+			"repository": "https://github.com/golang/protobuf",
+			"revision": "127091107ff5f822298f1faa7487ffcf578adcf6",
+			"branch": "master",
+			"path": "/proto"
+		},
+		{
+			"importpath": "github.com/pborman/getopt",
+			"repository": "https://github.com/pborman/getopt",
+			"revision": "ec82d864f599c39673eef89f91b93fa5576567a1",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/pborman/uuid",
+			"repository": "https://github.com/pborman/uuid",
+			"revision": "c55201b036063326c5b1b89ccfe45a184973d073",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/pmezard/go-difflib/difflib",
+			"repository": "https://github.com/pmezard/go-difflib",
+			"revision": "792786c7400a136282c1664665ae0a8db921c6c2",
+			"branch": "master",
+			"path": "/difflib"
+		},
+		{
+			"importpath": "github.com/samuel/go-zookeeper/zk",
+			"repository": "https://github.com/samuel/go-zookeeper",
+			"revision": "218e9c81c0dd8b3b18172b2bbfad92cc7d6db55f",
+			"branch": "master",
+			"path": "/zk"
+		},
+		{
+			"importpath": "github.com/spaolacci/murmur3",
+			"repository": "https://github.com/spaolacci/murmur3",
+			"revision": "0d12bf811670bf6a1a63828dfbd003eded177fce",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/stretchr/testify/assert",
+			"repository": "https://github.com/stretchr/testify",
+			"revision": "9f9027faeb0dad515336ed2f28317f9f8f527ab4",
+			"branch": "master",
+			"path": "/assert"
+		},
+		{
+			"importpath": "github.com/stretchr/testify/require",
+			"repository": "https://github.com/stretchr/testify",
+			"revision": "9f9027faeb0dad515336ed2f28317f9f8f527ab4",
+			"branch": "master",
+			"path": "/require"
+		},
+		{
+			"importpath": "gopkg.in/alecthomas/kingpin.v2",
+			"repository": "https://gopkg.in/alecthomas/kingpin.v2",
+			"revision": "8cccfa8eb2e3183254457fb1749b2667fbc364c7",
+			"branch": "master"
+		},
+		{
+			"importpath": "stathat.com/c/consistent",
+			"repository": "https://github.com/stathat/consistent",
+			"revision": "748f01b59d1b2218efe39513039e9ee31266d7c7",
+			"branch": "master"
+		}
+	]
+}

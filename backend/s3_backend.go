@@ -145,8 +145,7 @@ func (s *S3Backend) Open(db, version, file string) (io.ReadCloser, error) {
 }
 
 func (s *S3Backend) DisplayPath(parts ...string) string {
-	allParts := []string{s.path}
-	allParts = append(allParts, parts...)
+	allParts := append([]string{s.path}, parts...)
 	return s.displayURL(allParts...)
 }
 

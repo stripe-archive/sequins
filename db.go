@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 )
 
 var errNoVersions = errors.New("no versions available")
@@ -16,25 +17,41 @@ type db struct {
 	name        string
 	mux         *versionMux
 	refreshLock sync.Mutex
-	status      dbStatus
+
+	versionStatus     map[string]versionStatus
+	versionStatusLock sync.RWMutex
 }
 
 type dbStatus struct {
-	CurrentVersion versionStatus            `json:"current_version"`
-	Versions       map[string]versionStatus `json:"versions"`
+	CurrentVersion string                   `json:"current_version"`
+	Versions       map[string]versionStatus `json:"versions",omitempty`
 }
 
 type versionStatus struct {
-	Path    string `json:"path"`
-	Created int64  `json:"created"`
-	State   string `json:"state"`
+	Path    string       `json:"path"`
+	Created int64        `json:"created"`
+	State   versionState `json:"state"`
+}
+
+type versionState string
+
+const (
+	versionAvailable versionState = "AVAILABLE"
+	versionRemoving               = "REMOVING"
+	versionBuilding               = "BUILDING"
+)
+
+type trackedVersionState struct {
+	versionState
+	time.Time
 }
 
 func newDB(sequins *sequins, name string) *db {
 	return &db{
-		sequins: sequins,
-		name:    name,
-		mux:     newVersionMux(),
+		sequins:       sequins,
+		name:          name,
+		mux:           newVersionMux(),
+		versionStatus: make(map[string]versionStatus),
 	}
 }
 
@@ -62,6 +79,7 @@ func (db *db) refresh() error {
 	}
 
 	builder := newVersion(db.sequins, db.name, latestVersion, len(files))
+	db.trackVersionBuilding(builder)
 	vs, err := builder.build()
 	if err != nil {
 		return err
@@ -70,6 +88,7 @@ func (db *db) refresh() error {
 	// Prepare the version, so that during the switching period we can respond
 	// to requests for it.
 	db.mux.prepare(vs)
+	db.trackVersion(vs, versionAvailable)
 
 	// Then, wait for all our peers to be ready. All peers should all see that
 	// everything is ready at roughly the same time. If they switch before us,
@@ -86,28 +105,70 @@ func (db *db) refresh() error {
 	// no peers to consider.
 	if currentVersion != nil {
 		go func() {
+			db.trackVersion(currentVersion, versionRemoving)
 			shouldWait := (db.sequins.peers != nil)
 			db.mux.remove(currentVersion, shouldWait)
 			log.Println("Removing and clearing version", currentVersion.name, "of", db.name)
 
 			// TODO: this doesn't actually delete the data
 			currentVersion.close()
-
-			// Grab the lock again so we can re-cache the status JSON.
+			db.untrackVersion(currentVersion)
 		}()
 	}
 
-	db.cacheStatus()
 	return nil
 }
 
-func (db *db) cacheStatus() {
+func (db *db) status() dbStatus {
+	status := dbStatus{Versions: make(map[string]versionStatus)}
 
+	db.versionStatusLock.RLock()
+	defer db.versionStatusLock.RUnlock()
+
+	for name, versionStatus := range db.versionStatus {
+		status.Versions[name] = versionStatus
+	}
+
+	current := db.mux.getCurrent()
+	db.mux.release(current)
+	if current != nil {
+		status.CurrentVersion = current.name
+	}
+
+	return status
+}
+
+func (db *db) trackVersionBuilding(builder *versionBuilder) {
+	db.versionStatusLock.Lock()
+	defer db.versionStatusLock.Unlock()
+
+	db.versionStatus[builder.name] = versionStatus{
+		Path:    db.sequins.backend.DisplayPath(db.name, builder.name),
+		Created: builder.created.Unix(),
+		State:   versionBuilding,
+	}
+}
+
+func (db *db) trackVersion(version *version, state versionState) {
+	db.versionStatusLock.Lock()
+	defer db.versionStatusLock.Unlock()
+
+	st := db.versionStatus[version.name]
+	st.State = state
+
+	db.versionStatus[version.name] = st
+}
+
+func (db *db) untrackVersion(version *version) {
+	db.versionStatusLock.Lock()
+	defer db.versionStatusLock.Unlock()
+
+	delete(db.versionStatus, version.name)
 }
 
 func (db *db) serveKey(w http.ResponseWriter, r *http.Request, key string) {
 	if key == "" {
-		jsonBytes, err := json.Marshal(db.status)
+		jsonBytes, err := json.Marshal(db.status())
 		if err != nil {
 			log.Println("Error serving status:", err)
 			w.WriteHeader(http.StatusInternalServerError)

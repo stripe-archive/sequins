@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,14 +49,7 @@ func getSequins(t *testing.T, backend backend.Backend, localStore string) *sequi
 	return s
 }
 
-func TestSequins(t *testing.T) {
-	scratch, err := ioutil.TempDir("", "sequins-")
-	dst := filepath.Join(scratch, "names", "1")
-	require.NoError(t, directoryCopy(t, dst, "test/names/1"))
-
-	backend := backend.NewLocalBackend(scratch)
-	ts := getSequins(t, backend, "")
-
+func testBasicSequins(t *testing.T, ts *sequins, expectedDBPath string) {
 	req, _ := http.NewRequest("GET", "/names/Alice", nil)
 	w := httptest.NewRecorder()
 	ts.ServeHTTP(w, req)
@@ -72,18 +66,51 @@ func TestSequins(t *testing.T) {
 	assert.Equal(t, "", w.Body.String(), "fetching a nonexistent key should return no body")
 	assert.Equal(t, "", w.HeaderMap.Get("X-Sequins-Version"), "when fetchin a nonexistent key, the X-Sequins-Version header shouldn't be set")
 
+	req, _ = http.NewRequest("GET", "/", nil)
+	w = httptest.NewRecorder()
+	ts.ServeHTTP(w, req)
+
+	status := status{}
+	err := json.Unmarshal(w.Body.Bytes(), &status)
+	require.NoError(t, err, "fetching global status should work and be valid")
+	assert.Equal(t, 200, w.Code, "fetching global status should work and be valid")
+
+	require.Equal(t, 1, len(status.DBs), "there should be a single db")
+	validateStatus(t, status.DBs["names"], expectedDBPath)
+
 	req, _ = http.NewRequest("GET", "/names/", nil)
 	w = httptest.NewRecorder()
 	ts.ServeHTTP(w, req)
 
-	err = json.Unmarshal(w.Body.Bytes(), &dbStatus{})
-	require.NoError(t, err, "fetching status should work and be valid")
-	assert.Equal(t, 200, w.Code, "fetching status should work and be valid")
-	// TODO
-	// assert.Equal(t, "test/names/1", status.Path)
-	// now := time.Now().Unix() - 1
-	// assert.True(t, status.Started >= now)
-	// assert.Equal(t, "1", status.Version)
+	dbStatus := dbStatus{}
+	err = json.Unmarshal(w.Body.Bytes(), &dbStatus)
+	require.NoError(t, err, "fetching db status should work and be valid")
+	assert.Equal(t, 200, w.Code, "fetching db status should work and be valid")
+	validateStatus(t, dbStatus, expectedDBPath)
+}
+
+func validateStatus(t *testing.T, status dbStatus, expectedPath string) {
+	assert.Equal(t, "1", status.CurrentVersion, "dbStatus current_version should be correct")
+	require.Equal(t, 1, len(status.Versions), "dbStatus should have one version registered")
+
+	versionStatus := status.Versions["1"]
+	assert.Equal(t, expectedPath, versionStatus.Path, "versionStatus path should be correct")
+
+	now := time.Now().Unix() - 1
+	assert.True(t, versionStatus.Created >= now, "versionStatus created should be now")
+	assert.Equal(t, versionAvailable, versionStatus.State, "versionStatus state should be correct")
+}
+
+func TestSequins(t *testing.T) {
+	scratch, err := ioutil.TempDir("", "sequins-")
+	require.NoError(t, err, "setup")
+
+	dst := filepath.Join(scratch, "names", "1")
+	require.NoError(t, directoryCopy(t, dst, "test/names/1"), "setup")
+
+	backend := backend.NewLocalBackend(scratch)
+	ts := getSequins(t, backend, "")
+	testBasicSequins(t, ts, filepath.Join(scratch, "names/1"))
 }
 
 // TestSequinsThreadsafe makes sure that reads that occur during an update DTRT
@@ -130,6 +157,7 @@ func TestSequinsThreadsafe(t *testing.T) {
 }
 
 func directoryCopy(t *testing.T, dest, src string) error {
+	t.Logf("Copying %s -> %s\n", src, dest)
 	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 		// Swallow errors, since sometimes other jobs will clean up the .manifest partway through
 		// the directory copy, which causes errors
@@ -163,8 +191,6 @@ func directoryCopy(t *testing.T, dest, src string) error {
 		}
 
 		destfilename := filepath.Join(dest, rel)
-		t.Logf("Copying %s -> %s\n", path, destfilename)
-
 		srcfile, err := os.Open(path)
 		require.NoError(t, err)
 		if err != nil {

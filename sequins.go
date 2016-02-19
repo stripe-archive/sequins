@@ -1,7 +1,7 @@
 package main
 
 import (
-	// "encoding/json"
+	"encoding/json"
 	"log"
 	"net"
 	"net/http"
@@ -257,6 +257,22 @@ func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *sequins) serveStatus(w http.ResponseWriter, r *http.Request) {
-	// TODO
-	w.WriteHeader(200)
+	s.dbsLock.RLock()
+
+	status := status{DBs: make(map[string]dbStatus)}
+	for name, db := range s.dbs {
+		status.DBs[name] = db.status()
+	}
+
+	s.dbsLock.RUnlock()
+
+	jsonBytes, err := json.Marshal(status)
+	if err != nil {
+		log.Println("Error serving status:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header()["Content-Type"] = []string{"application/json"}
+	w.Write(jsonBytes)
 }

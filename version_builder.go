@@ -15,6 +15,7 @@ type versionBuilder struct {
 	sequins       *sequins
 	db            string
 	name          string
+	created       time.Time
 	numPartitions int
 }
 
@@ -23,6 +24,7 @@ func newVersion(sequins *sequins, db, name string, numPartitions int) *versionBu
 		sequins:       sequins,
 		db:            db,
 		name:          name,
+		created:       time.Now(),
 		numPartitions: numPartitions,
 	}
 
@@ -37,7 +39,7 @@ func (vsb *versionBuilder) build() (*version, error) {
 		db:            vsb.db,
 		name:          vsb.name,
 		numPartitions: vsb.numPartitions,
-		created:       time.Now(),
+		created:       vsb.created,
 	}
 
 	if vsb.numPartitions == 0 {

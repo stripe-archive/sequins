@@ -92,8 +92,7 @@ func (h *HdfsBackend) Open(db, version, file string) (io.ReadCloser, error) {
 }
 
 func (h *HdfsBackend) DisplayPath(parts ...string) string {
-	allParts := []string{h.path}
-	allParts = append(allParts, parts...)
+	allParts := append([]string{h.path}, parts...)
 	return h.displayURL(allParts...)
 }
 

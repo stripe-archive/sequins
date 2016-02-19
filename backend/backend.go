@@ -101,9 +101,8 @@ func (lb *LocalBackend) Open(db, version, file string) (io.ReadCloser, error) {
 }
 
 func (lb *LocalBackend) DisplayPath(parts ...string) string {
-	path := []string{lb.path}
-	path = append(path, parts...)
-	return filepath.Join(parts...)
+	allParts := append([]string{lb.path}, parts...)
+	return filepath.Join(allParts...)
 }
 
 func (lb *LocalBackend) checkForSuccessFile(path string) bool {

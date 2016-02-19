@@ -22,6 +22,7 @@ type BlockStore struct {
 	path               string
 	numPartitions      int
 	selectedPartitions map[int]bool
+	count              int
 
 	Blocks   []*Block
 	BlockMap map[int][]*Block
@@ -82,6 +83,7 @@ func NewFromManifest(path string, selectedPartitions map[int]bool) (*BlockStore,
 		partition := blockManifest.Partition
 		store.Blocks = append(store.Blocks, block)
 		store.BlockMap[partition] = append(store.BlockMap[partition], block)
+		store.count += blockManifest.Count
 	}
 
 	return store, nil
@@ -184,6 +186,7 @@ func (store *BlockStore) AddFile(reader *sequencefile.Reader) error {
 		for _, block := range blocks {
 			store.Blocks = append(store.Blocks, block)
 			store.BlockMap[partition] = append(store.BlockMap[partition], block)
+			store.count += block.Count
 		}
 	}
 
@@ -235,6 +238,14 @@ func (store *BlockStore) Get(key string) ([]byte, error) {
 	}
 
 	return nil, ErrNotFound
+}
+
+// Count returns the total number of records stored.
+func (store *BlockStore) Count() int {
+	store.blockMapLock.RLock()
+	defer store.blockMapLock.RUnlock()
+
+	return store.count
 }
 
 // Close closes the BlockStore, and any files it has open.

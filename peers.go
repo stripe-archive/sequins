@@ -9,6 +9,8 @@ import (
 	"stathat.com/c/consistent"
 )
 
+// TODO testable
+
 const peerSelf = "(self)"
 
 // peers represents a remote list of peers, synced with zookeeper. It's also
@@ -20,8 +22,7 @@ type peers struct {
 	ring  *consistent.Consistent
 	lock  sync.RWMutex
 
-	convergenceTimer *time.Timer
-	convergenceTime  time.Duration
+	resetConvergenceTimer chan bool
 }
 
 func watchPeers(zkWatcher *zkWatcher, address string) *peers {
@@ -29,6 +30,7 @@ func watchPeers(zkWatcher *zkWatcher, address string) *peers {
 		address: address,
 		peers:   make(map[string]bool),
 		ring:    consistent.New(),
+		resetConvergenceTimer: make(chan bool),
 	}
 
 	zkWatcher.createPath("nodes")
@@ -42,8 +44,6 @@ func watchPeers(zkWatcher *zkWatcher, address string) *peers {
 func (p *peers) sync(updates chan []string) {
 	for {
 		nodes := <-updates
-		timer := p.convergenceTimer
-
 		newPeers := make(map[string]bool)
 		for _, node := range nodes {
 			if node == p.address {
@@ -52,8 +52,9 @@ func (p *peers) sync(updates chan []string) {
 			newPeers[node] = true
 		}
 
-		if timer != nil {
-			timer.Reset(p.convergenceTime)
+		select {
+		case p.resetConvergenceTimer <- true:
+		default:
 		}
 
 		p.updatePeers(newPeers)
@@ -104,12 +105,16 @@ func (p *peers) pick(partitionId string, n int) []string {
 }
 
 func (p *peers) waitToConverge(dur time.Duration) {
-	if p.convergenceTimer != nil {
-		return
-	}
+	// TODO: reset the timer when we get disconnected from zookeeper, too
+	log.Printf("Waiting for list of peers to stabilize for %v...", dur)
+	timer := time.NewTimer(dur)
 
-	log.Println("Waiting", dur, "for list of peers to converge...")
-	p.convergenceTime = dur
-	p.convergenceTimer = time.NewTimer(dur)
-	<-p.convergenceTimer.C
+	for {
+		timer.Reset(dur)
+		select {
+		case <-p.resetConvergenceTimer:
+		case <-timer.C:
+			return
+		}
+	}
 }

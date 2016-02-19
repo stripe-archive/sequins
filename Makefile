@@ -21,7 +21,7 @@ release: sequins sequins-dump
 	tar -cvzf $(RELEASE_NAME).tar.gz $(RELEASE_NAME)
 
 test:
-	go test -v -race $(shell go list ./... | grep -v vendor)
+	go test -v -race -timeout 30s $(shell go list ./... | grep -v vendor)
 
 clean:
 	rm -f sequins sequins-dump sequins-*.tar.gz

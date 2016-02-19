@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -16,8 +17,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/stripe/sequins/backend"
 )
+
+type tuple struct {
+	key   string
+	value string
+}
 
 func getSequins(t *testing.T, backend backend.Backend, localStore string) *sequins {
 	if localStore == "" {
@@ -50,16 +57,25 @@ func getSequins(t *testing.T, backend backend.Backend, localStore string) *sequi
 }
 
 func testBasicSequins(t *testing.T, ts *sequins, expectedDBPath string) {
-	req, _ := http.NewRequest("GET", "/names/Alice", nil)
+	expected := []tuple{
+		{"Alice", "Practice"},
+		{"Bob", "Hope"},
+		{"Charlie", "Horse"},
+	}
+
+	shuffle(expected)
+	for _, tuple := range expected {
+		req, _ := http.NewRequest("GET", fmt.Sprintf("/names/%s", tuple.key), nil)
+		w := httptest.NewRecorder()
+		ts.ServeHTTP(w, req)
+
+		assert.Equal(t, 200, w.Code, "fetching an existing key (%s) should 200", tuple.key)
+		assert.Equal(t, tuple.value, w.Body.String(), "fetching an existing key (%s) should return the value", tuple.key)
+		assert.Equal(t, "1", w.HeaderMap.Get("X-Sequins-Version"), "when fetching an existing key, the X-Sequins-Version header should be set")
+	}
+
+	req, _ := http.NewRequest("GET", "/names/foo", nil)
 	w := httptest.NewRecorder()
-	ts.ServeHTTP(w, req)
-
-	assert.Equal(t, 200, w.Code, "fetching an existing key should 200")
-	assert.Equal(t, "Practice", w.Body.String(), "fetching an existing key should return the value")
-	assert.Equal(t, "1", w.HeaderMap.Get("X-Sequins-Version"), "when fetching an existing key, the X-Sequins-Version header should be set")
-
-	req, _ = http.NewRequest("GET", "/names/foo", nil)
-	w = httptest.NewRecorder()
 	ts.ServeHTTP(w, req)
 
 	assert.Equal(t, 404, w.Code, "fetching a nonexistent key should 404")
@@ -217,4 +233,12 @@ func createTestIndex(t *testing.T, scratch string, i int) {
 	src := fmt.Sprintf("test/names/%d/", i%2)
 
 	require.NoError(t, directoryCopy(t, path, src))
+}
+
+func shuffle(a []tuple) {
+	rand.Seed(time.Now().UnixNano())
+	for i := range a {
+		j := rand.Intn(i + 1)
+		a[i], a[j] = a[j], a[i]
+	}
 }

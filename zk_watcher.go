@@ -12,6 +12,8 @@ import (
 	"github.com/samuel/go-zookeeper/zk"
 )
 
+// TODO testable
+
 var defaultACL = zk.WorldACL(zk.PermAll)
 
 // nullLogger is a noop logger for the zk client.

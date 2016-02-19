@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/samuel/go-zookeeper/zk"
 )
 
@@ -16,20 +18,24 @@ func (lw zkLogWriter) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-func connectZookeeperTest(t *testing.T) (*zkWatcher, *zk.TestCluster) {
-	ts, err := zk.StartTestCluster(3, nil, zkLogWriter{t})
-	if err != nil {
-		t.Fatal(err)
-	}
+func createTestZkCluster(t *testing.T) ([]string, *zk.TestCluster) {
+	zk, err := zk.StartTestCluster(3, nil, zkLogWriter{t})
+	require.NoError(t, err, "zk setup")
 
-	hosts := make([]string, len(ts.Servers))
-	for i, srv := range ts.Servers {
+	hosts := make([]string, len(zk.Servers))
+	for i, srv := range zk.Servers {
 		hosts[i] = fmt.Sprintf("127.0.0.1:%d", srv.Port)
 	}
 
-	zkWatcher, err := connectZookeeper([]string{"localhost:2181"}, "test-sequins")
+	return hosts, zk
+}
 
-	return zkWatcher, ts
+func connectZookeeperTest(t *testing.T) (*zkWatcher, *zk.TestCluster) {
+	hosts, zk := createTestZkCluster(t)
+	zkWatcher, err := connectZookeeper(hosts, "/test-sequins")
+	require.NoError(t, err, "zk setup")
+
+	return zkWatcher, zk
 }
 
 func TestZKWatcher(t *testing.T) {

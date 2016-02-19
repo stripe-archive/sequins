@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+// TODO testable
+
 // partitions represents a list of partitions for a single version and their
 // mapping to nodes, synced from zookeeper. It's also responsible for
 // advertising the partitions we have locally.
@@ -133,14 +135,14 @@ func (p *partitions) advertiseAndWait() {
 
 	for {
 		p.lock.RLock()
-		ready := (p.missing == 0)
+		missing := p.missing
 		p.lock.RUnlock()
-		if ready {
+		if missing == 0 {
 			break
 		}
 
 		log.Printf("Waiting for all partitions of %s version %s to be available (missing %d)",
-			p.db, p.version, p.missing)
+			p.db, p.version, missing)
 
 		t := time.NewTimer(10 * time.Second)
 		select {

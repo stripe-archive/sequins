@@ -122,7 +122,7 @@ func (store *BlockStore) AddFile(reader *sequencefile.Reader) error {
 		}
 
 		if store.selectedPartitions != nil && !store.selectedPartitions[partition] {
-			if canAssumePartition && assumedFor < 5000 {
+			if canAssumePartition && assumedFor > 5000 {
 				return ErrWrongPartition
 			}
 			continue

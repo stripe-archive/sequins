@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+// TODO testable
+
 const versionExpiry = 5 * time.Minute
 
 // A versionMux handles routing requests to the various versions available for

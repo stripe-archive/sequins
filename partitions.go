@@ -51,7 +51,7 @@ func watchPartitions(zkWatcher *zkWatcher, peers *peers, db, version string, num
 	p.zkPath = path.Join("partitions", db, version)
 	zkWatcher.createPath(p.zkPath)
 
-	updates := zkWatcher.watchChildren(p.zkPath)
+	updates, _ := zkWatcher.watchChildren(p.zkPath)
 	go p.sync(updates)
 	return p
 }

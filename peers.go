@@ -35,21 +35,18 @@ func watchPeers(zkWatcher *zkWatcher, address string) *peers {
 
 	zkWatcher.createPath("nodes")
 	zkWatcher.createEphemeral(path.Join("nodes", p.address))
-	updates := zkWatcher.watchChildren("nodes")
-	go p.sync(updates)
+	updates, disconnected := zkWatcher.watchChildren("nodes")
+	go p.sync(updates, disconnected)
 
 	return p
 }
 
-func (p *peers) sync(updates chan []string) {
+func (p *peers) sync(updates chan []string, disconnected chan bool) {
 	for {
-		nodes := <-updates
-		newPeers := make(map[string]bool)
-		for _, node := range nodes {
-			if node == p.address {
-				continue
-			}
-			newPeers[node] = true
+		var nodes []string
+		select {
+		case nodes = <-updates:
+		case <-disconnected:
 		}
 
 		select {
@@ -57,13 +54,29 @@ func (p *peers) sync(updates chan []string) {
 		default:
 		}
 
-		p.updatePeers(newPeers)
+		if nodes != nil {
+			p.updatePeers(nodes)
+		}
 	}
 }
 
-func (p *peers) updatePeers(newPeers map[string]bool) {
+func (p *peers) updatePeers(addrs []string) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
+
+	// Log any new peers.
+	newPeers := make(map[string]bool)
+	for _, addr := range addrs {
+		if addr == p.address {
+			continue
+		}
+
+		if !p.peers[addr] {
+			log.Println("New peer:", addr)
+		}
+
+		newPeers[addr] = true
+	}
 
 	// Log for any lost peers.
 	for addr := range p.peers {
@@ -72,17 +85,6 @@ func (p *peers) updatePeers(newPeers map[string]bool) {
 		}
 	}
 
-	// Log for any new peers, and build a list for the ring.
-	addrs := make([]string, 0, len(newPeers)+1)
-	for addr := range newPeers {
-		if !p.peers[addr] {
-			log.Println("New peer:", addr)
-		}
-
-		addrs = append(addrs, addr)
-	}
-
-	addrs = append(addrs, p.address)
 	p.ring.Set(addrs)
 	p.peers = newPeers
 }
@@ -105,7 +107,6 @@ func (p *peers) pick(partitionId string, n int) []string {
 }
 
 func (p *peers) waitToConverge(dur time.Duration) {
-	// TODO: reset the timer when we get disconnected from zookeeper, too
 	log.Printf("Waiting for list of peers to stabilize for %v...", dur)
 	timer := time.NewTimer(dur)
 

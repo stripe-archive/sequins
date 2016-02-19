@@ -37,17 +37,22 @@ type zkWatcher struct {
 
 	hooksLock      sync.Mutex
 	ephemeralNodes []string
-	watchedNodes   map[string]chan []string
+	watchedNodes   map[string]watchedNode
+}
+
+type watchedNode struct {
+	updates      chan []string
+	disconnected chan bool
 }
 
 func connectZookeeper(zkServers []string, prefix string) (*zkWatcher, error) {
 	w := &zkWatcher{
 		zkServers:      zkServers,
 		prefix:         prefix,
-		errs:           make(chan error),
+		errs:           make(chan error, 1),
 		shutdown:       make(chan bool),
 		ephemeralNodes: make([]string, 0),
-		watchedNodes:   make(map[string]chan []string),
+		watchedNodes:   make(map[string]watchedNode),
 	}
 
 	err := w.reconnect()
@@ -102,8 +107,8 @@ func (w *zkWatcher) run() {
 			w.hookCreateEphemeral(node)
 		}
 
-		for node, updates := range w.watchedNodes {
-			go w.hookWatchChildren(node, updates)
+		for node, wn := range w.watchedNodes {
+			go w.hookWatchChildren(node, wn)
 		}
 
 		w.hooksLock.Unlock()
@@ -112,6 +117,13 @@ func (w *zkWatcher) run() {
 		case <-w.shutdown:
 			break
 		case <-w.errs:
+		}
+
+		for _, wn := range w.watchedNodes {
+			select {
+			case wn.disconnected <- true:
+			default:
+			}
 		}
 
 		time.Sleep(time.Second)
@@ -135,21 +147,23 @@ func (w *zkWatcher) hookCreateEphemeral(node string) {
 	}
 }
 
-func (w *zkWatcher) watchChildren(node string) chan []string {
+func (w *zkWatcher) watchChildren(node string) (chan []string, chan bool) {
 	w.hooksLock.Lock()
 	defer w.hooksLock.Unlock()
 
 	node = path.Join(w.prefix, node)
 	updates := make(chan []string)
+	disconnected := make(chan bool)
 
-	w.watchedNodes[node] = updates
-	go w.hookWatchChildren(node, updates)
-	return updates
+	wn := watchedNode{updates: updates, disconnected: disconnected}
+	w.watchedNodes[node] = wn
+	go w.hookWatchChildren(node, wn)
+	return updates, disconnected
 }
 
 // TODO: I think in the case we restart but this didn't error, this will cause
 // us to double-send updates
-func (w *zkWatcher) hookWatchChildren(node string, updates chan []string) {
+func (w *zkWatcher) hookWatchChildren(node string, wn watchedNode) {
 	for {
 		children, _, events, err := w.conn.ChildrenW(node)
 		if err != nil {
@@ -157,7 +171,7 @@ func (w *zkWatcher) hookWatchChildren(node string, updates chan []string) {
 			return
 		}
 
-		updates <- children
+		wn.updates <- children
 		ev := <-events
 		if ev.Err != nil {
 			sendErr(w.errs, ev.Err)

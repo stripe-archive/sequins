@@ -64,6 +64,8 @@ func (s *sequins) init() error {
 		}
 	}
 
+	// TODO: load any data we have first
+
 	// Trigger loads before we start up.
 	s.refreshAll()
 
@@ -152,7 +154,7 @@ func (s *sequins) refreshAll() {
 
 	dbs, err := s.backend.ListDBs()
 	if err != nil {
-		log.Println("Error listing DBs from", s.backend.DisplayPath(""))
+		log.Println("Error listing DBs from %s: %s", s.backend.DisplayPath(""), err)
 		return
 	}
 

@@ -45,12 +45,18 @@ func getSequins(t *testing.T, backend backend.Backend, localStore string) *sequi
 	// This is a hack to wait until all DBs are ready.
 	dbs, err := backend.ListDBs()
 	require.NoError(t, err)
-	for i := 0; i < len(dbs); i++ {
-		s.refreshWorkers <- true
-	}
+	for _, dbName := range dbs {
+		for {
+			s.dbsLock.RLock()
+			db := s.dbs[dbName]
+			s.dbsLock.RUnlock()
 
-	for i := 0; i < len(dbs)*2; i++ {
-		<-s.refreshWorkers
+			if db != nil && db.mux.getCurrent() != nil {
+				break
+			}
+
+			time.Sleep(time.Millisecond)
+		}
 	}
 
 	return s

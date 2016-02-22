@@ -128,8 +128,9 @@ func (p *partitions) updatePartitions(nodes []string) {
 }
 
 // advertiseAndWait advertises the partitions we have locally, and waits until
-// it sees at least one peer for every remote partition.
-func (p *partitions) advertiseAndWait() {
+// it sees at least one peer for every remote partition. It returns false only
+// if it was closed before that happens.
+func (p *partitions) advertiseAndWait() bool {
 	// Advertise that our local partitions are ready.
 	p.advertisePartitions()
 
@@ -147,9 +148,14 @@ func (p *partitions) advertiseAndWait() {
 		t := time.NewTimer(10 * time.Second)
 		select {
 		case <-t.C:
-		case <-p.ready:
+		case success := <-p.ready:
+			// If success is false, it's because the close() was called before we
+			// finished waiting on peers
+			return success
 		}
 	}
+
+	return true
 }
 
 // advertisePartitions creates an ephemeral node for each partition this local
@@ -178,4 +184,9 @@ func (p *partitions) getPeers(partition int) []string {
 // they don't shard identically.
 func (p *partitions) partitionId(partition int) string {
 	return fmt.Sprintf("%s:%05d", p.zkPath, partition)
+}
+
+func (p *partitions) close() {
+	// Delete ephemeral keys
+	close(p.ready)
 }

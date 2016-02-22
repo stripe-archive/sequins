@@ -2,12 +2,14 @@ package main
 
 import (
 	"encoding/json"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -53,6 +55,12 @@ func (s *sequins) init() error {
 		}
 	}
 
+	// Create local directories, and load any cached versions we have.
+	err := s.initLocalStore()
+	if err != nil {
+		return nil
+	}
+
 	// To limit the number of parallel loads, create a full buffered channel.
 	// Workers grab one from the channel when they trigger a load, and put it
 	// back when they're done.
@@ -63,8 +71,6 @@ func (s *sequins) init() error {
 			s.refreshWorkers <- true
 		}
 	}
-
-	// TODO: load any data we have first
 
 	// Trigger loads before we start up.
 	s.refreshAll()
@@ -120,6 +126,47 @@ func (s *sequins) initCluster() error {
 
 	s.zkWatcher = zkWatcher
 	s.peers = peers
+	return nil
+}
+
+func (s *sequins) initLocalStore() error {
+	dataPath := filepath.Join(s.config.LocalStore, "data")
+	os.MkdirAll(dataPath, 0755|os.ModeDir)
+
+	// Attempt to load any versions we have cached locally, so that we can start
+	// quickly even if there are newer versions to download.
+	res, err := ioutil.ReadDir(dataPath)
+	if err != nil {
+		return err
+	}
+
+	localDirs := make(map[string]bool)
+	for _, dir := range res {
+		localDirs[dir.Name()] = true
+	}
+
+	localDBs := make(map[string]*db)
+	dbs, err := s.backend.ListDBs()
+	if err != nil {
+		log.Println("Error listing DBs from %s: %s", s.backend.DisplayPath(""), err)
+		return err
+	}
+
+	for _, dbName := range dbs {
+		if !localDirs[dbName] {
+			continue
+		}
+
+		db := newDB(s, dbName)
+		err := db.loadLatestLocalVersion()
+		if err == nil {
+			localDBs[dbName] = db
+		}
+	}
+
+	s.dbsLock.Lock()
+	s.dbs = localDBs
+	s.dbsLock.Unlock()
 	return nil
 }
 

@@ -35,12 +35,12 @@ type version struct {
 	numPartitions int
 }
 
-func (vs *version) waitForPeers() {
+func (vs *version) waitForPeers() bool {
 	if vs.sequins.peers == nil || vs.numPartitions == 0 {
-		return
+		return true
 	}
 
-	vs.partitions.advertiseAndWait()
+	return vs.partitions.advertiseAndWait()
 }
 
 // serveKey is the entrypoint for incoming HTTP requests.
@@ -130,6 +130,10 @@ func (vs *version) proxyRequest(key string, partition int, r *http.Request) ([]b
 }
 
 func (vs *version) close() error {
+	if vs.partitions != nil {
+		vs.partitions.close()
+	}
+
 	if vs.blockStore != nil {
 		return vs.blockStore.Close()
 	}

@@ -179,10 +179,8 @@ func (mux *versionMux) remove(version *version, shouldWait bool) {
 	// timer.
 	if shouldWait {
 		mux.lock.Lock()
-
 		vs := mux.mustGet(version)
 		vs.closeTimer = time.NewTimer(versionExpiry)
-
 		mux.lock.Unlock()
 
 		// Wait for the timer, which is reset on every request.

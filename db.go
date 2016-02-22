@@ -3,8 +3,11 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -17,6 +20,7 @@ type db struct {
 	name        string
 	mux         *versionMux
 	refreshLock sync.Mutex
+	newVersions chan *version
 
 	versionStatus     map[string]versionStatus
 	versionStatusLock sync.RWMutex
@@ -47,14 +51,73 @@ type trackedVersionState struct {
 }
 
 func newDB(sequins *sequins, name string) *db {
-	return &db{
+	db := &db{
 		sequins:       sequins,
 		name:          name,
 		mux:           newVersionMux(),
 		versionStatus: make(map[string]versionStatus),
 	}
+
+	db.newVersions = make(chan *version)
+	go db.takeNewVersions()
+	return db
 }
 
+// loadLatestLocalVersion loads the latest version we have downloaded locally
+// with enough partitions. This allows us to start up fast with local data even
+// if there are newer versions available.
+func (db *db) loadLatestLocalVersion() error {
+	db.refreshLock.Lock()
+	defer db.refreshLock.Unlock()
+
+	versions, err := db.sequins.backend.ListVersions(db.name, db.sequins.config.RequireSuccessFile)
+	if err != nil {
+		return err
+	} else if len(versions) == 0 {
+		return errNoVersions
+	}
+
+	res, err := ioutil.ReadDir(db.localPath(""))
+	if err != nil {
+		return err
+	}
+
+	localVersions := make(map[string]bool)
+	for _, localVersion := range res {
+		localVersions[localVersion.Name()] = true
+	}
+
+	// Cycle through the versions, starting with the newest one, and load
+	// whichever one we have locally.
+	var picked *version
+	for i := len(versions) - 1; i >= 0; i-- {
+		v := versions[i]
+		if !localVersions[v] {
+			continue
+		}
+
+		path := db.localPath(v)
+		_, err = os.Stat(filepath.Join(path, ".manifest"))
+		if err == nil {
+			builder := newVersion(db.sequins, db.name, v)
+			version, err := builder.build(path, true)
+			if err == nil {
+				picked = version
+				break
+			}
+		}
+	}
+
+	if picked == nil {
+		return errNoVersions
+	}
+
+	log.Println("Loading stored version", picked.name, "of", db.name)
+	db.switchVersion(picked)
+	return nil
+}
+
+// refresh loads the latest version on S3 and then triggers an upgrade.
 func (db *db) refresh() error {
 	db.refreshLock.Lock()
 	defer db.refreshLock.Unlock()
@@ -67,56 +130,89 @@ func (db *db) refresh() error {
 	}
 
 	latestVersion := versions[len(versions)-1]
-	currentVersion := db.mux.getCurrent()
-	db.mux.release(currentVersion)
-	if currentVersion != nil && latestVersion == currentVersion.name {
+	existingVersion := db.mux.getVersion(latestVersion)
+	db.mux.release(existingVersion)
+	if existingVersion != nil {
 		return nil
 	}
 
-	files, err := db.sequins.backend.ListFiles(db.name, latestVersion)
-	if err != nil {
-		return err
-	}
-
-	builder := newVersion(db.sequins, db.name, latestVersion, len(files))
+	builder := newVersion(db.sequins, db.name, latestVersion)
 	db.trackVersionBuilding(builder)
-	vs, err := builder.build()
+	vs, err := builder.build(db.localPath(latestVersion), false)
 	if err != nil {
 		return err
 	}
 
+	db.switchVersion(vs)
+	return nil
+}
+
+// Switch version goes through the upgrade process, making sure that we switch
+// versions in step with our peers.
+func (db *db) switchVersion(version *version) {
 	// Prepare the version, so that during the switching period we can respond
 	// to requests for it.
-	db.mux.prepare(vs)
-	db.trackVersion(vs, versionAvailable)
+	db.mux.prepare(version)
+	db.trackVersion(version, versionAvailable)
 
-	// Then, wait for all our peers to be ready. All peers should all see that
-	// everything is ready at roughly the same time. If they switch before us,
-	// that's fine; we can serve the new version we've 'prepared' when peers
-	// ask for it. If we're not part of a cluster, this returns immediately.
-	vs.waitForPeers()
+	go func() {
+		// Wait for all our peers to be ready. All peers should all see that
+		// everything is ready at roughly the same time. If they switch before us,
+		// that's fine; the new version has been 'prepared' and we can serve it to
+		// peers (but not clients). If they switch after us, that's also fine,
+		// since we'll keep the old version around for a bit before deleting it.
+		success := version.waitForPeers()
+		if success {
+			db.newVersions <- version
+		}
+	}()
+}
 
-	// Now we can start serving requests for the new version to clients, as well.
-	log.Printf("Switching to version %s of %s!", vs.name, db.name)
-	db.mux.upgrade(vs)
+// takeNewVersions continually takes new versions over the channel and makes
+// them the default. This allows us to be waiting for peers on multiple
+// versions, and then switch to them as they finish. If it gets a version that
+// is older than the current one, it ignores it, ensuring that it always
+// rolls forward.
+func (db *db) takeNewVersions() {
+	for version := range db.newVersions {
+		current := db.mux.getCurrent()
+		if current != nil && version.name <= current.name {
+			continue
+		}
 
-	// Finally, clean up the old version after some amount of time and after
-	// no peers are asking for it anymore. Again, this is immediate if there are
-	// no peers to consider.
-	if currentVersion != nil {
-		go func() {
-			db.trackVersion(currentVersion, versionRemoving)
-			shouldWait := (db.sequins.peers != nil)
-			db.mux.remove(currentVersion, shouldWait)
-			log.Println("Removing and clearing version", currentVersion.name, "of", db.name)
+		log.Printf("Switching to version %s of %s!", version.name, db.name)
+		db.mux.upgrade(version)
 
-			// TODO: this doesn't actually delete the data
-			currentVersion.close()
-			db.untrackVersion(currentVersion)
-		}()
+		// Close the current version, and any older versions that were
+		// also being prepared (effectively preempting them).
+		for _, old := range db.mux.getAll() {
+			if old == current {
+				go db.removeVersion(old, true)
+			} else if old.name < version.name {
+				go db.removeVersion(old, false)
+			}
+		}
 	}
+}
 
-	return nil
+func (db *db) removeVersion(old *version, shouldWait bool) {
+	db.trackVersion(old, versionRemoving)
+
+	// If we don't have any peers, we never need to wait until the versions
+	// aren't being used.
+	shouldWait = shouldWait && (db.sequins.peers != nil)
+
+	// This will block until the version is no longer being used.
+	db.mux.remove(old, shouldWait)
+	log.Println("Removing and clearing version", old.name, "of", db.name)
+
+	// TODO: this doesn't actually delete the data
+	old.close()
+	db.untrackVersion(old)
+}
+
+func (db *db) localPath(version string) string {
+	return filepath.Join(db.sequins.config.LocalStore, "data", db.name, version)
 }
 
 func (db *db) status() dbStatus {

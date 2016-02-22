@@ -12,37 +12,41 @@ import (
 )
 
 type versionBuilder struct {
-	sequins       *sequins
-	db            string
-	name          string
-	created       time.Time
-	numPartitions int
+	sequins *sequins
+	db      string
+	name    string
+	created time.Time
 }
 
-func newVersion(sequins *sequins, db, name string, numPartitions int) *versionBuilder {
+func newVersion(sequins *sequins, db, name string) *versionBuilder {
 	vsb := &versionBuilder{
-		sequins:       sequins,
-		db:            db,
-		name:          name,
-		created:       time.Now(),
-		numPartitions: numPartitions,
+		sequins: sequins,
+		db:      db,
+		name:    name,
+		created: time.Now(),
 	}
 
 	return vsb
 }
 
 // build prepares the version, blocking until all local partitions are ready,
-// then returns it.
-func (vsb *versionBuilder) build() (*version, error) {
+// then returns it. If onlyFromManifest, is true, it will only load data on local
+// disk from a manifest, and fail otherwise.
+func (vsb *versionBuilder) build(path string, onlyFromManifest bool) (*version, error) {
+	files, err := vsb.sequins.backend.ListFiles(vsb.db, vsb.name)
+	if err != nil {
+		return nil, err
+	}
+
 	vs := &version{
 		sequins:       vsb.sequins,
 		db:            vsb.db,
 		name:          vsb.name,
-		numPartitions: vsb.numPartitions,
+		numPartitions: len(files),
 		created:       vsb.created,
 	}
 
-	if vsb.numPartitions == 0 {
+	if len(files) == 0 {
 		log.Println("Version", vsb.name, "of", vsb.db, "has no data. Loading it anyway.")
 		return vs, nil
 	}
@@ -50,7 +54,7 @@ func (vsb *versionBuilder) build() (*version, error) {
 	var local map[int]bool
 	if vsb.sequins.peers != nil {
 		vs.partitions = watchPartitions(vsb.sequins.zkWatcher, vsb.sequins.peers,
-			vsb.db, vsb.name, vsb.numPartitions, vsb.sequins.config.ZK.Replication)
+			vsb.db, vsb.name, len(files), vsb.sequins.config.ZK.Replication)
 
 		local = vs.partitions.local
 		if len(local) == 0 {
@@ -61,8 +65,7 @@ func (vsb *versionBuilder) build() (*version, error) {
 
 	}
 
-	path := filepath.Join(vsb.sequins.config.LocalStore, "data", vsb.db, vsb.name)
-	blockStore, err := vsb.loadBlocks(path, local)
+	blockStore, err := vsb.loadBlocks(path, local, onlyFromManifest)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +76,7 @@ func (vsb *versionBuilder) build() (*version, error) {
 
 // TODO: parallelize files
 
-func (vsb *versionBuilder) loadBlocks(path string, localPartitions map[int]bool) (*blocks.BlockStore, error) {
+func (vsb *versionBuilder) loadBlocks(path string, localPartitions map[int]bool, onlyFromManifest bool) (*blocks.BlockStore, error) {
 	files, err := vsb.sequins.backend.ListFiles(vsb.db, vsb.name)
 	if err != nil {
 		return nil, err
@@ -87,7 +90,12 @@ func (vsb *versionBuilder) loadBlocks(path string, localPartitions map[int]bool)
 			return blockStore, nil
 		} else {
 			log.Println("Error loading", vsb.db, "version", vsb.name, "from manifest:", err)
+			if onlyFromManifest {
+				return nil, err
+			}
 		}
+	} else if onlyFromManifest {
+		return nil, err
 	}
 
 	log.Println("Loading", vsb.db, "version", vsb.name, "from",
@@ -97,7 +105,7 @@ func (vsb *versionBuilder) loadBlocks(path string, localPartitions map[int]bool)
 	os.RemoveAll(path)
 	err = os.MkdirAll(path, 0755|os.ModeDir)
 	if err != nil {
-		return nil, fmt.Errorf("Error creating local storage directory: %s", err)
+		return nil, fmt.Errorf("error creating local storage directory: %s", err)
 	}
 
 	blockStore := blocks.New(path, len(files), localPartitions)

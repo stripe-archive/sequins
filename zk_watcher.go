@@ -71,6 +71,10 @@ func (w *zkWatcher) reconnect() error {
 		return err
 	}
 
+	// TODO: In some cases, this panics. =/
+	// if w.conn != nil {
+	// 	w.conn.Close()
+	// }
 	w.conn = conn
 
 	// TODO: recreate permanent paths? What if zookeeper dies and loses data?
@@ -119,12 +123,14 @@ func (w *zkWatcher) run() {
 		case <-w.errs:
 		}
 
+		w.hooksLock.Lock()
 		for _, wn := range w.watchedNodes {
 			select {
 			case wn.disconnected <- true:
 			default:
 			}
 		}
+		w.hooksLock.Unlock()
 
 		time.Sleep(time.Second)
 		w.reconnect()

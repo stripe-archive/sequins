@@ -12,8 +12,6 @@ import (
 	"github.com/stripe/sequins/backend"
 )
 
-// TODO: we can run these tests in travis using gohdfs' minicluster script
-
 func setupHdfs(t *testing.T) *backend.HdfsBackend {
 	nn := os.Getenv("HADOOP_NAMENODE")
 	if nn == "" {
@@ -59,7 +57,6 @@ func getHdfsSequins(t *testing.T) *sequins {
 	backend := setupHdfs(t)
 	s := getSequins(t, backend, "")
 
-	require.NoError(t, s.init())
 	return s
 }
 

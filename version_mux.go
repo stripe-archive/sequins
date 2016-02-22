@@ -39,6 +39,7 @@ type versionReferenceCount struct {
 	*version
 	count      *sync.WaitGroup
 	closeTimer *time.Timer
+	removing   bool
 }
 
 func newVersionMux() *versionMux {
@@ -169,17 +170,31 @@ func (mux *versionMux) upgrade(version *version) {
 // be completely unused for the full period of time before it will get removed
 // from the mux (if shouldWait is false, this step is skipped). Once we remove
 // it from the mux, we make extra sure that nothing is using it by waiting for
-// the reference count to drop to zero.
-func (mux *versionMux) remove(version *version, shouldWait bool) {
+// the reference count to drop to zero. Finally, remove returns the version
+// that was removed.
+//
+// It's idempotent to call remove for the same version multiple times. If
+// the version is already being removed, remove will return nil.
+func (mux *versionMux) remove(version *version, shouldWait bool) *version {
 	if version == nil {
-		return
+		return nil
+	}
+
+	mux.lock.Lock()
+	vs, ok := mux.versions[version.name]
+	vs.removing = true
+	mux.lock.Unlock()
+
+	// The version has already been removed, or is already in the process
+	// of being removed
+	if !ok || vs.removing {
+		return nil
 	}
 
 	// Set the timer, then wait for it. Any request from here on will reset the
 	// timer.
 	if shouldWait {
 		mux.lock.Lock()
-		vs := mux.mustGet(version)
 		vs.closeTimer = time.NewTimer(versionExpiry)
 		mux.lock.Unlock()
 
@@ -188,12 +203,12 @@ func (mux *versionMux) remove(version *version, shouldWait bool) {
 	}
 
 	mux.lock.Lock()
-	vs := mux.mustGet(version)
-	delete(mux.versions, vs.version.name)
+	delete(mux.versions, version.name)
 	mux.lock.Unlock()
 
 	// Wait for the reference count to drop to zero.
 	vs.count.Wait()
+	return version
 }
 
 func (mux *versionMux) mustGet(version *version) versionReferenceCount {

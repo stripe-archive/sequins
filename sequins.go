@@ -132,6 +132,7 @@ func (s *sequins) initCluster() error {
 }
 
 func (s *sequins) initLocalStore() error {
+	// TODO: lock local filestore
 	dataPath := filepath.Join(s.config.LocalStore, "data")
 	os.MkdirAll(dataPath, 0755|os.ModeDir)
 

@@ -139,9 +139,9 @@ func (vs *version) close() {
 	}
 }
 
-func (vs *version) remove() error {
+func (vs *version) delete() error {
 	if vs.blockStore != nil {
-		return vs.blockStore.Remove()
+		return vs.blockStore.Delete()
 	}
 
 	return nil

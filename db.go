@@ -203,19 +203,22 @@ func (db *db) removeVersion(old *version, shouldWait bool) {
 
 	// If we don't have any peers, we never need to wait until the versions
 	// aren't being used.
-	shouldWait = shouldWait && (db.sequins.peers != nil)
-
-	// This will block until the version is no longer being used.
-	db.mux.remove(old, shouldWait)
-	log.Println("Removing and clearing version", old.name, "of", db.name)
-
-	old.close()
-	err := old.remove()
-	if err != nil {
-		log.Println("Error cleaning up version %s of %s: %s", old.name, db.name, err)
+	if db.sequins.peers == nil {
+		shouldWait = false
 	}
 
-	db.untrackVersion(old)
+	// This will block until the version is no longer being used.
+	log.Println("Removing and clearing version", old.name, "of", db.name)
+	if removed := db.mux.remove(old, shouldWait); removed != nil {
+		removed.close()
+		err := removed.delete()
+		if err != nil {
+			log.Println("Error cleaning up version %s of %s: %s", removed.name, db.name, err)
+		}
+
+		db.untrackVersion(removed)
+	}
+
 }
 
 func (db *db) localPath(version string) string {

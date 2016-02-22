@@ -258,8 +258,8 @@ func (store *BlockStore) Close() error {
 	return err
 }
 
-// Remove removes any local data the BlockStore has stored.
-func (store *BlockStore) Remove() error {
+// Delete removes any local data the BlockStore has stored.
+func (store *BlockStore) Delete() error {
 	return os.RemoveAll(store.path)
 }
 

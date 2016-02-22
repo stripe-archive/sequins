@@ -20,6 +20,12 @@
 			"branch": "master"
 		},
 		{
+			"importpath": "github.com/codegangsta/negroni",
+			"repository": "https://github.com/codegangsta/negroni",
+			"revision": "c7477ad8e330bef55bf1ebe300cf8aa67c492d1b",
+			"branch": "master"
+		},
+		{
 			"importpath": "github.com/colinmarc/cdb",
 			"repository": "https://github.com/colinmarc/cdb",
 			"revision": "3dc23d89c86cbd7bcfdfde03b7a63ec04646297f",
@@ -104,6 +110,19 @@
 			"revision": "9f9027faeb0dad515336ed2f28317f9f8f527ab4",
 			"branch": "master",
 			"path": "/require"
+		},
+		{
+			"importpath": "github.com/tylerb/graceful",
+			"repository": "https://github.com/tylerb/graceful",
+			"revision": "7116c7a8115899e80197cd9e0b97998c0f97ed8e",
+			"branch": "master"
+		},
+		{
+			"importpath": "golang.org/x/net/netutil",
+			"repository": "https://go.googlesource.com/net",
+			"revision": "b6d7b1396ec874c3b00f6c84cd4301a17c56c8ed",
+			"branch": "master",
+			"path": "/netutil"
 		},
 		{
 			"importpath": "gopkg.in/alecthomas/kingpin.v2",

@@ -28,12 +28,11 @@ func setNullLogger(c *zk.Conn) { c.SetLogger(nullLogger{}) }
 // reconnects to zookeeper, and tries its best to be resilient to failures, but
 // defaults to silently not providing updates.
 type zkWatcher struct {
-	zkServers    []string
-	prefix       string
-	conn         *zk.Conn
-	errs         chan error
-	shutdown     chan bool
-	shutdownOnce sync.Once
+	zkServers []string
+	prefix    string
+	conn      *zk.Conn
+	errs      chan error
+	shutdown  chan bool
 
 	hooksLock      sync.Mutex
 	ephemeralNodes []string
@@ -215,15 +214,15 @@ func (w *zkWatcher) createAll(fullNode string) error {
 }
 
 func (w *zkWatcher) close() {
-	w.shutdownOnce.Do(func() {
-		w.shutdown <- true
-		w.conn.Close()
-	})
+	w.shutdown <- true
+	w.conn.Close()
 }
 
 // sendErr sends the error over the channel, or discards it if the error is full.
 func sendErr(errs chan error, err error) {
-	log.Println("Zookeeper error:", err)
+	if err != zk.ErrClosing {
+		log.Println("Zookeeper error:", err)
+	}
 
 	select {
 	case errs <- err:

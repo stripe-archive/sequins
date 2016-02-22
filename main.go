@@ -80,7 +80,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	log.Fatal(s.start())
+	s.start()
 }
 
 func localSetup(localPath string, config sequinsConfig) *sequins {

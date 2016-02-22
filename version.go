@@ -129,14 +129,12 @@ func (vs *version) proxyRequest(key string, partition int, r *http.Request) ([]b
 	return nil, errNoAvailablePeers
 }
 
-func (vs *version) close() error {
+func (vs *version) close() {
 	if vs.partitions != nil {
 		vs.partitions.close()
 	}
 
 	if vs.blockStore != nil {
-		return vs.blockStore.Close()
+		vs.blockStore.Close()
 	}
-
-	return nil
 }

@@ -15,6 +15,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tylerb/graceful"
+
 	"github.com/stripe/sequins/backend"
 )
 
@@ -170,14 +172,11 @@ func (s *sequins) initLocalStore() error {
 	return nil
 }
 
-func (s *sequins) start() error {
-	// TODO: We need to gracefully shutdown. Most of the time, we just
-	// go down hard. We can use https://github.com/tylerb/graceful for
-	// this.
+func (s *sequins) start() {
 	defer s.shutdown()
 
 	log.Println("Listening on", s.config.Bind)
-	return http.ListenAndServe(s.config.Bind, s)
+	graceful.Run(s.config.Bind, time.Second, s)
 }
 
 func (s *sequins) shutdown() {
@@ -192,7 +191,12 @@ func (s *sequins) shutdown() {
 		zk.close()
 	}
 
-	// TODO: stop in-progress downloads
+	s.dbsLock.Lock()
+	defer s.dbsLock.Unlock()
+
+	for _, db := range s.dbs {
+		db.close()
+	}
 }
 
 func (s *sequins) refreshAll() {

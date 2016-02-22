@@ -279,17 +279,11 @@ func (db *db) serveKey(w http.ResponseWriter, r *http.Request, key string) {
 	db.mux.serveKey(w, r, key)
 }
 
-func (db *db) close() error {
+func (db *db) close() {
 	db.refreshLock.Lock()
 	defer db.refreshLock.Unlock()
 
-	var err error
 	for _, vs := range db.mux.getAll() {
-		closeErr := vs.close()
-		if closeErr != nil {
-			err = closeErr
-		}
+		vs.close()
 	}
-
-	return err
 }

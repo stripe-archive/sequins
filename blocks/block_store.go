@@ -258,6 +258,11 @@ func (store *BlockStore) Close() error {
 	return err
 }
 
+// Remove removes any local data the BlockStore has stored.
+func (store *BlockStore) Remove() error {
+	return os.RemoveAll(store.path)
+}
+
 // hashCode implements java.lang.String#hashCode.
 func hashCode(b []byte) int32 {
 	var v int32

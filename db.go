@@ -176,6 +176,7 @@ func (db *db) switchVersion(version *version) {
 func (db *db) takeNewVersions() {
 	for version := range db.newVersions {
 		current := db.mux.getCurrent()
+		db.mux.release(current)
 		if current != nil && version.name <= current.name {
 			continue
 		}
@@ -195,6 +196,8 @@ func (db *db) takeNewVersions() {
 	}
 }
 
+// removeVersion removes a version, blocking until it is no longer being
+// requested by peers.
 func (db *db) removeVersion(old *version, shouldWait bool) {
 	db.trackVersion(old, versionRemoving)
 
@@ -206,8 +209,12 @@ func (db *db) removeVersion(old *version, shouldWait bool) {
 	db.mux.remove(old, shouldWait)
 	log.Println("Removing and clearing version", old.name, "of", db.name)
 
-	// TODO: this doesn't actually delete the data
 	old.close()
+	err := old.remove()
+	if err != nil {
+		log.Println("Error cleaning up version %s of %s: %s", old.name, db.name, err)
+	}
+
 	db.untrackVersion(old)
 }
 

@@ -138,3 +138,11 @@ func (vs *version) close() {
 		vs.blockStore.Close()
 	}
 }
+
+func (vs *version) remove() error {
+	if vs.blockStore != nil {
+		return vs.blockStore.Remove()
+	}
+
+	return nil
+}

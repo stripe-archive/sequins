@@ -75,7 +75,15 @@ root = "hdfs://namenode:8020/path/to/sequins"
 # multiple sequins clusters using the same zookeeper for coordination, you
 # should change this so they can't conflict.
 
-# advertised_hostname = "example.com"
+# advertised_hostname = "sequins1.example.com"
 # Unset by default. This is the hostname sequins uses to advertise itself to
 # peers in a cluster. It should be resolvable by those peers. If left unset, it
 # will be set to the hostname of the server.
+
+# shard_id = "sequins1"
+# Unset by default. The shard ID to determine which partitions
+# the node is responsible. By default, it is the same as advertised_hostname.
+# Unlike the hostname, however, it doesn't have to be unique; two nodes can
+# have the same shard_id, and will download the same partitions. This can be
+# useful if you don't have stable hostnames, but want to be able to rebuild
+# a server to take the same exact partitions.

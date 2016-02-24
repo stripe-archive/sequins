@@ -123,7 +123,12 @@ func (s *sequins) initCluster() error {
 	}
 
 	routableAddress := net.JoinHostPort(hostname, port)
-	peers := watchPeers(zkWatcher, routableAddress)
+	shardID := s.config.ZK.ShardID
+	if shardID == "" {
+		shardID = routableAddress
+	}
+
+	peers := watchPeers(zkWatcher, shardID, routableAddress)
 	peers.waitToConverge(s.config.ZK.TimeToConverge.Duration)
 
 	s.zkWatcher = zkWatcher

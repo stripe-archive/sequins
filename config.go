@@ -40,6 +40,7 @@ type zkConfig struct {
 	ProxyTimeout       duration `toml:"proxy_timeout"`
 	ClusterName        string   `toml:"cluster_name"`
 	AdvertisedHostname string   `toml:"advertised_hostname"`
+	ShardID            string   `toml:"shard_id"`
 }
 
 func defaultConfig() sequinsConfig {
@@ -63,6 +64,7 @@ func defaultConfig() sequinsConfig {
 			ProxyTimeout:       duration{100 * time.Millisecond},
 			ClusterName:        "sequins",
 			AdvertisedHostname: "",
+			ShardID:            "",
 		},
 	}
 }

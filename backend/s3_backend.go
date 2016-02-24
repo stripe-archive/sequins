@@ -7,18 +7,21 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/crowdmob/goamz/s3"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/s3"
 )
 
 type S3Backend struct {
-	bucket *s3.Bucket
+	bucket string
 	path   string
+	svc    *s3.S3
 }
 
-func NewS3Backend(bucket *s3.Bucket, s3path string) *S3Backend {
+func NewS3Backend(bucket string, s3path string, svc *s3.S3) *S3Backend {
 	return &S3Backend{
 		bucket: bucket,
 		path:   strings.TrimPrefix(path.Clean(s3path), "/"),
+		svc:    svc,
 	}
 }
 
@@ -36,10 +39,8 @@ func (s *S3Backend) ListVersions(db, after string, checkForSuccess bool) ([]stri
 		var filtered []string
 		for _, version := range versions {
 			successFile := path.Join(s.path, db, version, "_SUCCESS")
-			exists, err := s.bucket.Exists(successFile)
-			if err != nil {
-				return nil, s.s3error(err)
-			}
+			fmt.Println(successFile)
+			exists := s.exists(successFile)
 
 			if exists {
 				filtered = append(filtered, version)
@@ -60,7 +61,14 @@ func (s *S3Backend) listDirs(dir, after string) ([]string, error) {
 	var res []string
 
 	for {
-		resp, err := s.bucket.List(dir+"/", "/", after, 1000)
+		params := &s3.ListObjectsInput{
+			Bucket:		aws.String(s.bucket),
+			Delimiter:	aws.String("/"),
+			Marker:		aws.String(after),
+			MaxKeys:	aws.Int64(1000),
+			Prefix:		aws.String(dir+"/"),
+		}
+		resp, err := s.svc.ListObjects(params)
 
 		if err != nil {
 			return nil, s.s3error(err)
@@ -69,17 +77,25 @@ func (s *S3Backend) listDirs(dir, after string) ([]string, error) {
 		}
 
 		for _, p := range resp.CommonPrefixes {
-			prefix := strings.TrimSuffix(p, "/")
+			prefix := strings.TrimSuffix(*p.Prefix, "/")
+			fmt.Println("Prefix", prefix)
 
 			// List the prefix, to make sure it's a "directory"
 			isDir := false
-			resp, err := s.bucket.List(prefix, "", after, 3)
+			params := &s3.ListObjectsInput{
+				Bucket:		aws.String(s.bucket),
+				Delimiter:	aws.String(""),
+				Marker:		aws.String(after),
+				MaxKeys:	aws.Int64(3),
+				Prefix:		aws.String(prefix),
+			}
+			resp, err := s.svc.ListObjects(params)
 			if err != nil {
 				return nil, err
 			}
 
 			for _, key := range resp.Contents {
-				if strings.TrimSpace(path.Base(key.Key)) != "" {
+				if strings.TrimSpace(path.Base(*key.Key)) != "" {
 					isDir = true
 					break
 				}
@@ -90,10 +106,10 @@ func (s *S3Backend) listDirs(dir, after string) ([]string, error) {
 			}
 		}
 
-		if !resp.IsTruncated {
+		if !*resp.IsTruncated {
 			break
 		} else {
-			after = resp.CommonPrefixes[len(resp.CommonPrefixes)-1]
+			after = resp.CommonPrefixes[len(resp.CommonPrefixes)-1].String()
 		}
 	}
 
@@ -107,7 +123,15 @@ func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 	res := make([]string, 0)
 
 	for {
-		resp, err := s.bucket.List(versionPrefix, "", after, 1000)
+		params := &s3.ListObjectsInput{
+			Bucket:		aws.String(s.bucket),
+			Delimiter:	aws.String(""),
+			Marker:		aws.String(after),
+			MaxKeys:	aws.Int64(1000),
+			Prefix:		aws.String(versionPrefix),
+		}
+		resp, err := s.svc.ListObjects(params)
+
 		if err != nil {
 			return nil, s.s3error(err)
 		} else if resp.Contents == nil || len(resp.Contents) == 0 {
@@ -115,15 +139,15 @@ func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 		}
 
 		for _, key := range resp.Contents {
-			name := path.Base(key.Key)
+			name := path.Base(*key.Key)
 			// S3 sometimes has keys that are the same as the "directory"
 			if strings.TrimSpace(name) != "" && !strings.HasPrefix(name, "_") && !strings.HasPrefix(name, ".") {
 				res = append(res, name)
 			}
 		}
 
-		if resp.IsTruncated {
-			after = resp.CommonPrefixes[len(resp.CommonPrefixes)-1]
+		if *resp.IsTruncated {
+			after = resp.CommonPrefixes[len(resp.CommonPrefixes)-1].String()
 		} else {
 			break
 		}
@@ -135,12 +159,17 @@ func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 
 func (s *S3Backend) Open(db, version, file string) (io.ReadCloser, error) {
 	src := path.Join(s.path, db, version, file)
-	reader, err := s.bucket.GetReader(src)
+	params := &s3.GetObjectInput{
+		Bucket:                     aws.String(s.bucket),
+		Key:                        aws.String(src),
+	}
+	resp, err := s.svc.GetObject(params)
+
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error opening S3 path %s: %s", s.path, err)
 	}
 
-	return reader, nil
+	return resp.Body, nil
 }
 
 func (s *S3Backend) DisplayPath(parts ...string) string {
@@ -150,10 +179,23 @@ func (s *S3Backend) DisplayPath(parts ...string) string {
 
 func (s *S3Backend) displayURL(parts ...string) string {
 	key := strings.TrimPrefix(path.Join(parts...), "/")
-	return fmt.Sprintf("s3://%s/%s", s.bucket.Name, key)
+	return fmt.Sprintf("s3://%s/%s", s.bucket, key)
 }
 
-// goamz error messages are always unqualified
+func (s *S3Backend) exists(key string) bool {
+	params := &s3.GetObjectInput{
+		Bucket:                     aws.String(s.bucket),
+		Key:                        aws.String(key),
+	}
+	_, err := s.svc.GetObject(params)
+
+	if err != nil {
+		return false
+	}
+
+	return true
+}
+
 func (s *S3Backend) s3error(err error) error {
-	return fmt.Errorf("unexpected S3 error on bucket %s: %s", s.bucket.Name, err)
+	return fmt.Errorf("unexpected S3 error on bucket %s: %s", s.bucket, err)
 }

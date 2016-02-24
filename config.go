@@ -66,6 +66,7 @@ type testConfig struct {
 	UpgradeDelay         duration `toml:"upgrade_delay"`
 	AllowLocalCluster    bool     `toml:"allow_local_cluster"`
 	VersionRemoveTimeout duration `toml:"version_remove_timeout"`
+	S3                   s3Config `toml:"s3"`
 }
 
 func defaultConfig() sequinsConfig {
@@ -103,6 +104,11 @@ func defaultConfig() sequinsConfig {
 		Test: testConfig{
 			UpgradeDelay:         duration{time.Duration(0)},
 			VersionRemoveTimeout: duration{time.Duration(0)},
+			S3: s3Config{
+				Region:          "",
+				AccessKeyId:     "",
+				SecretAccessKey: "",
+			},
 		},
 	}
 }

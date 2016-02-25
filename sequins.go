@@ -172,6 +172,9 @@ func (s *sequins) initLocalStore() error {
 		}
 	}
 
+	// TODO: clean up any local data we have that doesn't have a corresponding
+	// remote DB or version
+
 	s.dbsLock.Lock()
 	s.dbs = localDBs
 	s.dbsLock.Unlock()
@@ -246,6 +249,7 @@ func (s *sequins) refreshAll() {
 	for name, db := range oldDBs {
 		if s.dbs[name] == nil {
 			db.close()
+			db.delete()
 		}
 	}
 

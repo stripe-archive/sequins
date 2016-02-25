@@ -297,3 +297,9 @@ func (db *db) close() {
 		vs.close()
 	}
 }
+
+func (db *db) delete() {
+	for _, vs := range db.mux.getAll() {
+		vs.delete()
+	}
+}

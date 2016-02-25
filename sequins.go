@@ -209,10 +209,10 @@ func (s *sequins) shutdown() {
 		s.refreshTicker.Stop()
 	}
 
-	zk := s.zkWatcher
-	if zk != nil {
-		zk.close()
-	}
+	// zk := s.zkWatcher
+	// if zk != nil {
+	// 	zk.close()
+	// }
 
 	// TODO: figure out how to cancel in-progress downloads
 	// s.dbsLock.Lock()

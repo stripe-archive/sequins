@@ -1,9 +1,6 @@
-FROM golang:1.3
-MAINTAINER Colin Marc <colinmarc@gmail.com>
+FROM golang:1.6
 
-ADD . /go/src/github.com/colinmarc/sequins
-RUN cd /go/src/github.com/colinmarc/sequins && make install
-
-CMD ["--bind", ":9599", "/go/src/github.com/colinmarc/sequins/test_data"]
-ENTRYPOINT ["/go/bin/sequins"]
-EXPOSE 9599
+ADD . /go/src/github.com/stripe/sequins
+RUN mkdir -p /build/
+WORKDIR /go/src/github.com/stripe/sequins
+CMD /go/src/github.com/stripe/sequins/jenkins_build.sh

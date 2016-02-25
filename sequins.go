@@ -189,6 +189,7 @@ func (s *sequins) start() {
 }
 
 func (s *sequins) shutdown() {
+	log.Println("Shutting down...")
 	signal.Stop(s.sighups)
 
 	if s.refreshTicker != nil {

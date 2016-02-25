@@ -84,7 +84,14 @@ func (db *db) loadLatestLocalVersion() error {
 
 	localVersions := make(map[string]bool)
 	for _, localVersion := range res {
-		localVersions[localVersion.Name()] = true
+		path := db.localPath(localVersion.Name())
+		_, err = os.Stat(filepath.Join(path, ".manifest"))
+		if err == nil {
+			localVersions[localVersion.Name()] = true
+		} else if os.IsNotExist(err) {
+			log.Println("Cleaning up partially downloaded version at", path)
+			os.RemoveAll(path)
+		}
 	}
 
 	// Cycle through the versions, starting with the newest one, and load
@@ -97,14 +104,14 @@ func (db *db) loadLatestLocalVersion() error {
 		}
 
 		path := db.localPath(v)
-		_, err = os.Stat(filepath.Join(path, ".manifest"))
+		builder := newVersion(db.sequins, db.name, v)
+		version, err := builder.build(path, true)
 		if err == nil {
-			builder := newVersion(db.sequins, db.name, v)
-			version, err := builder.build(path, true)
-			if err == nil {
-				picked = version
-				break
-			}
+			picked = version
+			break
+		} else {
+			version.close()
+			version.delete()
 		}
 	}
 

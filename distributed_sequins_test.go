@@ -23,7 +23,7 @@ func getDistributedSequins(t *testing.T, backend backend.Backend, zkServers []st
 	config.LocalStore = tmpDir
 	config.MaxParallelLoads = 1
 	config.ZK.Servers = zkServers
-	config.ZK.TimeToConverge = duration{10 * time.Millisecond}
+	config.ZK.TimeToConverge = duration{1 * time.Second}
 	config.ZK.ProxyTimeout = duration{10 * time.Millisecond}
 	config.ZK.AdvertisedHostname = "localhost"
 

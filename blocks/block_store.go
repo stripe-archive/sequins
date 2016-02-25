@@ -23,8 +23,9 @@ type BlockStore struct {
 	selectedPartitions map[int]bool
 	count              int
 
-	Blocks   []*Block
-	BlockMap map[int][]*Block
+	newBlocks map[int]*blockWriter
+	Blocks    []*Block
+	BlockMap  map[int][]*Block
 
 	blockMapLock sync.RWMutex
 }
@@ -35,8 +36,9 @@ func New(path string, numPartitions int, selectedPartitions map[int]bool) *Block
 		numPartitions:      numPartitions,
 		selectedPartitions: selectedPartitions,
 
-		Blocks:   make([]*Block, 0),
-		BlockMap: make(map[int][]*Block),
+		newBlocks: make(map[int]*blockWriter),
+		Blocks:    make([]*Block, 0),
+		BlockMap:  make(map[int][]*Block),
 	}
 }
 
@@ -88,13 +90,10 @@ func NewFromManifest(path string, selectedPartitions map[int]bool) (*BlockStore,
 	return store, nil
 }
 
-// TODO: add files in parallel
-
-// AddFile ingests the key/value pairs in the given sequencefile, writing it
-// out to at least one block. If the data is not partitioned cleanly, it will
-// sort it into blocks as it reads.
+// AddFile ingests the key/value pairs from the given sequencefile, writing
+// them out to at least one block. If the data is not partitioned cleanly, it
+// will sort it into blocks as it reads.
 func (store *BlockStore) AddFile(reader *sequencefile.Reader) error {
-	newBlocks := make(map[int]*blockWriter)
 	savedBlocks := make(map[int][]*Block)
 
 	canAssumePartition := true
@@ -122,6 +121,8 @@ func (store *BlockStore) AddFile(reader *sequencefile.Reader) error {
 			}
 		}
 
+		// Once we see 5000 keys from the same partition, it's safe to assume
+		// the whole file is like that, and we can skip the rest.
 		if store.selectedPartitions != nil && !store.selectedPartitions[partition] {
 			if canAssumePartition && assumedFor > 5000 {
 				return ErrWrongPartition
@@ -129,7 +130,8 @@ func (store *BlockStore) AddFile(reader *sequencefile.Reader) error {
 			continue
 		}
 
-		block, ok := newBlocks[partition]
+		// Grab the open block for this partition.
+		block, ok := store.newBlocks[partition]
 		var err error
 		if !ok {
 			block, err = newBlock(store.path, partition)
@@ -137,9 +139,11 @@ func (store *BlockStore) AddFile(reader *sequencefile.Reader) error {
 				return err
 			}
 
-			newBlocks[partition] = block
+			store.newBlocks[partition] = block
 		}
 
+		// Write the key/value pair. If the block is full, save it
+		// and start a new one.
 		err = block.add(reader.Key(), reader.Value())
 		if err == errBlockFull {
 			savedBlock, err := block.save()
@@ -155,7 +159,7 @@ func (store *BlockStore) AddFile(reader *sequencefile.Reader) error {
 				return err
 			}
 
-			newBlocks[partition] = block
+			store.newBlocks[partition] = block
 			err = block.add(reader.Key(), reader.Value())
 			if err != nil {
 				return err
@@ -167,16 +171,6 @@ func (store *BlockStore) AddFile(reader *sequencefile.Reader) error {
 
 	if reader.Err() != nil {
 		return reader.Err()
-	}
-
-	// Flush all the buffering blocks.
-	for partition, block := range newBlocks {
-		savedBlock, err := block.save()
-		if err != nil {
-			return err
-		}
-
-		savedBlocks[partition] = append(savedBlocks[partition], savedBlock)
 	}
 
 	// Update the block map with the new blocks.
@@ -194,10 +188,25 @@ func (store *BlockStore) AddFile(reader *sequencefile.Reader) error {
 	return nil
 }
 
-func (store *BlockStore) SaveManifest() error {
-	store.blockMapLock.RLock()
-	defer store.blockMapLock.RUnlock()
+func (store *BlockStore) Save() error {
+	store.blockMapLock.Lock()
+	defer store.blockMapLock.Unlock()
 
+	// Flush any buffered blocks.
+	for partition, block := range store.newBlocks {
+		savedBlock, err := block.save()
+		if err != nil {
+			return err
+		}
+
+		store.Blocks = append(store.Blocks, savedBlock)
+		store.BlockMap[partition] = append(store.BlockMap[partition], savedBlock)
+		store.count += savedBlock.Count
+	}
+
+	store.newBlocks = make(map[int]*blockWriter)
+
+	// Save the manifest.
 	var partitions []int
 	if store.selectedPartitions != nil {
 		partitions = make([]int, 0, len(store.selectedPartitions))

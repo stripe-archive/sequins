@@ -26,6 +26,9 @@ func TestBlockStore(t *testing.T) {
 
 	err = bs.AddFile(sf)
 	require.NoError(t, err, "adding the file to the block store")
+
+	err = bs.Save()
+	require.NoError(t, err, "saving the manifest")
 	assert.Equal(t, 2, len(bs.Blocks), "should have the correct number of blocks")
 
 	res, err := bs.Get("Alice")
@@ -37,9 +40,6 @@ func TestBlockStore(t *testing.T) {
 	assert.Equal(t, "Hope", string(res), "fetching value for 'Bob'")
 
 	// Close the index, then load it from the manifest.
-	err = bs.SaveManifest()
-	require.NoError(t, err, "saving the manifest")
-
 	err = bs.Close()
 	require.NoError(t, err, "closing the BlockStore")
 

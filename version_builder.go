@@ -116,7 +116,7 @@ func (vsb *versionBuilder) loadBlocks(path string, localPartitions map[int]bool,
 		}
 	}
 
-	blockStore.SaveManifest()
+	blockStore.Save()
 	return blockStore, nil
 }
 

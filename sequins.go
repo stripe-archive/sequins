@@ -201,12 +201,13 @@ func (s *sequins) shutdown() {
 		zk.close()
 	}
 
-	s.dbsLock.Lock()
-	defer s.dbsLock.Unlock()
+	// TODO: figure out how to cancel in-progress downloads
+	// s.dbsLock.Lock()
+	// defer s.dbsLock.Unlock()
 
-	for _, db := range s.dbs {
-		db.close()
-	}
+	// for _, db := range s.dbs {
+	// 	db.close()
+	// }
 }
 
 func (s *sequins) refreshAll() {

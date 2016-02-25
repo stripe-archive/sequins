@@ -153,22 +153,35 @@ func (s *sequins) initLocalStore() error {
 		localDirs[dir.Name()] = true
 	}
 
-	localDBs := make(map[string]*db)
 	dbs, err := s.backend.ListDBs()
 	if err != nil {
 		log.Println("Error listing DBs from %s: %s", s.backend.DisplayPath(""), err)
 		return err
 	}
 
+	built := make(chan *db, len(dbs))
 	for _, dbName := range dbs {
 		if !localDirs[dbName] {
+			built <- nil
 			continue
 		}
 
-		db := newDB(s, dbName)
-		err := db.loadLatestLocalVersion()
-		if err == nil {
-			localDBs[dbName] = db
+		go func(name string) {
+			db := newDB(s, name)
+			err := db.loadLatestLocalVersion()
+			if err == nil {
+				built <- db
+			} else {
+				built <- nil
+			}
+		}(dbName)
+	}
+
+	localDBs := make(map[string]*db)
+	for i := 0; i < len(dbs); i++ {
+		db := <-built
+		if db != nil {
+			localDBs[db.name] = db
 		}
 	}
 

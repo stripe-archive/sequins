@@ -109,15 +109,14 @@ func (db *db) loadLatestLocalVersion() error {
 		if err == nil {
 			picked = version
 			break
-		} else {
-			version.close()
-			version.delete()
 		}
 	}
 
 	if picked == nil {
 		return errNoVersions
 	}
+
+	// TODO: clean up any old versions laying around
 
 	log.Println("Loading stored version", picked.name, "of", db.name)
 	db.switchVersion(picked)

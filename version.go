@@ -76,20 +76,20 @@ func (vs *version) get(key string, r *http.Request) ([]byte, error) {
 		return nil, nil
 	}
 
-	partition := blocks.KeyPartition(key, vs.numPartitions)
-
-	if vs.partitions == nil || vs.partitions.local[partition] {
-		res, err := vs.blockStore.Get(key)
-		if err == blocks.ErrNotFound {
-			err = nil // TODO this is silly
-		}
-
-		return res, err
+	partition, alternatePartition := blocks.KeyPartition(key, vs.numPartitions)
+	if vs.hasPartition(partition) || vs.hasPartition(alternatePartition) {
+		return vs.blockStore.Get(key)
 	} else if r.URL.Query().Get("proxy") == "" {
 		return vs.proxyRequest(key, partition, r)
 	} else {
 		return nil, errProxiedIncorrectly
 	}
+
+}
+
+// hasPartition returns true if we have the partition available locally.
+func (vs *version) hasPartition(partition int) bool {
+	return vs.partitions == nil || vs.partitions.local[partition]
 }
 
 // proxyRequest proxies the request, trying each peer that should have the key

@@ -14,6 +14,8 @@ import (
 
 // TODO testable
 
+const coordinationVersion = "v1"
+
 var defaultACL = zk.WorldACL(zk.PermAll)
 
 // nullLogger is a noop logger for the zk client.
@@ -47,7 +49,7 @@ type watchedNode struct {
 func connectZookeeper(zkServers []string, prefix string) (*zkWatcher, error) {
 	w := &zkWatcher{
 		zkServers:      zkServers,
-		prefix:         prefix,
+		prefix:         path.Join(prefix, coordinationVersion),
 		errs:           make(chan error, 1),
 		shutdown:       make(chan bool),
 		ephemeralNodes: make([]string, 0),

@@ -51,8 +51,12 @@ func getSequins(t *testing.T, backend backend.Backend, localStore string) *sequi
 			db := s.dbs[dbName]
 			s.dbsLock.RUnlock()
 
-			if db != nil && db.mux.getCurrent() != nil {
-				break
+			if db != nil {
+				current := db.mux.getCurrent()
+				db.mux.release(current)
+				if current != nil {
+					break
+				}
 			}
 
 			time.Sleep(time.Millisecond)

@@ -182,12 +182,13 @@ func (mux *versionMux) remove(version *version, shouldWait bool) *version {
 
 	mux.lock.Lock()
 	vs, ok := mux.versions[version.name]
+	alreadyRemoving := vs.removing
 	vs.removing = true
 	mux.lock.Unlock()
 
 	// The version has already been removed, or is already in the process
 	// of being removed
-	if !ok || vs.removing {
+	if !ok || alreadyRemoving {
 		return nil
 	}
 

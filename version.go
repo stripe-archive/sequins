@@ -113,12 +113,12 @@ func (vs *version) proxyRequest(key string, partition int, r *http.Request) ([]b
 		r.URL.Host = peer
 		resp, err := client.Do(r)
 		if err != nil {
-			log.Printf("Error proxying request to peer %s/%s: %s\n", peer, r.URL.String(), err)
+			log.Printf("Error proxying request to peer %s: %s\n", r.URL.String(), err)
 			continue
 		} else if resp.StatusCode == 404 {
 			return nil, nil
 		} else if resp.StatusCode != 200 {
-			log.Printf("Error proxying request to peer %s/%s: got %d\n", peer, r.URL.String(), resp.StatusCode)
+			log.Printf("Error proxying request to peer %s: got %d\n", r.URL.String(), resp.StatusCode)
 			continue
 		}
 

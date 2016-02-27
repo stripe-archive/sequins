@@ -80,7 +80,13 @@ func (vs *version) get(key string, r *http.Request) ([]byte, error) {
 	if vs.hasPartition(partition) || vs.hasPartition(alternatePartition) {
 		return vs.blockStore.Get(key)
 	} else if r.URL.Query().Get("proxy") == "" {
-		return vs.proxyRequest(key, partition, r)
+		res, err := vs.proxyRequest(partition, r)
+		if res == nil && err == nil && alternatePartition != partition {
+			log.Println("Trying alternate partition for pathological key", key)
+			res, err = vs.proxyRequest(alternatePartition, r)
+		}
+
+		return res, err
 	} else {
 		return nil, errProxiedIncorrectly
 	}
@@ -94,9 +100,10 @@ func (vs *version) hasPartition(partition int) bool {
 
 // proxyRequest proxies the request, trying each peer that should have the key
 // in turn.
-func (vs *version) proxyRequest(key string, partition int, r *http.Request) ([]byte, error) {
+func (vs *version) proxyRequest(partition int, r *http.Request) ([]byte, error) {
 	peers := vs.partitions.getPeers(partition)
 
+	// Shuffle the peers, so we try them in a random order.
 	// TODO: don't blacklist nodes, but we can weight them lower
 	shuffled := make([]string, len(peers))
 	perm := rand.Perm(len(peers))
@@ -104,29 +111,41 @@ func (vs *version) proxyRequest(key string, partition int, r *http.Request) ([]b
 		shuffled[v] = peers[i]
 	}
 
-	client := &http.Client{Timeout: vs.sequins.config.ZK.ProxyTimeout.Duration}
-	r.URL.RawQuery = fmt.Sprintf("proxy=%s", vs.name)
-	r.URL.Scheme = "http"
-	r.RequestURI = ""
-
 	for _, peer := range shuffled {
-		r.URL.Host = peer
-		resp, err := client.Do(r)
+		res, err := vs.proxyAttempt(peer, r)
 		if err != nil {
-			log.Printf("Error proxying request to peer %s: %s\n", r.URL.String(), err)
-			continue
-		} else if resp.StatusCode == 404 {
-			return nil, nil
-		} else if resp.StatusCode != 200 {
-			log.Printf("Error proxying request to peer %s: got %d\n", r.URL.String(), resp.StatusCode)
+			log.Printf("Error proxying request to peer %s: %s", r.URL.String(), err)
 			continue
 		}
 
-		defer resp.Body.Close()
-		return ioutil.ReadAll(resp.Body)
+		return res, nil
 	}
 
 	return nil, errNoAvailablePeers
+}
+
+func (vs *version) proxyAttempt(peer string, r *http.Request) ([]byte, error) {
+	r.URL.RawQuery = fmt.Sprintf("proxy=%s", vs.name)
+	r.URL.Scheme = "http"
+	r.URL.Host = peer
+	proxyRequest, err := http.NewRequest("GET", r.URL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := vs.sequins.proxyClient.Do(proxyRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+	if resp.StatusCode == 404 {
+		return nil, nil
+	} else if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("got %d", resp.StatusCode)
+	}
+
+	return ioutil.ReadAll(resp.Body)
 }
 
 func (vs *version) close() {

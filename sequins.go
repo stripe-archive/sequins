@@ -28,8 +28,9 @@ type sequins struct {
 	dbs     map[string]*db
 	dbsLock sync.RWMutex
 
-	peers     *peers
-	zkWatcher *zkWatcher
+	peers       *peers
+	zkWatcher   *zkWatcher
+	proxyClient *http.Client
 
 	refreshLock    sync.Mutex
 	refreshWorkers chan bool
@@ -133,6 +134,7 @@ func (s *sequins) initCluster() error {
 
 	s.zkWatcher = zkWatcher
 	s.peers = peers
+	s.proxyClient = &http.Client{Timeout: s.config.ZK.ProxyTimeout.Duration}
 	return nil
 }
 

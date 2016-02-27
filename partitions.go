@@ -188,5 +188,9 @@ func (p *partitions) partitionId(partition int) string {
 
 func (p *partitions) close() {
 	// Delete ephemeral keys
-	close(p.ready)
+	// Remove watch
+	select {
+	case p.ready <- false:
+	default:
+	}
 }

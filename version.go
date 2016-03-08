@@ -58,13 +58,13 @@ func (vs *version) serveKey(w http.ResponseWriter, r *http.Request, key string) 
 	} else if res == nil {
 		// Either the key doesn't exist locally, or we got back the
 		// proxied response, and it didn't exist on the peer. 404.
+		w.Header().Add("X-Sequins-Version", vs.name)
 		w.WriteHeader(http.StatusNotFound)
 	} else {
 		// Explicitly unset Content-Type, so ServeContent doesn't try to do any
 		// sniffing.
 		w.Header()["Content-Type"] = nil
 		w.Header().Add("X-Sequins-Version", vs.name)
-
 		http.ServeContent(w, r, key, vs.created, bytes.NewReader(res))
 	}
 }

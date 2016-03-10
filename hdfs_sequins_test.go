@@ -65,19 +65,19 @@ func TestHdfsBackend(t *testing.T) {
 
 	dbs, err := h.ListDBs()
 	require.NoError(t, err, "it should be able to list dbs")
-	assert.Equal(t, []string{"names"}, dbs, "the list of dbs should be correct")
+	assert.Equal(t, []string{"baby-names"}, dbs, "the list of dbs should be correct")
 
-	versions, err := h.ListVersions("names", false)
+	versions, err := h.ListVersions("baby-names", false)
 	require.NoError(t, err, "it should be able to list versions")
 	assert.Equal(t, []string{"0", "1"}, versions, "it should be able to list versions")
 
-	versions, err = h.ListVersions("names", true)
+	versions, err = h.ListVersions("baby-names", true)
 	require.NoError(t, err, "it should be able to list versions with a _SUCCESS file")
 	assert.Equal(t, []string{"0"}, versions, "the list of versions with a _SUCCESS file should be correct")
 
-	files, err := h.ListFiles("names", "0")
+	files, err := h.ListFiles("baby-names", "0")
 	require.NoError(t, err, "it should be able to list files")
-	assert.Equal(t, []string{"part-00000", "part-00001"}, files, "the list of files should be correct")
+	assert.Equal(t, 20, len(files), "the list of files should be correct")
 
 	tearDownHdfs(t)
 }

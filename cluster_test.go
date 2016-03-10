@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -158,6 +159,12 @@ func (tc *testCluster) assertProgression() {
 	}
 }
 
+func (tc *testCluster) hup() {
+	for _, ts := range tc.sequinses {
+		ts.hup()
+	}
+}
+
 func (tc *testCluster) tearDown() {
 	for _, ts := range tc.sequinses {
 		ts.process.Process.Kill()
@@ -213,6 +220,9 @@ func (ts *testSequins) startTest() {
 					version = testVersion(v)
 				}
 			} else {
+				if lastVersion != down && lastVersion != testVersion("nothing yet") {
+					ts.T.Log(err)
+				}
 				version = down
 			}
 
@@ -253,6 +263,10 @@ func (ts *testSequins) start() {
 	ts.process.Start()
 }
 
+func (ts *testSequins) hup() {
+	ts.process.Process.Signal(syscall.SIGHUP)
+}
+
 func (ts *testSequins) assertProgression() {
 	var actualProgression []testVersion
 
@@ -288,6 +302,45 @@ Progression:
 	}
 
 	assert.Equal(ts.T, expected, actual, "unexpected progression for %s", ts.name)
+}
+
+// TestEmptySingleNode tests that a node with no preexisting state can start up
+// and serve requests.
+func TestEmptySingleNode(t *testing.T) {
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	tc.addSequinses(1)
+	tc.makeVersionAvailable(v3)
+	tc.expectProgression(down, noVersion, v3)
+
+	tc.setup()
+	tc.startTest()
+	tc.assertProgression()
+}
+
+// TestUpgradingSingleNode tests that a node can upgrade to one version, and
+// then upgrade a second and third time.
+func TestUpgradingSingleNode(t *testing.T) {
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	tc.addSequinses(1)
+	tc.makeVersionAvailable(v1)
+	tc.expectProgression(down, noVersion, v1, v2, v3)
+
+	tc.setup()
+	tc.startTest()
+
+	time.Sleep(1 * time.Second)
+	tc.makeVersionAvailable(v2)
+	tc.hup()
+
+	time.Sleep(1 * time.Second)
+	tc.makeVersionAvailable(v3)
+	tc.hup()
+
+	tc.assertProgression()
 }
 
 // TestEmptyCluster tests that a cluster with no preexisting state can start up

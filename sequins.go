@@ -245,7 +245,6 @@ func (s *sequins) refreshAll() {
 		db := s.dbs[name]
 		if db == nil {
 			db = newDB(s, name)
-			// TODO: load the latest valid cached version
 		}
 
 		go s.refresh(db)

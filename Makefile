@@ -20,7 +20,7 @@ release: sequins sequins-dump
 	cp sequins sequins-dump README.md LICENSE.txt $(RELEASE_NAME)/
 	tar -cvzf $(RELEASE_NAME).tar.gz $(RELEASE_NAME)
 
-test:
+test: sequins
 	go test -v -race -timeout 30s $(shell go list ./... | grep -v vendor)
 
 clean:

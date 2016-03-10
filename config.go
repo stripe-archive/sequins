@@ -101,3 +101,7 @@ func (d *duration) UnmarshalText(text []byte) error {
 	d.Duration, err = time.ParseDuration(string(text))
 	return err
 }
+
+func (d duration) MarshalText() ([]byte, error) {
+	return []byte(d.Duration.String()), nil
+}

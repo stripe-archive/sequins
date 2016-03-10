@@ -84,6 +84,6 @@ func TestHdfsBackend(t *testing.T) {
 
 func TestHdfsSequins(t *testing.T) {
 	ts := getHdfsSequins(t)
-	testBasicSequins(t, ts, fmt.Sprintf("hdfs://%s/_test_sequins/test/names/1", os.Getenv("HADOOP_NAMENODE")))
+	testBasicSequins(t, ts, fmt.Sprintf("hdfs://%s/_test_sequins/baby-names/1", os.Getenv("HADOOP_NAMENODE")))
 	tearDownHdfs(t)
 }

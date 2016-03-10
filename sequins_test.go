@@ -81,7 +81,7 @@ func testBasicSequins(t *testing.T, ts *sequins, expectedDBPath string) {
 
 		assert.Equal(t, 200, w.Code, "fetching an existing key (%s) should 200", tuple.key)
 		assert.Equal(t, tuple.value, w.Body.String(), "fetching an existing key (%s) should return the value", tuple.key)
-		assert.Equal(t, "1", w.HeaderMap.Get("X-Sequins-Version"), "when fetching an existing key, the X-Sequins-Version header should be set")
+		assert.Equal(t, "1", w.HeaderMap.Get(versionHeader), "when fetching an existing key, the sequins version header should be set")
 	}
 
 	req, _ := http.NewRequest("GET", "/names/foo", nil)
@@ -90,7 +90,7 @@ func testBasicSequins(t *testing.T, ts *sequins, expectedDBPath string) {
 
 	assert.Equal(t, 404, w.Code, "fetching a nonexistent key should 404")
 	assert.Equal(t, "", w.Body.String(), "fetching a nonexistent key should return no body")
-	assert.Equal(t, "", w.HeaderMap.Get("X-Sequins-Version"), "when fetchin a nonexistent key, the X-Sequins-Version header shouldn't be set")
+	assert.Equal(t, "", w.HeaderMap.Get(versionHeader), "when fetchin a nonexistent key, the sequins version header shouldn't be set")
 
 	req, _ = http.NewRequest("GET", "/", nil)
 	w = httptest.NewRecorder()

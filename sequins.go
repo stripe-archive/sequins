@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net"
@@ -61,7 +62,7 @@ func (s *sequins) init() error {
 	// Create local directories, and load any cached versions we have.
 	err := s.initLocalStore()
 	if err != nil {
-		return nil
+		return fmt.Errorf("error initializing local store: %s", err)
 	}
 
 	// To limit the number of parallel loads, create a full buffered channel.
@@ -141,7 +142,10 @@ func (s *sequins) initCluster() error {
 func (s *sequins) initLocalStore() error {
 	// TODO: lock local filestore
 	dataPath := filepath.Join(s.config.LocalStore, "data")
-	os.MkdirAll(dataPath, 0755|os.ModeDir)
+	err := os.MkdirAll(dataPath, 0755|os.ModeDir)
+	if err != nil {
+		return err
+	}
 
 	// Attempt to load any versions we have cached locally, so that we can start
 	// quickly even if there are newer versions to download.

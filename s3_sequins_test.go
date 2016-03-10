@@ -2,6 +2,8 @@ package main
 
 import (
 	"io/ioutil"
+	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -27,21 +29,21 @@ func setupS3() *backend.S3Backend {
 	bucket := s3.New(auth, fakeRegion).Bucket("sequinstest")
 	bucket.PutBucket("")
 
-	putS3(bucket, "test/names/0/part-00000")
-	putS3(bucket, "test/names/0/part-00001")
-	putS3(bucket, "test/names/0/_SUCCESS")
+	infos, _ := ioutil.ReadDir("test/baby-names/1")
+	rootDest := path.Join("test", "baby-names")
+	for _, info := range infos {
+		putS3(bucket, path.Join(rootDest, "0", info.Name()), filepath.Join("test/baby-names/1", info.Name()))
+		putS3(bucket, path.Join(rootDest, "1", info.Name()), filepath.Join("test/baby-names/1", info.Name()))
+	}
 
-	putS3(bucket, "test/names/1/part-00000")
-	putS3(bucket, "test/names/1/part-00001")
-
-	bucket.Put("test/names/foo", []byte("nothing"), "", "", s3.Options{})
-
+	bucket.Put("test/baby-names/0/_SUCCESS", nil, "", "", s3.Options{})
+	bucket.Put("test/baby-names/foo", []byte("rando file"), "", "", s3.Options{})
 	return backend.NewS3Backend(bucket, "test")
 }
 
-func putS3(bucket *s3.Bucket, src string) {
+func putS3(bucket *s3.Bucket, dst, src string) {
 	bytes, _ := ioutil.ReadFile(src)
-	bucket.Put(src, bytes, "", "", s3.Options{})
+	bucket.Put(dst, bytes, "", "", s3.Options{})
 }
 
 func getS3Sequins(t *testing.T) *sequins {
@@ -73,5 +75,5 @@ func TestS3Backend(t *testing.T) {
 
 func TestS3Sequins(t *testing.T) {
 	ts := getS3Sequins(t)
-	testBasicSequins(t, ts, "s3://sequinstest/test/names/1")
+	testBasicSequins(t, ts, "s3://sequinstest/test/baby-names/1")
 }

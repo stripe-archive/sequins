@@ -19,11 +19,29 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/stripe/sequins/backend"
+	"github.com/stripe/sequins/sequencefile"
 )
 
 type tuple struct {
 	key   string
 	value string
+}
+
+var babyNames []tuple
+
+func init() {
+	infos, _ := ioutil.ReadDir("test/baby-names/1")
+	for _, info := range infos {
+		f, _ := os.Open(filepath.Join("test/baby-names/1", info.Name()))
+		defer f.Close()
+
+		r := sequencefile.New(f)
+		r.ReadHeader()
+
+		for r.Scan() {
+			babyNames = append(babyNames, tuple{string(r.Key()), string(r.Value())})
+		}
+	}
 }
 
 func getSequins(t *testing.T, backend backend.Backend, localStore string) *sequins {
@@ -67,15 +85,10 @@ func getSequins(t *testing.T, backend backend.Backend, localStore string) *sequi
 }
 
 func testBasicSequins(t *testing.T, ts *sequins, expectedDBPath string) {
-	expected := []tuple{
-		{"Alice", "Practice"},
-		{"Bob", "Hope"},
-		{"Charlie", "Horse"},
-	}
+	for i := 0; i < 20; i++ {
+		tuple := babyNames[rand.Intn(len(babyNames))]
 
-	shuffle(expected)
-	for _, tuple := range expected {
-		req, _ := http.NewRequest("GET", fmt.Sprintf("/names/%s", tuple.key), nil)
+		req, _ := http.NewRequest("GET", fmt.Sprintf("/baby-names/%s", tuple.key), nil)
 		w := httptest.NewRecorder()
 		ts.ServeHTTP(w, req)
 
@@ -84,7 +97,7 @@ func testBasicSequins(t *testing.T, ts *sequins, expectedDBPath string) {
 		assert.Equal(t, "1", w.HeaderMap.Get(versionHeader), "when fetching an existing key, the sequins version header should be set")
 	}
 
-	req, _ := http.NewRequest("GET", "/names/foo", nil)
+	req, _ := http.NewRequest("GET", "/baby-names/foo", nil)
 	w := httptest.NewRecorder()
 	ts.ServeHTTP(w, req)
 
@@ -102,9 +115,9 @@ func testBasicSequins(t *testing.T, ts *sequins, expectedDBPath string) {
 	assert.Equal(t, 200, w.Code, "fetching global status should work and be valid")
 
 	require.Equal(t, 1, len(status.DBs), "there should be a single db")
-	validateStatus(t, status.DBs["names"], expectedDBPath)
+	validateStatus(t, status.DBs["baby-names"], expectedDBPath)
 
-	req, _ = http.NewRequest("GET", "/names/", nil)
+	req, _ = http.NewRequest("GET", "/baby-names/", nil)
 	w = httptest.NewRecorder()
 	ts.ServeHTTP(w, req)
 
@@ -131,12 +144,12 @@ func TestSequins(t *testing.T) {
 	scratch, err := ioutil.TempDir("", "sequins-")
 	require.NoError(t, err, "setup")
 
-	dst := filepath.Join(scratch, "names", "1")
-	require.NoError(t, directoryCopy(t, dst, "test/names/1"), "setup")
+	dst := filepath.Join(scratch, "baby-names", "1")
+	require.NoError(t, directoryCopy(t, dst, "test/baby-names/1"), "setup: copy data")
 
 	backend := backend.NewLocalBackend(scratch)
 	ts := getSequins(t, backend, "")
-	testBasicSequins(t, ts, filepath.Join(scratch, "names/1"))
+	testBasicSequins(t, ts, filepath.Join(scratch, "baby-names/1"))
 }
 
 // TestSequinsThreadsafe makes sure that reads that occur during an update DTRT
@@ -179,7 +192,7 @@ func TestSequinsThreadsafe(t *testing.T) {
 		ts.refreshAll()
 	}
 	wg.Wait()
-	require.NoError(t, os.RemoveAll(scratch))
+	os.RemoveAll(scratch)
 }
 
 func directoryCopy(t *testing.T, dest, src string) error {
@@ -239,16 +252,9 @@ func directoryCopy(t *testing.T, dest, src string) error {
 
 func createTestIndex(t *testing.T, scratch string, i int) {
 	t.Logf("Creating test version %d\n", i)
-	path := fmt.Sprintf("%s/data/names/%d", scratch, i)
-	src := fmt.Sprintf("test/names/%d/", i%2)
+	path := fmt.Sprintf("%s/data/baby-names/%d", scratch, i)
 
-	require.NoError(t, directoryCopy(t, path, src))
-}
-
-func shuffle(a []tuple) {
-	rand.Seed(time.Now().UnixNano())
-	for i := range a {
-		j := rand.Intn(i + 1)
-		a[i], a[j] = a[j], a[i]
-	}
+	require.NoError(t, directoryCopy(t, path, "test/baby-names/1"))
+	_, err := os.Create(filepath.Join(path, "_SUCCESS"))
+	require.NoError(t, err)
 }

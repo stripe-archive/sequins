@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/colinmarc/hdfs"
@@ -23,15 +25,15 @@ func setupHdfs(t *testing.T) *backend.HdfsBackend {
 		t.Fatal(err)
 	}
 
-	client.Mkdir("/_test_sequins", 0777|os.ModeDir)
-	putHDFS(client, "test/names/0/part-00000")
-	putHDFS(client, "test/names/0/part-00001")
-	putHDFS(client, "test/names/0/_SUCCESS")
+	infos, _ := ioutil.ReadDir("test/baby-names/1")
+	rootDest := path.Join("/", "_test_sequins", "baby-names")
+	for _, info := range infos {
+		putHDFS(client, path.Join(rootDest, "0", info.Name()), filepath.Join("test/baby-names/1", info.Name()))
+		putHDFS(client, path.Join(rootDest, "1", info.Name()), filepath.Join("test/baby-names/1", info.Name()))
+	}
 
-	putHDFS(client, "test/names/1/part-00000")
-	putHDFS(client, "test/names/1/part-00001")
-
-	return backend.NewHdfsBackend(client, nn, "/_test_sequins/test")
+	client.CreateEmptyFile(path.Join(rootDest, "0", "_SUCCESS"))
+	return backend.NewHdfsBackend(client, nn, "/_test_sequins")
 }
 
 func tearDownHdfs(t *testing.T) {
@@ -45,10 +47,8 @@ func tearDownHdfs(t *testing.T) {
 	client.Remove("/_test_sequins")
 }
 
-func putHDFS(client *hdfs.Client, src string) {
-	dest := path.Join("/_test_sequins", src)
+func putHDFS(client *hdfs.Client, dest, src string) {
 	dir, _ := path.Split(dest)
-
 	client.MkdirAll(dir, 0777|os.ModeDir)
 	client.CopyToRemote(src, dest)
 }

@@ -9,7 +9,7 @@ import (
 )
 
 func TestReadFile(t *testing.T) {
-	file, err := os.Open("../test/names/0/part-00000")
+	file, err := os.Open("../test/test.sequencefile")
 	require.NoError(t, err)
 
 	r := New(file)

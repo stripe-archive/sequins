@@ -17,7 +17,7 @@ func TestBlockStore(t *testing.T) {
 
 	bs := New(tmpDir, 2, nil)
 
-	f, err := os.Open("../test/names/1/part-00000")
+	f, err := os.Open("../test/test.sequencefile")
 	require.NoError(t, err, "opening a test file")
 
 	sf := sequencefile.New(f)

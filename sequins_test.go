@@ -103,7 +103,15 @@ func testBasicSequins(t *testing.T, ts *sequins, expectedDBPath string) {
 
 	assert.Equal(t, 404, w.Code, "fetching a nonexistent key should 404")
 	assert.Equal(t, "", w.Body.String(), "fetching a nonexistent key should return no body")
-	assert.Equal(t, "", w.HeaderMap.Get(versionHeader), "when fetchin a nonexistent key, the sequins version header shouldn't be set")
+	assert.Equal(t, "1", w.HeaderMap.Get(versionHeader), "when fetchin a nonexistent key, the sequins version header should still be set")
+
+	req, _ = http.NewRequest("GET", "/otherdb/foo", nil)
+	w = httptest.NewRecorder()
+	ts.ServeHTTP(w, req)
+
+	assert.Equal(t, 404, w.Code, "fetching from a nonexistent db should 404")
+	assert.Equal(t, "", w.Body.String(), "fetching from a nonexistent db should return no body")
+	assert.Equal(t, "", w.HeaderMap.Get(versionHeader), "when fetching from a nonexistent db, the sequins version header shouldn't be set")
 
 	req, _ = http.NewRequest("GET", "/", nil)
 	w = httptest.NewRecorder()

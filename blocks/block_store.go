@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/stripe/sequins/sequencefile"
 )
@@ -93,7 +94,7 @@ func NewFromManifest(path string, selectedPartitions map[int]bool) (*BlockStore,
 // AddFile ingests the key/value pairs from the given sequencefile, writing
 // them out to at least one block. If the data is not partitioned cleanly, it
 // will sort it into blocks as it reads.
-func (store *BlockStore) AddFile(reader *sequencefile.Reader) error {
+func (store *BlockStore) AddFile(reader *sequencefile.Reader, throttle time.Duration) error {
 	savedBlocks := make(map[int][]*Block)
 
 	canAssumePartition := true
@@ -101,6 +102,10 @@ func (store *BlockStore) AddFile(reader *sequencefile.Reader) error {
 	assumedFor := 0
 
 	for reader.Scan() {
+		if throttle != 0 {
+			time.Sleep(throttle)
+		}
+
 		partition, alternatePartition := KeyPartition(string(reader.Key()), store.numPartitions)
 
 		// If we see the same partition for the first 5000 keys, it's safe to assume

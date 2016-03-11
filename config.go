@@ -18,6 +18,7 @@ type sequinsConfig struct {
 	Root               string   `toml:"root"`
 	Bind               string   `toml:"bind"`
 	MaxParallelLoads   int      `toml:"max_parallel_loads"`
+	ThrottleLoads      duration `toml:"throttle_loads"`
 	LocalStore         string   `toml:"local_store"`
 	RefreshPeriod      duration `toml:"refresh_period"`
 	RequireSuccessFile bool     `toml:"require_success_file"`

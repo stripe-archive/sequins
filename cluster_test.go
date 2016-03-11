@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -35,11 +36,12 @@ const (
 
 type testCluster struct {
 	*testing.T
-	binary    string
-	root      string
-	sequinses []*testSequins
-	zkCluster *zk.TestCluster
-	zkServers []string
+	binary     string
+	root       string
+	sequinses  []*testSequins
+	zkCluster  *zk.TestCluster
+	zkServers  []string
+	testClient *http.Client
 }
 
 type testSequins struct {
@@ -68,12 +70,20 @@ func newTestCluster(t *testing.T) *testCluster {
 
 	zkServers, _ := createTestZkCluster(t)
 
+	// We have a specific transport to the client, so it doesn't try to reuse
+	// connections between tests
+	var testClient = &http.Client{
+		Timeout:   100 * time.Millisecond,
+		Transport: &http.Transport{},
+	}
+
 	return &testCluster{
-		T:         t,
-		binary:    binary,
-		root:      root,
-		sequinses: make([]*testSequins, 0),
-		zkServers: zkServers,
+		T:          t,
+		binary:     binary,
+		root:       root,
+		sequinses:  make([]*testSequins, 0),
+		zkServers:  zkServers,
+		testClient: testClient,
 	}
 }
 
@@ -98,15 +108,11 @@ func (tc *testCluster) addSequins() {
 	config.Root = backendPath
 	config.LocalStore = path
 	config.RequireSuccessFile = true
+	config.ThrottleLoads = duration{1 * time.Millisecond}
 	config.ZK.Servers = tc.zkServers
 	config.ZK.TimeToConverge = duration{100 * time.Millisecond}
 	config.ZK.ProxyTimeout = duration{10 * time.Millisecond}
 	config.ZK.AdvertisedHostname = "localhost"
-
-	testClient := &http.Client{
-		Timeout:   100 * time.Millisecond,
-		Transport: &http.Transport{DisableKeepAlives: true},
-	}
 
 	s := &testSequins{
 		T:           tc.T,
@@ -115,7 +121,7 @@ func (tc *testCluster) addSequins() {
 		backendPath: backendPath,
 		configPath:  configPath,
 		config:      config,
-		testClient:  testClient,
+		testClient:  tc.testClient,
 
 		progression: make(chan testVersion, 1024),
 	}
@@ -205,6 +211,7 @@ func (ts *testSequins) startTest() {
 	go func() {
 		lastVersion := testVersion("nothing yet")
 		for {
+			now := time.Now()
 			key := babyNames[rand.Intn(len(babyNames))].key
 			url := fmt.Sprintf("http://%s/%s/%s", ts.name, dbName, key)
 
@@ -221,9 +228,18 @@ func (ts *testSequins) startTest() {
 				}
 			} else {
 				if lastVersion != down && lastVersion != testVersion("nothing yet") {
-					ts.T.Log(err)
+					ts.T.Logf("%s (lastVersion: %s)", err, lastVersion)
 				}
-				version = down
+
+				// A number of timeouts are ok - this isn't the friendliest environment,
+				// after all. We want to fail fast and frequently so that we don't
+				// miss changes to the available version.
+				netErr, ok := err.(net.Error)
+				if ok && netErr.Timeout() {
+					version = lastVersion
+				} else {
+					version = down
+				}
 			}
 
 			if version != lastVersion {
@@ -231,7 +247,9 @@ func (ts *testSequins) startTest() {
 				lastVersion = version
 			}
 
-			time.Sleep(10 * time.Millisecond)
+			// Sleep for 100 milliseconds less the time we took to make the last
+			// request, such that we make a request roughly every 100 milliseconds.
+			time.Sleep((100 * time.Millisecond) - time.Now().Sub(now))
 		}
 	}()
 

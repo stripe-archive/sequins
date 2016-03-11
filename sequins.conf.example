@@ -25,6 +25,13 @@ root = "hdfs://namenode:8020/path/to/sequins"
 # at a time, minimizing disk usage while new data is being loaded. If you set
 # this to 1, then loads will be completely serialized.
 
+# throttle_loads = "800μs"
+# Unset by default. If this flag is set, sequins will sleep this long between
+# writes while loading data, artificially slowing down loads and reducing disk
+# i/o. If you are using disks where the latency is extremely sensitive to
+# activity, then loading large amounts of data can negatively impact your
+# latency, and you may want to experiment with this setting.
+
 # refresh_period = "10m"
 # Unset by default. If this is specified, sequins will periodically download new
 # data this often (in seconds). If you enable this, you should also enable

@@ -24,7 +24,7 @@ func TestBlockStore(t *testing.T) {
 	err = sf.ReadHeader()
 	require.NoError(t, err, "reading the test file")
 
-	err = bs.AddFile(sf)
+	err = bs.AddFile(sf, 0)
 	require.NoError(t, err, "adding the file to the block store")
 
 	err = bs.Save()

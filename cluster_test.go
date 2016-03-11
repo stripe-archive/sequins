@@ -357,3 +357,27 @@ func TestEmptyCluster(t *testing.T) {
 	tc.startTest()
 	tc.assertProgression()
 }
+
+// TestUpgradingSingleNode tests that a node can upgrade to one version, and
+// then upgrade a second and third time.
+func TestUpgradingCluster(t *testing.T) {
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	tc.addSequinses(3)
+	tc.makeVersionAvailable(v1)
+	tc.expectProgression(down, noVersion, v1, v2, v3)
+
+	tc.setup()
+	tc.startTest()
+
+	time.Sleep(1 * time.Second)
+	tc.makeVersionAvailable(v2)
+	tc.hup()
+
+	time.Sleep(1 * time.Second)
+	tc.makeVersionAvailable(v3)
+	tc.hup()
+
+	tc.assertProgression()
+}

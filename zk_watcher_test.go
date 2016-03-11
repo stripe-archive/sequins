@@ -39,5 +39,7 @@ func connectZookeeperTest(t *testing.T) (*zkWatcher, *zk.TestCluster) {
 }
 
 func TestZKWatcher(t *testing.T) {
+	t.Skip() // TODO this test needs to be fleshed out
+
 	connectZookeeperTest(t)
 }

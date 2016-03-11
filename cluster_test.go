@@ -20,9 +20,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const expectTimeout = 5 * time.Second
+const expectTimeout = 2 * time.Second
 
 type testVersion string
+
+func randomPort() int {
+	return int(rand.Int31n(6000) + 16000)
+}
 
 const dbName = "db"
 const (
@@ -68,7 +72,7 @@ func newTestCluster(t *testing.T) *testCluster {
 	root, err := ioutil.TempDir("", "sequins-cluster-")
 	require.NoError(t, err)
 
-	zkServers, _ := createTestZkCluster(t)
+	zkServers, zkCluster := createTestZkCluster(t)
 
 	// We have a specific transport to the client, so it doesn't try to reuse
 	// connections between tests
@@ -83,13 +87,13 @@ func newTestCluster(t *testing.T) *testCluster {
 		root:       root,
 		sequinses:  make([]*testSequins, 0),
 		zkServers:  zkServers,
+		zkCluster:  zkCluster,
 		testClient: testClient,
 	}
 }
 
 func (tc *testCluster) addSequins() {
-	index := len(tc.sequinses)
-	port := 19590 + index // TODO pick random high port
+	port := randomPort()
 	path := filepath.Join(tc.root, fmt.Sprintf("node-%d", port))
 
 	storePath := filepath.Join(path, "store")
@@ -176,7 +180,7 @@ func (tc *testCluster) tearDown() {
 		ts.process.Process.Kill()
 	}
 
-	// tc.zkCluster.Stop()
+	tc.zkCluster.Stop()
 	os.RemoveAll(tc.root)
 }
 
@@ -324,7 +328,12 @@ Progression:
 
 // TestEmptySingleNode tests that a node with no preexisting state can start up
 // and serve requests.
-func TestEmptySingleNode(t *testing.T) {
+func TestEmptySingleNodeCluster(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+
 	tc := newTestCluster(t)
 	defer tc.tearDown()
 
@@ -339,7 +348,12 @@ func TestEmptySingleNode(t *testing.T) {
 
 // TestUpgradingSingleNode tests that a node can upgrade to one version, and
 // then upgrade a second and third time.
-func TestUpgradingSingleNode(t *testing.T) {
+func TestUpgradingSingleNodeCluster(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+
 	tc := newTestCluster(t)
 	defer tc.tearDown()
 
@@ -350,11 +364,11 @@ func TestUpgradingSingleNode(t *testing.T) {
 	tc.setup()
 	tc.startTest()
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(expectTimeout)
 	tc.makeVersionAvailable(v2)
 	tc.hup()
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(expectTimeout)
 	tc.makeVersionAvailable(v3)
 	tc.hup()
 
@@ -364,6 +378,11 @@ func TestUpgradingSingleNode(t *testing.T) {
 // TestEmptyCluster tests that a cluster with no preexisting state can start up
 // and serve requests.
 func TestEmptyCluster(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+
 	tc := newTestCluster(t)
 	defer tc.tearDown()
 
@@ -379,6 +398,11 @@ func TestEmptyCluster(t *testing.T) {
 // TestUpgradingSingleNode tests that a node can upgrade to one version, and
 // then upgrade a second and third time.
 func TestUpgradingCluster(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+
 	tc := newTestCluster(t)
 	defer tc.tearDown()
 
@@ -389,12 +413,40 @@ func TestUpgradingCluster(t *testing.T) {
 	tc.setup()
 	tc.startTest()
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(expectTimeout)
 	tc.makeVersionAvailable(v2)
 	tc.hup()
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(expectTimeout)
 	tc.makeVersionAvailable(v3)
+	tc.hup()
+
+	tc.assertProgression()
+}
+
+// TestDelayedUpgrade tests that one node can upgrade several seconds earlier
+// that the rest of the cluster without losing any reads.
+func TestDelayedUpgradeCluster(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	tc.addSequinses(3)
+	tc.makeVersionAvailable(v1)
+	tc.expectProgression(down, noVersion, v1, v2)
+
+	tc.setup()
+	tc.startTest()
+
+	time.Sleep(expectTimeout)
+	tc.makeVersionAvailable(v2)
+	tc.sequinses[0].hup()
+
+	time.Sleep(expectTimeout)
 	tc.hup()
 
 	tc.assertProgression()

@@ -143,7 +143,7 @@ func validateStatus(t *testing.T, status dbStatus, expectedPath string) {
 	versionStatus := status.Versions["1"]
 	assert.Equal(t, expectedPath, versionStatus.Path, "versionStatus path should be correct")
 
-	now := time.Now().Unix() - 1
+	now := time.Now().Unix() - 3
 	assert.True(t, versionStatus.Created >= now, "versionStatus created should be now")
 	assert.Equal(t, versionAvailable, versionStatus.State, "versionStatus state should be correct")
 }

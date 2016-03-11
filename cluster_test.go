@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -19,9 +20,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const expectTimeout = 5 * time.Second
+const expectTimeout = 2 * time.Second
 
 type testVersion string
+
+func randomPort() int {
+	return int(rand.Int31n(6000) + 16000)
+}
 
 const dbName = "db"
 const (
@@ -35,11 +40,12 @@ const (
 
 type testCluster struct {
 	*testing.T
-	binary    string
-	root      string
-	sequinses []*testSequins
-	zkCluster *zk.TestCluster
-	zkServers []string
+	binary     string
+	root       string
+	sequinses  []*testSequins
+	zkCluster  *zk.TestCluster
+	zkServers  []string
+	testClient *http.Client
 }
 
 type testSequins struct {
@@ -66,20 +72,28 @@ func newTestCluster(t *testing.T) *testCluster {
 	root, err := ioutil.TempDir("", "sequins-cluster-")
 	require.NoError(t, err)
 
-	zkServers, _ := createTestZkCluster(t)
+	zkServers, zkCluster := createTestZkCluster(t)
+
+	// We have a specific transport to the client, so it doesn't try to reuse
+	// connections between tests
+	var testClient = &http.Client{
+		Timeout:   100 * time.Millisecond,
+		Transport: &http.Transport{},
+	}
 
 	return &testCluster{
-		T:         t,
-		binary:    binary,
-		root:      root,
-		sequinses: make([]*testSequins, 0),
-		zkServers: zkServers,
+		T:          t,
+		binary:     binary,
+		root:       root,
+		sequinses:  make([]*testSequins, 0),
+		zkServers:  zkServers,
+		zkCluster:  zkCluster,
+		testClient: testClient,
 	}
 }
 
 func (tc *testCluster) addSequins() {
-	index := len(tc.sequinses)
-	port := 19590 + index // TODO pick random high port
+	port := randomPort()
 	path := filepath.Join(tc.root, fmt.Sprintf("node-%d", port))
 
 	storePath := filepath.Join(path, "store")
@@ -98,15 +112,11 @@ func (tc *testCluster) addSequins() {
 	config.Root = backendPath
 	config.LocalStore = path
 	config.RequireSuccessFile = true
+	config.ThrottleLoads = duration{1 * time.Millisecond}
 	config.ZK.Servers = tc.zkServers
 	config.ZK.TimeToConverge = duration{100 * time.Millisecond}
 	config.ZK.ProxyTimeout = duration{10 * time.Millisecond}
 	config.ZK.AdvertisedHostname = "localhost"
-
-	testClient := &http.Client{
-		Timeout:   100 * time.Millisecond,
-		Transport: &http.Transport{DisableKeepAlives: true},
-	}
 
 	s := &testSequins{
 		T:           tc.T,
@@ -115,7 +125,7 @@ func (tc *testCluster) addSequins() {
 		backendPath: backendPath,
 		configPath:  configPath,
 		config:      config,
-		testClient:  testClient,
+		testClient:  tc.testClient,
 
 		progression: make(chan testVersion, 1024),
 	}
@@ -170,7 +180,7 @@ func (tc *testCluster) tearDown() {
 		ts.process.Process.Kill()
 	}
 
-	// tc.zkCluster.Stop()
+	tc.zkCluster.Stop()
 	os.RemoveAll(tc.root)
 }
 
@@ -205,6 +215,7 @@ func (ts *testSequins) startTest() {
 	go func() {
 		lastVersion := testVersion("nothing yet")
 		for {
+			now := time.Now()
 			key := babyNames[rand.Intn(len(babyNames))].key
 			url := fmt.Sprintf("http://%s/%s/%s", ts.name, dbName, key)
 
@@ -221,9 +232,18 @@ func (ts *testSequins) startTest() {
 				}
 			} else {
 				if lastVersion != down && lastVersion != testVersion("nothing yet") {
-					ts.T.Log(err)
+					ts.T.Logf("%s (lastVersion: %s)", err, lastVersion)
 				}
-				version = down
+
+				// A number of timeouts are ok - this isn't the friendliest environment,
+				// after all. We want to fail fast and frequently so that we don't
+				// miss changes to the available version.
+				netErr, ok := err.(net.Error)
+				if ok && netErr.Timeout() {
+					version = lastVersion
+				} else {
+					version = down
+				}
 			}
 
 			if version != lastVersion {
@@ -231,7 +251,9 @@ func (ts *testSequins) startTest() {
 				lastVersion = version
 			}
 
-			time.Sleep(10 * time.Millisecond)
+			// Sleep for 100 milliseconds less the time we took to make the last
+			// request, such that we make a request roughly every 100 milliseconds.
+			time.Sleep((100 * time.Millisecond) - time.Now().Sub(now))
 		}
 	}()
 
@@ -306,7 +328,12 @@ Progression:
 
 // TestEmptySingleNode tests that a node with no preexisting state can start up
 // and serve requests.
-func TestEmptySingleNode(t *testing.T) {
+func TestEmptySingleNodeCluster(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+
 	tc := newTestCluster(t)
 	defer tc.tearDown()
 
@@ -321,7 +348,12 @@ func TestEmptySingleNode(t *testing.T) {
 
 // TestUpgradingSingleNode tests that a node can upgrade to one version, and
 // then upgrade a second and third time.
-func TestUpgradingSingleNode(t *testing.T) {
+func TestUpgradingSingleNodeCluster(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+
 	tc := newTestCluster(t)
 	defer tc.tearDown()
 
@@ -332,11 +364,11 @@ func TestUpgradingSingleNode(t *testing.T) {
 	tc.setup()
 	tc.startTest()
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(expectTimeout)
 	tc.makeVersionAvailable(v2)
 	tc.hup()
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(expectTimeout)
 	tc.makeVersionAvailable(v3)
 	tc.hup()
 
@@ -346,6 +378,11 @@ func TestUpgradingSingleNode(t *testing.T) {
 // TestEmptyCluster tests that a cluster with no preexisting state can start up
 // and serve requests.
 func TestEmptyCluster(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+
 	tc := newTestCluster(t)
 	defer tc.tearDown()
 
@@ -361,6 +398,11 @@ func TestEmptyCluster(t *testing.T) {
 // TestUpgradingSingleNode tests that a node can upgrade to one version, and
 // then upgrade a second and third time.
 func TestUpgradingCluster(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+
 	tc := newTestCluster(t)
 	defer tc.tearDown()
 
@@ -371,12 +413,40 @@ func TestUpgradingCluster(t *testing.T) {
 	tc.setup()
 	tc.startTest()
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(expectTimeout)
 	tc.makeVersionAvailable(v2)
 	tc.hup()
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(expectTimeout)
 	tc.makeVersionAvailable(v3)
+	tc.hup()
+
+	tc.assertProgression()
+}
+
+// TestDelayedUpgrade tests that one node can upgrade several seconds earlier
+// that the rest of the cluster without losing any reads.
+func TestDelayedUpgradeCluster(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	tc.addSequinses(3)
+	tc.makeVersionAvailable(v1)
+	tc.expectProgression(down, noVersion, v1, v2)
+
+	tc.setup()
+	tc.startTest()
+
+	time.Sleep(expectTimeout)
+	tc.makeVersionAvailable(v2)
+	tc.sequinses[0].hup()
+
+	time.Sleep(expectTimeout)
 	tc.hup()
 
 	tc.assertProgression()

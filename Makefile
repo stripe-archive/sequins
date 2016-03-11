@@ -21,7 +21,9 @@ release: sequins sequins-dump
 	tar -cvzf $(RELEASE_NAME).tar.gz $(RELEASE_NAME)
 
 test: sequins
-	go test -v -race -timeout 30s $(shell go list ./... | grep -v vendor)
+	go test -short -race -timeout 30s $(shell go list ./... | grep -v vendor )
+	go test -timeout 10m -run "Cluster$$"
+
 
 clean:
 	rm -f sequins sequins-dump sequins-*.tar.gz

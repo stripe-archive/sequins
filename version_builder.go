@@ -135,7 +135,7 @@ func (vsb *versionBuilder) addFile(bs *blocks.BlockStore, file string) error {
 		return fmt.Errorf("reading header from %s: %s", disp, err)
 	}
 
-	err = bs.AddFile(sf)
+	err = bs.AddFile(sf, vsb.sequins.config.ThrottleLoads.Duration)
 	if err == blocks.ErrWrongPartition {
 		log.Println("Skipping", disp, "because it contains no relevant partitions")
 	} else if err != nil {

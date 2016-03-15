@@ -1,4 +1,4 @@
-# This configuration file is in toml format, which is defined here:
+# This configuration file is in the toml format, which is defined here:
 # https://github.com/toml-lang/toml
 
 # Unless specified otherwise, the below values are the defaults.
@@ -88,9 +88,10 @@ root = "hdfs://namenode:8020/path/to/sequins"
 # will be set to the hostname of the server.
 
 # shard_id = "sequins1"
-# Unset by default. The shard ID to determine which partitions
-# the node is responsible. By default, it is the same as advertised_hostname.
-# Unlike the hostname, however, it doesn't have to be unique; two nodes can
-# have the same shard_id, and will download the same partitions. This can be
-# useful if you don't have stable hostnames, but want to be able to rebuild
-# a server to take the same exact partitions.
+# Unset by default. The shard ID is used to determine which partitions
+# the node is responsible for. By default, it is the same as
+# 'advertised_hostname'. Unlike the hostname, however, it doesn't have to be
+# unique; two nodes can have the same shard_id, in which case they will download
+# the same  partitions. This can be useful if you don't have stable hostnames,
+# but want to be able to rebuild a server to take the place of a dead or
+# decomissioning one.

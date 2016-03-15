@@ -8,6 +8,8 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/stripe/sequins/blocks"
@@ -29,6 +31,7 @@ var errProxiedIncorrectly = errors.New("this server doesn't have the requested p
 type version struct {
 	sequins *sequins
 
+	path          string
 	db            string
 	name          string
 	created       time.Time
@@ -37,7 +40,54 @@ type version struct {
 	numPartitions int
 }
 
-func (vs *version) waitForPeers() bool {
+func newVersion(sequins *sequins, path, db, name string, numPartitions int) *version {
+	vs := &version{
+		sequins:       sequins,
+		path:          path,
+		db:            db,
+		name:          name,
+		created:       time.Now(),
+		numPartitions: numPartitions,
+	}
+
+	var local map[int]bool
+	if sequins.peers != nil {
+		vs.partitions = watchPartitions(sequins.zkWatcher, sequins.peers,
+			db, name, numPartitions, sequins.config.ZK.Replication)
+
+		local = vs.partitions.pickLocalPartitions()
+	}
+
+	// Try loading anything we have locally. If it doesn't work out, that's ok.
+	_, err := os.Stat(filepath.Join(path, ".manifest"))
+	if err == nil {
+		log.Println("Loading version from manifest at", path)
+
+		blockStore, err := blocks.NewFromManifest(path, local)
+		if err != nil {
+			log.Println("Error loading", vs.db, "version", vs.name, "from manifest:", err)
+		}
+
+		vs.blockStore = blockStore
+		if vs.partitions != nil {
+			vs.partitions.updateLocalPartitions(local)
+		}
+	}
+
+	return vs
+}
+
+func (vs *version) ready() bool {
+	if vs.numPartitions == 0 {
+		return true
+	} else if vs.sequins.peers == nil {
+		return vs.blockStore != nil
+	}
+
+	return vs.partitions.ready()
+}
+
+func (vs *version) advertiseAndWait() bool {
 	if vs.sequins.peers == nil || vs.numPartitions == 0 {
 		return true
 	}
@@ -50,7 +100,7 @@ func (vs *version) serveKey(w http.ResponseWriter, r *http.Request, key string) 
 	res, err := vs.get(key, r)
 
 	if err == errNoAvailablePeers {
-		// All of our peers failed us. 503.
+		// All of our peers failed us. 502.
 		log.Printf("All peers failed to respond for /%s/%s (version %s)", vs.db, key, vs.name)
 		w.WriteHeader(http.StatusBadGateway)
 	} else if err != nil {

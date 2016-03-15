@@ -20,17 +20,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const expectTimeout = 2 * time.Second
+const expectTimeout = 5 * time.Second
 
 type testVersion string
 
 func randomPort() int {
+	rand.Seed(time.Now().UnixNano())
 	return int(rand.Int31n(6000) + 16000)
 }
 
 const dbName = "db"
 const (
-	noVersion testVersion = "(none)"
+	start     testVersion = "START"
+	noVersion testVersion = "NONE"
 	v1        testVersion = "v1"
 	v2        testVersion = "v2"
 	v3        testVersion = "v3"
@@ -77,7 +79,7 @@ func newTestCluster(t *testing.T) *testCluster {
 	// We have a specific transport to the client, so it doesn't try to reuse
 	// connections between tests
 	var testClient = &http.Client{
-		Timeout:   100 * time.Millisecond,
+		Timeout:   250 * time.Millisecond,
 		Transport: &http.Transport{},
 	}
 
@@ -92,7 +94,7 @@ func newTestCluster(t *testing.T) *testCluster {
 	}
 }
 
-func (tc *testCluster) addSequins() {
+func (tc *testCluster) addSequins() *testSequins {
 	port := randomPort()
 	path := filepath.Join(tc.root, fmt.Sprintf("node-%d", port))
 
@@ -112,10 +114,10 @@ func (tc *testCluster) addSequins() {
 	config.Root = backendPath
 	config.LocalStore = path
 	config.RequireSuccessFile = true
-	config.ThrottleLoads = duration{1 * time.Millisecond}
+	config.ThrottleLoads = duration{3 * time.Millisecond}
 	config.ZK.Servers = tc.zkServers
 	config.ZK.TimeToConverge = duration{100 * time.Millisecond}
-	config.ZK.ProxyTimeout = duration{10 * time.Millisecond}
+	config.ZK.ProxyTimeout = duration{150 * time.Millisecond}
 	config.ZK.AdvertisedHostname = "localhost"
 
 	s := &testSequins{
@@ -131,6 +133,7 @@ func (tc *testCluster) addSequins() {
 	}
 
 	tc.sequinses = append(tc.sequinses, s)
+	return s
 }
 
 func (tc *testCluster) addSequinses(n int) {
@@ -154,6 +157,12 @@ func (tc *testCluster) setup() {
 func (tc *testCluster) makeVersionAvailable(version testVersion) {
 	for _, ts := range tc.sequinses {
 		ts.makeVersionAvailable(version)
+	}
+}
+
+func (tc *testCluster) removeAvailableVersion(version testVersion) {
+	for _, ts := range tc.sequinses {
+		ts.removeAvailableVersion(version)
 	}
 }
 
@@ -203,17 +212,24 @@ func (ts *testSequins) setup() {
 func (ts *testSequins) makeVersionAvailable(version testVersion) {
 	path := filepath.Join(ts.backendPath, dbName, string(version))
 	err := directoryCopy(ts.T, path, "test/baby-names/1")
-	require.NoError(ts.T, err, "setup: make version available", version)
+	require.NoError(ts.T, err, "setup: make version available: %s", version)
 
 	f, err := os.Create(filepath.Join(path, "_SUCCESS"))
-	require.NoError(ts.T, err, "setup: make version available", version)
+	require.NoError(ts.T, err, "setup: make version available: %s", version)
 
 	f.Close()
 }
 
+func (ts *testSequins) removeAvailableVersion(version testVersion) {
+	path := filepath.Join(ts.backendPath, dbName, string(version))
+	os.RemoveAll(path)
+}
+
 func (ts *testSequins) startTest() {
+	versions := make(chan testVersion)
+
 	go func() {
-		lastVersion := testVersion("nothing yet")
+		lastVersion := start
 		for {
 			now := time.Now()
 			key := babyNames[rand.Intn(len(babyNames))].key
@@ -225,16 +241,14 @@ func (ts *testSequins) startTest() {
 				v := resp.Header.Get("X-Sequins-Version")
 				resp.Body.Close()
 
-				if v == "" {
+				if resp.StatusCode > 404 {
+					version = down
+				} else if v == "" {
 					version = noVersion
 				} else {
 					version = testVersion(v)
 				}
 			} else {
-				if lastVersion != down && lastVersion != testVersion("nothing yet") {
-					ts.T.Logf("%s (lastVersion: %s)", err, lastVersion)
-				}
-
 				// A number of timeouts are ok - this isn't the friendliest environment,
 				// after all. We want to fail fast and frequently so that we don't
 				// miss changes to the available version.
@@ -242,23 +256,37 @@ func (ts *testSequins) startTest() {
 				if ok && netErr.Timeout() {
 					version = lastVersion
 				} else {
+					if lastVersion != down && lastVersion != start {
+						ts.T.Logf("%s (lastVersion: %s)", err, lastVersion)
+					}
+
 					version = down
 				}
 			}
 
 			if version != lastVersion {
-				ts.progression <- version
+				versions <- version
 				lastVersion = version
 			}
 
-			// Sleep for 100 milliseconds less the time we took to make the last
-			// request, such that we make a request roughly every 100 milliseconds.
-			time.Sleep((100 * time.Millisecond) - time.Now().Sub(now))
+			// Sleep for 250 milliseconds less the time we took to make the last
+			// request, such that we make a request roughly every 250 milliseconds.
+			time.Sleep((250 * time.Millisecond) - time.Now().Sub(now))
 		}
 	}()
 
 	if ts.process == nil {
-		ts.start()
+		go func() {
+			// Wait for the process to register as down, then start it.
+			first := <-versions
+			require.Equal(ts.T, down, first, "setup: sequins process should start as down")
+
+			ts.start()
+			ts.progression <- first
+			for v := range versions {
+				ts.progression <- v
+			}
+		}()
 	}
 }
 
@@ -326,9 +354,9 @@ Progression:
 	assert.Equal(ts.T, expected, actual, "unexpected progression for %s", ts.name)
 }
 
-// TestEmptySingleNode tests that a node with no preexisting state can start up
+// TestClusterEmptySingleNode tests that a node with no preexisting state can start up
 // and serve requests.
-func TestEmptySingleNodeCluster(t *testing.T) {
+func TestClusterEmptySingleNode(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping cluster test in short mode.")
@@ -346,9 +374,9 @@ func TestEmptySingleNodeCluster(t *testing.T) {
 	tc.assertProgression()
 }
 
-// TestUpgradingSingleNode tests that a node can upgrade to one version, and
+// TestClusterUpgradingSingleNode tests that a node can upgrade to one version, and
 // then upgrade a second and third time.
-func TestUpgradingSingleNodeCluster(t *testing.T) {
+func TestClusterUpgradingSingleNode(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping cluster test in short mode.")
@@ -375,9 +403,9 @@ func TestUpgradingSingleNodeCluster(t *testing.T) {
 	tc.assertProgression()
 }
 
-// TestEmptyCluster tests that a cluster with no preexisting state can start up
+// TestClusterEmpty tests that a cluster with no preexisting state can start up
 // and serve requests.
-func TestEmptyCluster(t *testing.T) {
+func TestClusterEmpty(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping cluster test in short mode.")
@@ -395,9 +423,9 @@ func TestEmptyCluster(t *testing.T) {
 	tc.assertProgression()
 }
 
-// TestUpgradingSingleNode tests that a node can upgrade to one version, and
+// TestClusterUpgrading tests that a node can upgrade to one version, and
 // then upgrade a second and third time.
-func TestUpgradingCluster(t *testing.T) {
+func TestClusterUpgrading(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping cluster test in short mode.")
@@ -424,9 +452,9 @@ func TestUpgradingCluster(t *testing.T) {
 	tc.assertProgression()
 }
 
-// TestDelayedUpgrade tests that one node can upgrade several seconds earlier
+// TestClusterDelayedUpgrade tests that one node can upgrade several seconds earlier
 // that the rest of the cluster without losing any reads.
-func TestDelayedUpgradeCluster(t *testing.T) {
+func TestClusterDelayedUpgrade(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping cluster test in short mode.")
@@ -436,9 +464,9 @@ func TestDelayedUpgradeCluster(t *testing.T) {
 	defer tc.tearDown()
 
 	tc.addSequinses(3)
-	tc.makeVersionAvailable(v1)
 	tc.expectProgression(down, noVersion, v1, v2)
 
+	tc.makeVersionAvailable(v1)
 	tc.setup()
 	tc.startTest()
 
@@ -447,6 +475,93 @@ func TestDelayedUpgradeCluster(t *testing.T) {
 	tc.sequinses[0].hup()
 
 	time.Sleep(expectTimeout)
+	tc.hup()
+
+	tc.assertProgression()
+}
+
+// TestClusterNoDowngrade tests that a cluster will never downgrade to an older
+// version, even if the newer one is available.
+func TestClusterNoDowngrade(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	tc.addSequinses(3)
+	tc.expectProgression(down, noVersion, v3)
+
+	tc.makeVersionAvailable(v3)
+	tc.setup()
+	tc.startTest()
+
+	time.Sleep(expectTimeout)
+	tc.makeVersionAvailable(v2)
+	tc.removeAvailableVersion(v3)
+	tc.hup()
+
+	tc.assertProgression()
+}
+
+// TestClusterLateJoin tests if a node can join an existing cluster and
+// immediately start serving the version that the rest of the cluster has.
+func TestClusterLateJoin(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	tc.addSequinses(3)
+	tc.expectProgression(down, noVersion, v3)
+
+	tc.makeVersionAvailable(v3)
+	tc.setup()
+	tc.startTest()
+	time.Sleep(expectTimeout)
+
+	s := tc.addSequins()
+	s.makeVersionAvailable(v3)
+	s.setup()
+	s.expectProgression(down, v3)
+	s.startTest()
+
+	tc.assertProgression()
+}
+
+// TestClusterNodeWithoutData tests if a node can safely stay behind while
+// the rest of the cluster upgrades.
+func TestClusterNodeWithoutData(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	tc.addSequinses(3)
+	tc.sequinses[0].expectProgression(down, noVersion, v1)
+	tc.sequinses[1].expectProgression(down, noVersion, v1, v2, v3)
+	tc.sequinses[2].expectProgression(down, noVersion, v1, v2, v3)
+
+	tc.makeVersionAvailable(v1)
+	tc.setup()
+	tc.startTest()
+
+	time.Sleep(expectTimeout)
+	tc.sequinses[1].makeVersionAvailable(v2)
+	tc.sequinses[2].makeVersionAvailable(v2)
+	tc.hup()
+
+	time.Sleep(expectTimeout)
+	tc.sequinses[1].makeVersionAvailable(v3)
+	tc.sequinses[2].makeVersionAvailable(v3)
 	tc.hup()
 
 	tc.assertProgression()

@@ -37,13 +37,14 @@ type zkWatcher struct {
 	shutdown  chan bool
 
 	hooksLock      sync.Mutex
-	ephemeralNodes []string
+	ephemeralNodes map[string]bool
 	watchedNodes   map[string]watchedNode
 }
 
 type watchedNode struct {
 	updates      chan []string
 	disconnected chan bool
+	cancel       chan bool
 }
 
 func connectZookeeper(zkServers []string, prefix string) (*zkWatcher, error) {
@@ -52,7 +53,7 @@ func connectZookeeper(zkServers []string, prefix string) (*zkWatcher, error) {
 		prefix:         path.Join(prefix, coordinationVersion),
 		errs:           make(chan error, 1),
 		shutdown:       make(chan bool),
-		ephemeralNodes: make([]string, 0),
+		ephemeralNodes: make(map[string]bool),
 		watchedNodes:   make(map[string]watchedNode),
 	}
 
@@ -72,10 +73,9 @@ func (w *zkWatcher) reconnect() error {
 		return err
 	}
 
-	// TODO: In some cases, this panics. =/
-	// if w.conn != nil {
-	// 	w.conn.Close()
-	// }
+	if w.conn != nil {
+		w.conn.Close()
+	}
 	w.conn = conn
 
 	// TODO: recreate permanent paths? What if zookeeper dies and loses data?
@@ -108,7 +108,8 @@ func (w *zkWatcher) run() {
 	for {
 		// Every time we connect, reset watches and recreate ephemeral nodes.
 		w.hooksLock.Lock()
-		for _, node := range w.ephemeralNodes {
+		for node := range w.ephemeralNodes {
+			log.Println("creating ephemeral node", node)
 			w.hookCreateEphemeral(node)
 		}
 
@@ -130,6 +131,8 @@ func (w *zkWatcher) run() {
 			case wn.disconnected <- true:
 			default:
 			}
+
+			wn.cancel <- true
 		}
 		w.hooksLock.Unlock()
 
@@ -143,8 +146,17 @@ func (w *zkWatcher) createEphemeral(node string) {
 	defer w.hooksLock.Unlock()
 
 	node = path.Join(w.prefix, node)
-	w.ephemeralNodes = append(w.ephemeralNodes, node)
+	w.ephemeralNodes[node] = true
 	w.hookCreateEphemeral(node)
+}
+
+func (w *zkWatcher) removeEphemeral(node string) {
+	w.hooksLock.Lock()
+	defer w.hooksLock.Unlock()
+
+	node = path.Join(w.prefix, node)
+	w.conn.Delete(node, -1)
+	delete(w.ephemeralNodes, node)
 }
 
 func (w *zkWatcher) hookCreateEphemeral(node string) {
@@ -161,15 +173,28 @@ func (w *zkWatcher) watchChildren(node string) (chan []string, chan bool) {
 	node = path.Join(w.prefix, node)
 	updates := make(chan []string)
 	disconnected := make(chan bool)
+	cancel := make(chan bool)
 
-	wn := watchedNode{updates: updates, disconnected: disconnected}
+	wn := watchedNode{updates: updates, disconnected: disconnected, cancel: cancel}
 	w.watchedNodes[node] = wn
 	go w.hookWatchChildren(node, wn)
 	return updates, disconnected
 }
 
-// TODO: I think in the case we restart but this didn't error, this will cause
-// us to double-send updates
+func (w *zkWatcher) removeWatch(node string) {
+	w.hooksLock.Lock()
+	defer w.hooksLock.Unlock()
+
+	node = path.Join(w.prefix, node)
+	if wn, ok := w.watchedNodes[node]; ok {
+		delete(w.watchedNodes, node)
+
+		wn.cancel <- true
+		close(wn.updates)
+		close(wn.disconnected)
+	}
+}
+
 func (w *zkWatcher) hookWatchChildren(node string, wn watchedNode) {
 	for {
 		children, _, events, err := w.conn.ChildrenW(node)
@@ -179,9 +204,15 @@ func (w *zkWatcher) hookWatchChildren(node string, wn watchedNode) {
 		}
 
 		wn.updates <- children
-		ev := <-events
-		if ev.Err != nil {
-			sendErr(w.errs, ev.Err)
+
+		select {
+		case ev := <-events:
+			if ev.Err != nil {
+				sendErr(w.errs, ev.Err)
+				<-wn.cancel
+				return
+			}
+		case <-wn.cancel:
 			return
 		}
 	}

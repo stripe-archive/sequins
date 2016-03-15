@@ -22,7 +22,7 @@ release: sequins sequins-dump
 
 test: sequins
 	go test -short -race -timeout 30s $(shell go list ./... | grep -v vendor )
-	go test -timeout 10m -run "Cluster$$"
+	go test -timeout 10m -run "^TestCluster"
 
 
 clean:

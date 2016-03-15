@@ -41,7 +41,7 @@ func (h *HdfsBackend) ListDBs() ([]string, error) {
 	return res, nil
 }
 
-func (h *HdfsBackend) ListVersions(db string, checkForSuccess bool) ([]string, error) {
+func (h *HdfsBackend) ListVersions(db, after string, checkForSuccess bool) ([]string, error) {
 	files, err := h.client.ReadDir(path.Join(h.path, db))
 	if err != nil {
 		return nil, err
@@ -55,7 +55,7 @@ func (h *HdfsBackend) ListVersions(db string, checkForSuccess bool) ([]string, e
 
 		name := f.Name()
 		fullPath := path.Join(h.path, db, name)
-		if !checkForSuccess || h.checkForSuccessFile(fullPath) {
+		if name > after && (!checkForSuccess || h.checkForSuccessFile(fullPath)) {
 			res = append(res, name)
 		}
 	}

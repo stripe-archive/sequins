@@ -23,11 +23,11 @@ func NewS3Backend(bucket *s3.Bucket, s3path string) *S3Backend {
 }
 
 func (s *S3Backend) ListDBs() ([]string, error) {
-	return s.listDirs(s.path)
+	return s.listDirs(s.path, "")
 }
 
-func (s *S3Backend) ListVersions(db string, checkForSuccess bool) ([]string, error) {
-	versions, err := s.listDirs(path.Join(s.path, db))
+func (s *S3Backend) ListVersions(db, after string, checkForSuccess bool) ([]string, error) {
+	versions, err := s.listDirs(path.Join(s.path, db), after)
 	if err != nil {
 		return nil, err
 	}
@@ -52,16 +52,15 @@ func (s *S3Backend) ListVersions(db string, checkForSuccess bool) ([]string, err
 	return versions, nil
 }
 
-func (s *S3Backend) listDirs(dir string) ([]string, error) {
+func (s *S3Backend) listDirs(dir, after string) ([]string, error) {
 	// This code assumes you're using S3 like a filesystem, with directories
 	// separated by /'s. It also ignores the trailing slash on a prefix (for the
 	// purposes of sorting lexicographically), to be consistent with other
 	// backends.
 	var res []string
-	var marker string
 
 	for {
-		resp, err := s.bucket.List(dir+"/", "/", marker, 1000)
+		resp, err := s.bucket.List(dir+"/", "/", after, 1000)
 
 		if err != nil {
 			return nil, s.s3error(err)
@@ -74,7 +73,7 @@ func (s *S3Backend) listDirs(dir string) ([]string, error) {
 
 			// List the prefix, to make sure it's a "directory"
 			isDir := false
-			resp, err := s.bucket.List(prefix, "", marker, 3)
+			resp, err := s.bucket.List(prefix, "", after, 3)
 			if err != nil {
 				return nil, err
 			}
@@ -94,7 +93,7 @@ func (s *S3Backend) listDirs(dir string) ([]string, error) {
 		if !resp.IsTruncated {
 			break
 		} else {
-			marker = resp.CommonPrefixes[len(resp.CommonPrefixes)-1]
+			after = resp.CommonPrefixes[len(resp.CommonPrefixes)-1]
 		}
 	}
 
@@ -104,11 +103,11 @@ func (s *S3Backend) listDirs(dir string) ([]string, error) {
 
 func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 	versionPrefix := path.Join(s.path, db, version)
-	marker := ""
+	after := ""
 	res := make([]string, 0)
 
 	for {
-		resp, err := s.bucket.List(versionPrefix, "", marker, 1000)
+		resp, err := s.bucket.List(versionPrefix, "", after, 1000)
 		if err != nil {
 			return nil, s.s3error(err)
 		} else if resp.Contents == nil || len(resp.Contents) == 0 {
@@ -124,7 +123,7 @@ func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 		}
 
 		if resp.IsTruncated {
-			marker = resp.CommonPrefixes[len(resp.CommonPrefixes)-1]
+			after = resp.CommonPrefixes[len(resp.CommonPrefixes)-1]
 		} else {
 			break
 		}

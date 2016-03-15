@@ -23,28 +23,30 @@ type partitions struct {
 	version string
 	zkPath  string
 
-	total   int
+	numPartitions int
+	replication   int
+
 	missing int
 	local   map[int]bool
 	remote  map[int][]string
 
-	lock  sync.RWMutex
-	ready chan bool
+	lock        sync.RWMutex
+	noneMissing chan bool
 }
 
 func watchPartitions(zkWatcher *zkWatcher, peers *peers, db, version string, numPartitions, replication int) *partitions {
 	p := &partitions{
-		peers:     peers,
-		zkWatcher: zkWatcher,
-		db:        db,
-		version:   version,
-		zkPath:    path.Join("partitions", db, version),
-		total:     numPartitions,
-		remote:    make(map[int][]string),
-		ready:     make(chan bool),
+		peers:         peers,
+		zkWatcher:     zkWatcher,
+		db:            db,
+		version:       version,
+		zkPath:        path.Join("partitions", db, version),
+		numPartitions: numPartitions,
+		replication:   replication,
+		local:         make(map[int]bool),
+		remote:        make(map[int][]string),
+		noneMissing:   make(chan bool),
 	}
-
-	p.pickLocalPartitions(replication)
 
 	// Create the partitions path we're going to watch, in case no one has done
 	// that yet.
@@ -52,6 +54,7 @@ func watchPartitions(zkWatcher *zkWatcher, peers *peers, db, version string, num
 	zkWatcher.createPath(p.zkPath)
 
 	updates, _ := zkWatcher.watchChildren(p.zkPath)
+	p.updateRemotePartitions(<-updates)
 	go p.sync(updates)
 	return p
 }
@@ -59,36 +62,47 @@ func watchPartitions(zkWatcher *zkWatcher, peers *peers, db, version string, num
 // pickLocalPartitions selects which partitions are local by iterating through
 // them all, and checking the hashring to see if this peer is one of the
 // replicas.
-func (p *partitions) pickLocalPartitions(replication int) {
-	local := make(map[int]bool)
+func (p *partitions) pickLocalPartitions() map[int]bool {
+	partitions := make(map[int]bool)
 	disp := make([]int, 0)
 
-	for i := 0; i < p.total; i++ {
+	for i := 0; i < p.numPartitions; i++ {
 		partitionId := p.partitionId(i)
 
-		replicas := p.peers.pick(partitionId, replication)
+		replicas := p.peers.pick(partitionId, p.replication)
 		for _, replica := range replicas {
 			if replica == peerSelf {
-				local[i] = true
+				partitions[i] = true
 				disp = append(disp, i)
 			}
 		}
 	}
 
-	log.Printf("Selected partitions for %s version %s: %v", p.db, p.version, disp)
-	p.local = local
-	p.missing = p.total - len(local)
+	return partitions
 }
 
 // sync syncs the remote partitions from zoolander whenever they change.
 func (p *partitions) sync(updates chan []string) {
 	for {
-		nodes := <-updates
-		p.updatePartitions(nodes)
+		nodes, ok := <-updates
+		if !ok {
+			close(p.noneMissing)
+			break
+		}
+
+		p.updateRemotePartitions(nodes)
 	}
 }
 
-func (p *partitions) updatePartitions(nodes []string) {
+func (p *partitions) updateLocalPartitions(local map[int]bool) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	p.local = local
+	p.updateMissing()
+}
+
+func (p *partitions) updateRemotePartitions(nodes []string) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
@@ -102,11 +116,15 @@ func (p *partitions) updatePartitions(nodes []string) {
 		}
 	}
 
+	p.remote = remote
+	p.updateMissing()
+}
+
+func (p *partitions) updateMissing() {
 	// Check for each partition. If every one is available on at least one node,
 	// then we're ready to rumble.
-	p.remote = remote
 	missing := 0
-	for i := 0; i < p.total; i++ {
+	for i := 0; i < p.numPartitions; i++ {
 		if _, ok := p.local[i]; ok {
 			continue
 		}
@@ -121,10 +139,17 @@ func (p *partitions) updatePartitions(nodes []string) {
 	p.missing = missing
 	if missing == 0 {
 		select {
-		case p.ready <- true:
+		case p.noneMissing <- true:
 		default:
 		}
 	}
+}
+
+func (p *partitions) ready() bool {
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+
+	return p.missing == 0
 }
 
 // advertiseAndWait advertises the partitions we have locally, and waits until
@@ -148,9 +173,9 @@ func (p *partitions) advertiseAndWait() bool {
 		t := time.NewTimer(10 * time.Second)
 		select {
 		case <-t.C:
-		case success := <-p.ready:
+		case success := <-p.noneMissing:
 			// If success is false, it's because the close() was called before we
-			// finished waiting on peers
+			// finished waiting on peers.
 			return success
 		}
 	}
@@ -163,9 +188,18 @@ func (p *partitions) advertiseAndWait() bool {
 // TODO: this should maybe be a zk multi op?
 func (p *partitions) advertisePartitions() {
 	for partition := range p.local {
-		node := fmt.Sprintf("%05d@%s", partition, p.peers.address)
-		p.zkWatcher.createEphemeral(path.Join(p.zkPath, node))
+		p.zkWatcher.createEphemeral(p.partitionZKNode(partition))
 	}
+}
+
+func (p *partitions) unadvertisePartitions() {
+	for partition := range p.local {
+		p.zkWatcher.removeEphemeral(p.partitionZKNode(partition))
+	}
+}
+
+func (p *partitions) partitionZKNode(partition int) string {
+	return path.Join(p.zkPath, fmt.Sprintf("%05d@%s", partition, p.peers.address))
 }
 
 // getPeers returns the list of peers who have the given partition available.
@@ -187,10 +221,9 @@ func (p *partitions) partitionId(partition int) string {
 }
 
 func (p *partitions) close() {
-	// Delete ephemeral keys
-	// Remove watch
-	select {
-	case p.ready <- false:
-	default:
-	}
+	p.lock.Lock()
+	p.lock.Unlock()
+
+	p.zkWatcher.removeWatch(p.zkPath)
+	p.unadvertisePartitions()
 }

@@ -97,11 +97,28 @@ func (db *db) backfillVersions() error {
 		}
 
 		version := newVersion(db.sequins, db.localPath(v), db.name, v, len(files))
-		if version.ready() || version.getBlockStore() != nil {
-			// TODO: this advertises that we have partitions available before we're
-			// listening on HTTP
+		if version.ready() {
+			// The version is complete, most likely because our peers have it. We
+			// can switch to it right away, and build any (possibly underreplicated)
+			// partitions in the background.
+			// TODO: In the case that we *do* have some data locally, this will cause
+			// us to advertise that before we're actually listening over HTTP.
+			log.Println("Starting with pre-loaded version", v, "of", db.name)
+
+			db.mux.prepare(version)
+			db.mux.upgrade(version)
+			db.trackVersion(version, versionAvailable)
+			go func() {
+				version.build(files)
+				version.advertiseAndWait()
+			}()
+
+			break
+		} else if version.getBlockStore() != nil {
+			// The version isn't complete, but we have partitions locally and can
+			// start waiting on peers. This happens if, for example, a complete
+			// cluster with stored data comes up all at once.
 			db.switchVersion(version)
-			go version.build(files)
 		} else {
 			version.close()
 		}

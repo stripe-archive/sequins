@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bufio"
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const expectTimeout = 5 * time.Second
+const expectTimeout = 10 * time.Second
 
 type testVersion string
 
@@ -61,8 +61,9 @@ type testSequins struct {
 	testClient          *http.Client
 	expectedProgression []testVersion
 
-	process     *exec.Cmd
-	progression chan testVersion
+	process        *exec.Cmd
+	bufferedOutput bytes.Buffer
+	progression    chan testVersion
 }
 
 func newTestCluster(t *testing.T) *testCluster {
@@ -76,10 +77,13 @@ func newTestCluster(t *testing.T) *testCluster {
 
 	zkServers, zkCluster := createTestZkCluster(t)
 
+	// Give the zookeeper cluster a chance to start up.
+	time.Sleep(1 * time.Second)
+
 	// We have a specific transport to the client, so it doesn't try to reuse
 	// connections between tests
 	var testClient = &http.Client{
-		Timeout:   250 * time.Millisecond,
+		Timeout:   500 * time.Millisecond,
 		Transport: &http.Transport{},
 	}
 
@@ -114,10 +118,10 @@ func (tc *testCluster) addSequins() *testSequins {
 	config.Root = backendPath
 	config.LocalStore = path
 	config.RequireSuccessFile = true
-	config.ThrottleLoads = duration{3 * time.Millisecond}
+	config.ThrottleLoads = duration{10 * time.Millisecond}
 	config.ZK.Servers = tc.zkServers
 	config.ZK.TimeToConverge = duration{100 * time.Millisecond}
-	config.ZK.ProxyTimeout = duration{150 * time.Millisecond}
+	config.ZK.ProxyTimeout = duration{250 * time.Millisecond}
 	config.ZK.AdvertisedHostname = "localhost"
 
 	s := &testSequins{
@@ -187,6 +191,7 @@ func (tc *testCluster) hup() {
 func (tc *testCluster) tearDown() {
 	for _, ts := range tc.sequinses {
 		ts.process.Process.Kill()
+		tc.T.Logf("===== OUTPUT FOR %s\n%s", ts.name, ts.bufferedOutput.String())
 	}
 
 	tc.zkCluster.Stop()
@@ -292,29 +297,18 @@ func (ts *testSequins) startTest() {
 
 func (ts *testSequins) start() {
 	ts.process = exec.Command(ts.binary, "--config", ts.configPath)
-	stdout, err := ts.process.StdoutPipe()
-	require.NoError(ts.T, err, "setup: hooking into process stdout")
-
-	stderr, err := ts.process.StderrPipe()
-	require.NoError(ts.T, err, "setup: hooking into process stderr")
-
-	go func() {
-		stdoutScanner := bufio.NewScanner(stdout)
-		for stdoutScanner.Scan() {
-			ts.T.Logf("[stdout %s] %s", ts.name, stdoutScanner.Text())
-		}
-
-		stderrScanner := bufio.NewScanner(stderr)
-		for stderrScanner.Scan() {
-			ts.T.Logf("[stderr %s] %s", ts.name, stderrScanner.Text())
-		}
-	}()
+	ts.process.Stdout = &ts.bufferedOutput
+	ts.process.Stderr = &ts.bufferedOutput
 
 	ts.process.Start()
 }
 
 func (ts *testSequins) hup() {
 	ts.process.Process.Signal(syscall.SIGHUP)
+}
+
+func (ts *testSequins) stop() {
+	ts.process.Process.Kill()
 }
 
 func (ts *testSequins) assertProgression() {
@@ -415,6 +409,26 @@ func TestClusterEmpty(t *testing.T) {
 	defer tc.tearDown()
 
 	tc.addSequinses(3)
+	tc.makeVersionAvailable(v3)
+	tc.expectProgression(down, noVersion, v3)
+
+	tc.setup()
+	tc.startTest()
+	tc.assertProgression()
+}
+
+// TestClusterEmpty tests that a cluster with many nodes and no preexisting
+// state can start up and serve requests.
+func TestLargeClusterEmpty(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	tc.addSequinses(30)
 	tc.makeVersionAvailable(v3)
 	tc.expectProgression(down, noVersion, v3)
 
@@ -564,5 +578,133 @@ func TestClusterNodeWithoutData(t *testing.T) {
 	tc.sequinses[2].makeVersionAvailable(v3)
 	tc.hup()
 
+	tc.assertProgression()
+}
+
+// TestClusterRollingRestart tests that a cluster can be restarted a node at a
+// time and stay on the same version continually.
+func TestClusterRollingRestart(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	tc.addSequinses(3)
+	tc.makeVersionAvailable(v3)
+	tc.expectProgression(down, noVersion, v3, down, v3)
+
+	tc.setup()
+	tc.startTest()
+	time.Sleep(expectTimeout)
+
+	for _, s := range tc.sequinses {
+		s.stop()
+		time.Sleep(expectTimeout)
+		s.start()
+		time.Sleep(expectTimeout)
+	}
+
+	tc.assertProgression()
+}
+
+// TestClusterSimultaneousRestart tests that a cluster can be restarted all at
+// once, and come up together.
+func TestClusterSimultaneousRestart(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	tc.addSequinses(3)
+	tc.makeVersionAvailable(v3)
+	tc.expectProgression(down, noVersion, v3, down, v3)
+
+	tc.setup()
+	tc.startTest()
+	time.Sleep(expectTimeout)
+
+	for _, s := range tc.sequinses {
+		s.stop()
+	}
+
+	time.Sleep(expectTimeout)
+
+	for _, s := range tc.sequinses {
+		s.start()
+	}
+
+	tc.assertProgression()
+}
+
+// TestClusterSimultaneousRestartNewVersion tests that if a new version becomes
+// available while the cluster is down, it can restart with the old one and then
+// upgrade.
+func TestClusterSimultaneousRestartNewVersion(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	tc.addSequinses(3)
+	tc.makeVersionAvailable(v2)
+	tc.expectProgression(down, noVersion, v2, down, v2, v3)
+
+	tc.setup()
+	tc.startTest()
+	time.Sleep(expectTimeout)
+
+	for _, s := range tc.sequinses {
+		s.stop()
+	}
+
+	tc.makeVersionAvailable(v3)
+	time.Sleep(expectTimeout)
+
+	for _, s := range tc.sequinses {
+		s.start()
+	}
+
+	tc.assertProgression()
+}
+
+// TestClusterNodeVacation tests that if a node is down while the rest of a
+// cluster upgrades without it, it can rejoin without issue.
+func TestClusterNodeVacation(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	tc.addSequinses(3)
+	tc.makeVersionAvailable(v2)
+	tc.sequinses[0].expectProgression(down, noVersion, v2, down, v3)
+	tc.sequinses[1].expectProgression(down, noVersion, v2, v3)
+	tc.sequinses[2].expectProgression(down, noVersion, v2, v3)
+
+	tc.setup()
+	tc.startTest()
+	time.Sleep(expectTimeout)
+
+	tc.sequinses[0].stop()
+	time.Sleep(expectTimeout)
+
+	tc.makeVersionAvailable(v3)
+	tc.sequinses[1].hup()
+	tc.sequinses[2].hup()
+	time.Sleep(expectTimeout)
+
+	tc.sequinses[0].start()
 	tc.assertProgression()
 }

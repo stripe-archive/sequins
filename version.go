@@ -147,7 +147,7 @@ func (vs *version) get(key string, r *http.Request) ([]byte, error) {
 
 // hasPartition returns true if we have the partition available locally.
 func (vs *version) hasPartition(partition int) bool {
-	return vs.partitions == nil || vs.partitions.local[partition]
+	return vs.blockStore != nil && (vs.partitions == nil || vs.partitions.local[partition])
 }
 
 // proxyRequest proxies the request, trying each peer that should have the key

@@ -623,7 +623,7 @@ func TestClusterSimultaneousRestart(t *testing.T) {
 
 	tc.addSequinses(3)
 	tc.makeVersionAvailable(v3)
-	tc.expectProgression(down, noVersion, v3, down, v3)
+	tc.expectProgression(down, noVersion, v3, down, noVersion, v3)
 
 	tc.setup()
 	tc.startTest()
@@ -656,7 +656,7 @@ func TestClusterSimultaneousRestartNewVersion(t *testing.T) {
 
 	tc.addSequinses(3)
 	tc.makeVersionAvailable(v2)
-	tc.expectProgression(down, noVersion, v2, down, v2, v3)
+	tc.expectProgression(down, noVersion, v3, down, noVersion, v3)
 
 	tc.setup()
 	tc.startTest()

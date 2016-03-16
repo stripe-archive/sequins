@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/stripe/sequins/blocks"
@@ -31,13 +32,14 @@ var errProxiedIncorrectly = errors.New("this server doesn't have the requested p
 type version struct {
 	sequins *sequins
 
-	path          string
-	db            string
-	name          string
-	created       time.Time
-	blockStore    *blocks.BlockStore
-	partitions    *partitions
-	numPartitions int
+	path           string
+	db             string
+	name           string
+	created        time.Time
+	blockStore     *blocks.BlockStore
+	blockStoreLock sync.RWMutex
+	partitions     *partitions
+	numPartitions  int
 }
 
 func newVersion(sequins *sequins, path, db, name string, numPartitions int) *version {
@@ -77,11 +79,19 @@ func newVersion(sequins *sequins, path, db, name string, numPartitions int) *ver
 	return vs
 }
 
+func (vs *version) getBlockStore() *blocks.BlockStore {
+	vs.blockStoreLock.RLock()
+	defer vs.blockStoreLock.RUnlock()
+
+	return vs.blockStore
+}
+
 func (vs *version) ready() bool {
+
 	if vs.numPartitions == 0 {
 		return true
 	} else if vs.sequins.peers == nil {
-		return vs.blockStore != nil
+		return vs.getBlockStore() != nil
 	}
 
 	return vs.partitions.ready()
@@ -129,8 +139,9 @@ func (vs *version) get(key string, r *http.Request) ([]byte, error) {
 	}
 
 	partition, alternatePartition := blocks.KeyPartition(key, vs.numPartitions)
-	if vs.hasPartition(partition) || vs.hasPartition(alternatePartition) {
-		return vs.blockStore.Get(key)
+	bs := vs.getBlockStore()
+	if bs != nil && vs.hasPartition(partition) || vs.hasPartition(alternatePartition) {
+		return bs.Get(key)
 	} else if r.URL.Query().Get("proxy") == "" {
 		res, err := vs.proxyRequest(partition, r)
 		if res == nil && err == nil && alternatePartition != partition {
@@ -147,7 +158,7 @@ func (vs *version) get(key string, r *http.Request) ([]byte, error) {
 
 // hasPartition returns true if we have the partition available locally.
 func (vs *version) hasPartition(partition int) bool {
-	return vs.blockStore != nil && (vs.partitions == nil || vs.partitions.local[partition])
+	return vs.getBlockStore() != nil && (vs.partitions == nil || vs.partitions.local[partition])
 }
 
 // proxyRequest proxies the request, trying each peer that should have the key
@@ -205,14 +216,16 @@ func (vs *version) close() {
 		vs.partitions.close()
 	}
 
-	if vs.blockStore != nil {
-		vs.blockStore.Close()
+	bs := vs.getBlockStore()
+	if bs != nil {
+		bs.Close()
 	}
 }
 
 func (vs *version) delete() error {
-	if vs.blockStore != nil {
-		return vs.blockStore.Delete()
+	bs := vs.getBlockStore()
+	if bs != nil {
+		return bs.Delete()
 	}
 
 	return nil

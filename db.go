@@ -97,7 +97,7 @@ func (db *db) backfillVersions() error {
 		}
 
 		version := newVersion(db.sequins, db.localPath(v), db.name, v, len(files))
-		if version.ready() || version.blockStore != nil {
+		if version.ready() || version.getBlockStore() != nil {
 			// TODO: this advertises that we have partitions available before we're
 			// listening on HTTP
 			db.switchVersion(version)

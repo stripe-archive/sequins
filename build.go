@@ -53,6 +53,8 @@ func (vs *version) build(files []string) error {
 		}
 	}
 
+	vs.blockStoreLock.Lock()
+	defer vs.blockStoreLock.Unlock()
 	vs.blockStore = blockStore
 	if vs.partitions != nil {
 		vs.partitions.updateLocalPartitions(local)

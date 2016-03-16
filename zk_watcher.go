@@ -103,21 +103,51 @@ func (w *zkWatcher) reconnect() error {
 	return nil
 }
 
+func (w *zkWatcher) runHooks() error {
+	w.hooksLock.Lock()
+	defer w.hooksLock.Unlock()
+
+	for node := range w.ephemeralNodes {
+		err := w.hookCreateEphemeral(node)
+		if err != nil {
+			return err
+		}
+	}
+
+	for node, wn := range w.watchedNodes {
+		err := w.hookWatchChildren(node, wn)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (w *zkWatcher) cancelWatches() {
+	w.hooksLock.Lock()
+	defer w.hooksLock.Unlock()
+
+	for _, wn := range w.watchedNodes {
+		select {
+		case wn.disconnected <- true:
+		default:
+		}
+
+		wn.cancel <- true
+	}
+}
+
 // sync runs the main loop. On any errors, it resets the connection.
 func (w *zkWatcher) run() {
 	for {
 		// Every time we connect, reset watches and recreate ephemeral nodes.
-		w.hooksLock.Lock()
-		for node := range w.ephemeralNodes {
-			log.Println("creating ephemeral node", node)
-			w.hookCreateEphemeral(node)
+		err := w.runHooks()
+		if err != nil {
+			log.Println("Zookeeper error:", err)
+			time.Sleep(time.Second)
+			w.reconnect()
 		}
-
-		for node, wn := range w.watchedNodes {
-			go w.hookWatchChildren(node, wn)
-		}
-
-		w.hooksLock.Unlock()
 
 		select {
 		case <-w.shutdown:
@@ -125,17 +155,7 @@ func (w *zkWatcher) run() {
 		case <-w.errs:
 		}
 
-		w.hooksLock.Lock()
-		for _, wn := range w.watchedNodes {
-			select {
-			case wn.disconnected <- true:
-			default:
-			}
-
-			wn.cancel <- true
-		}
-		w.hooksLock.Unlock()
-
+		w.cancelWatches()
 		time.Sleep(time.Second)
 		w.reconnect()
 	}
@@ -147,7 +167,10 @@ func (w *zkWatcher) createEphemeral(node string) {
 
 	node = path.Join(w.prefix, node)
 	w.ephemeralNodes[node] = true
-	w.hookCreateEphemeral(node)
+	err := w.hookCreateEphemeral(node)
+	if err != nil {
+		sendErr(w.errs, err)
+	}
 }
 
 func (w *zkWatcher) removeEphemeral(node string) {
@@ -159,11 +182,13 @@ func (w *zkWatcher) removeEphemeral(node string) {
 	delete(w.ephemeralNodes, node)
 }
 
-func (w *zkWatcher) hookCreateEphemeral(node string) {
+func (w *zkWatcher) hookCreateEphemeral(node string) error {
 	_, err := w.conn.Create(node, nil, zk.FlagEphemeral, defaultACL)
 	if err != nil && err != zk.ErrNodeExists {
-		sendErr(w.errs, err)
+		return err
 	}
+
+	return nil
 }
 
 func (w *zkWatcher) watchChildren(node string) (chan []string, chan bool) {
@@ -177,7 +202,11 @@ func (w *zkWatcher) watchChildren(node string) (chan []string, chan bool) {
 
 	wn := watchedNode{updates: updates, disconnected: disconnected, cancel: cancel}
 	w.watchedNodes[node] = wn
-	go w.hookWatchChildren(node, wn)
+	err := w.hookWatchChildren(node, wn)
+	if err != nil {
+		sendErr(w.errs, err)
+	}
+
 	return updates, disconnected
 }
 
@@ -195,27 +224,36 @@ func (w *zkWatcher) removeWatch(node string) {
 	}
 }
 
-func (w *zkWatcher) hookWatchChildren(node string, wn watchedNode) {
-	for {
-		children, _, events, err := w.conn.ChildrenW(node)
-		if err != nil {
-			sendErr(w.errs, err)
-			return
-		}
+func (w *zkWatcher) hookWatchChildren(node string, wn watchedNode) error {
+	children, _, events, err := w.conn.ChildrenW(node)
+	if err != nil {
+		return err
+	}
 
-		wn.updates <- children
+	go func() {
+		for {
+			wn.updates <- children
 
-		select {
-		case ev := <-events:
-			if ev.Err != nil {
-				sendErr(w.errs, ev.Err)
-				<-wn.cancel
+			select {
+			case ev := <-events:
+				if ev.Err != nil {
+					sendErr(w.errs, ev.Err)
+					<-wn.cancel
+					return
+				}
+			case <-wn.cancel:
 				return
 			}
-		case <-wn.cancel:
-			return
+
+			children, _, events, err = w.conn.ChildrenW(node)
+			if err != nil {
+				sendErr(w.errs, err)
+				<-wn.cancel
+			}
 		}
-	}
+	}()
+
+	return nil
 }
 
 // createPath creates a node and all its parents permanently.

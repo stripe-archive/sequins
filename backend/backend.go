@@ -13,9 +13,10 @@ type Backend interface {
 	ListDBs() ([]string, error)
 
 	// ListVersions returns a sorted list of valid versions for the given db. If
-	// checkForSuccess is passed, it will only return versions for which there
-	// is a _SUCCESS file present.
-	ListVersions(db string, checkForSuccessFile bool) ([]string, error)
+	// after is possed, only versions greater than it will be returned. If
+	// checkForSuccess is passed, only versions for which there is a _SUCCESS file
+	// present will be returned.
+	ListVersions(db, after string, checkForSuccessFile bool) ([]string, error)
 
 	// ListFiles returns a sorted list of all valid-looking data files for a db
 	// and version. It excludes files that begin with '_' or '.'.
@@ -57,7 +58,7 @@ func (lb *LocalBackend) ListDBs() ([]string, error) {
 	return res, nil
 }
 
-func (lb *LocalBackend) ListVersions(db string, checkForSuccess bool) ([]string, error) {
+func (lb *LocalBackend) ListVersions(db, after string, checkForSuccess bool) ([]string, error) {
 	files, err := ioutil.ReadDir(filepath.Join(lb.path, db))
 	if err != nil {
 		return nil, err
@@ -71,7 +72,7 @@ func (lb *LocalBackend) ListVersions(db string, checkForSuccess bool) ([]string,
 
 		name := f.Name()
 		fullPath := filepath.Join(lb.path, db, name)
-		if !checkForSuccess || lb.checkForSuccessFile(fullPath) {
+		if name > after && (!checkForSuccess || lb.checkForSuccessFile(fullPath)) {
 			res = append(res, name)
 		}
 	}

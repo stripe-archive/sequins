@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -78,6 +77,8 @@ func (s *sequins) init() error {
 
 	// Trigger loads before we start up.
 	s.refreshAll()
+	s.refreshLock.Lock()
+	defer s.refreshLock.Unlock()
 
 	// Automatically refresh, if configured to do so.
 	refresh := s.config.RefreshPeriod.Duration
@@ -147,56 +148,6 @@ func (s *sequins) initLocalStore() error {
 		return err
 	}
 
-	// Attempt to load any versions we have cached locally, so that we can start
-	// quickly even if there are newer versions to download.
-	res, err := ioutil.ReadDir(dataPath)
-	if err != nil {
-		return err
-	}
-
-	localDirs := make(map[string]bool)
-	for _, dir := range res {
-		localDirs[dir.Name()] = true
-	}
-
-	dbs, err := s.backend.ListDBs()
-	if err != nil {
-		log.Println("Error listing DBs from %s: %s", s.backend.DisplayPath(""), err)
-		return err
-	}
-
-	built := make(chan *db, len(dbs))
-	for _, dbName := range dbs {
-		if !localDirs[dbName] {
-			built <- nil
-			continue
-		}
-
-		go func(name string) {
-			db := newDB(s, name)
-			err := db.loadLatestLocalVersion()
-			if err == nil {
-				built <- db
-			} else {
-				built <- nil
-			}
-		}(dbName)
-	}
-
-	localDBs := make(map[string]*db)
-	for i := 0; i < len(dbs); i++ {
-		db := <-built
-		if db != nil {
-			localDBs[db.name] = db
-		}
-	}
-
-	// TODO: clean up any local data we have that doesn't have a corresponding
-	// remote DB or version
-
-	s.dbsLock.Lock()
-	s.dbs = localDBs
-	s.dbsLock.Unlock()
 	return nil
 }
 
@@ -245,14 +196,24 @@ func (s *sequins) refreshAll() {
 	s.dbsLock.RLock()
 
 	newDBs := make(map[string]*db)
+	var backfills sync.WaitGroup
 	for _, name := range dbs {
 		db := s.dbs[name]
 		if db == nil {
 			db = newDB(s, name)
+			backfills.Add(1)
+			go func() {
+				db.backfillVersions()
+				backfills.Done()
+			}()
 		}
 
-		go s.refresh(db)
 		newDBs[name] = db
+	}
+
+	backfills.Wait()
+	for _, db := range newDBs {
+		go s.refresh(db)
 	}
 
 	// Now, grab the full lock to switch the new map in.

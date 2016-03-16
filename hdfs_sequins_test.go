@@ -67,11 +67,11 @@ func TestHdfsBackend(t *testing.T) {
 	require.NoError(t, err, "it should be able to list dbs")
 	assert.Equal(t, []string{"baby-names"}, dbs, "the list of dbs should be correct")
 
-	versions, err := h.ListVersions("baby-names", false)
+	versions, err := h.ListVersions("baby-names", "", false)
 	require.NoError(t, err, "it should be able to list versions")
 	assert.Equal(t, []string{"0", "1"}, versions, "it should be able to list versions")
 
-	versions, err = h.ListVersions("baby-names", true)
+	versions, err = h.ListVersions("baby-names", "", true)
 	require.NoError(t, err, "it should be able to list versions with a _SUCCESS file")
 	assert.Equal(t, []string{"0"}, versions, "the list of versions with a _SUCCESS file should be correct")
 

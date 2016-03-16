@@ -191,6 +191,12 @@ func (db *db) switchVersion(version *version) {
 // rolls forward.
 func (db *db) takeNewVersions() {
 	for version := range db.newVersions {
+		// This is just to make functional tests easier to write.
+		delay := db.sequins.config.Test.UpgradeDelay.Duration
+		if delay != 0 {
+			time.Sleep(delay)
+		}
+
 		current := db.mux.getCurrent()
 		db.mux.release(current)
 		if current != nil && version.name <= current.name {

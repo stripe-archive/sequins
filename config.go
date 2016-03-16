@@ -24,8 +24,9 @@ type sequinsConfig struct {
 	RequireSuccessFile bool     `toml:"require_success_file"`
 	ContentType        string   `toml:"content_type"`
 
-	S3 s3Config `toml:"s3"`
-	ZK zkConfig `toml:"zk"`
+	S3   s3Config   `toml:"s3"`
+	ZK   zkConfig   `toml:"zk"`
+	Test testConfig `toml:"test"`
 }
 
 type s3Config struct {
@@ -42,6 +43,12 @@ type zkConfig struct {
 	ClusterName        string   `toml:"cluster_name"`
 	AdvertisedHostname string   `toml:"advertised_hostname"`
 	ShardID            string   `toml:"shard_id"`
+}
+
+// testConfig has some options used in functional tests to slow sequins down
+// and make it more observable.
+type testConfig struct {
+	UpgradeDelay duration `toml:"upgrade_delay"`
 }
 
 func defaultConfig() sequinsConfig {

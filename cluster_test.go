@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const expectTimeout = 10 * time.Second
+const expectTimeout = 5 * time.Second
 
 type testVersion string
 
@@ -118,11 +118,14 @@ func (tc *testCluster) addSequins() *testSequins {
 	config.Root = backendPath
 	config.LocalStore = path
 	config.RequireSuccessFile = true
-	config.ThrottleLoads = duration{10 * time.Millisecond}
 	config.ZK.Servers = tc.zkServers
 	config.ZK.TimeToConverge = duration{100 * time.Millisecond}
-	config.ZK.ProxyTimeout = duration{250 * time.Millisecond}
+	config.ZK.ProxyTimeout = duration{300 * time.Millisecond}
 	config.ZK.AdvertisedHostname = "localhost"
+
+	// Slow everything down to an observable level.
+	config.ThrottleLoads = duration{10 * time.Millisecond}
+	config.Test.UpgradeDelay = duration{1 * time.Second}
 
 	s := &testSequins{
 		T:           tc.T,
@@ -605,72 +608,6 @@ func TestClusterRollingRestart(t *testing.T) {
 		time.Sleep(expectTimeout)
 		s.start()
 		time.Sleep(expectTimeout)
-	}
-
-	tc.assertProgression()
-}
-
-// TestClusterSimultaneousRestart tests that a cluster can be restarted all at
-// once, and come up together.
-func TestClusterSimultaneousRestart(t *testing.T) {
-	t.Parallel()
-	if testing.Short() {
-		t.Skip("skipping cluster test in short mode.")
-	}
-
-	tc := newTestCluster(t)
-	defer tc.tearDown()
-
-	tc.addSequinses(3)
-	tc.makeVersionAvailable(v3)
-	tc.expectProgression(down, noVersion, v3, down, noVersion, v3)
-
-	tc.setup()
-	tc.startTest()
-	time.Sleep(expectTimeout)
-
-	for _, s := range tc.sequinses {
-		s.stop()
-	}
-
-	time.Sleep(expectTimeout)
-
-	for _, s := range tc.sequinses {
-		s.start()
-	}
-
-	tc.assertProgression()
-}
-
-// TestClusterSimultaneousRestartNewVersion tests that if a new version becomes
-// available while the cluster is down, it can restart with the old one and then
-// upgrade.
-func TestClusterSimultaneousRestartNewVersion(t *testing.T) {
-	t.Parallel()
-	if testing.Short() {
-		t.Skip("skipping cluster test in short mode.")
-	}
-
-	tc := newTestCluster(t)
-	defer tc.tearDown()
-
-	tc.addSequinses(3)
-	tc.makeVersionAvailable(v2)
-	tc.expectProgression(down, noVersion, v3, down, noVersion, v3)
-
-	tc.setup()
-	tc.startTest()
-	time.Sleep(expectTimeout)
-
-	for _, s := range tc.sequinses {
-		s.stop()
-	}
-
-	tc.makeVersionAvailable(v3)
-	time.Sleep(expectTimeout)
-
-	for _, s := range tc.sequinses {
-		s.start()
 	}
 
 	tc.assertProgression()

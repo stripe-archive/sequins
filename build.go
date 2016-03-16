@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -8,6 +9,8 @@ import (
 	"github.com/stripe/sequins/blocks"
 	"github.com/stripe/sequins/sequencefile"
 )
+
+var errFilesChanged = errors.New("the list of remote files changed while building")
 
 // build prepares the version, blocking until all local partitions are ready,
 // then returns it. If onlyFromManifest is true, it will only load data on local
@@ -40,12 +43,55 @@ func (vs *version) build(files []string) error {
 		return err
 	}
 
+	// Verify that the list of files stayed the same.
+	newFiles, err := vs.sequins.backend.ListFiles(vs.db, vs.name)
+	if err != nil {
+		return err
+	} else {
+		if vs.compareFileSets(files, newFiles) {
+			return errFilesChanged
+		}
+	}
+
 	vs.blockStore = blockStore
 	if vs.partitions != nil {
 		vs.partitions.updateLocalPartitions(local)
 	}
 
 	return nil
+}
+
+func (vs *version) compareFileSets(oldFiles, newFiles []string) bool {
+	setOld := make(map[string]bool, len(oldFiles))
+	setNew := make(map[string]bool, len(newFiles))
+	different := false
+
+	if len(oldFiles) != len(newFiles) {
+		log.Printf("Number of files under %s changed (%d vs %d)",
+			vs.sequins.backend.DisplayPath(vs.db, vs.name), len(oldFiles), len(newFiles))
+		different = true
+	}
+
+	for _, f := range oldFiles {
+		setOld[f] = true
+	}
+
+	for _, f := range newFiles {
+		setNew[f] = true
+		if !setOld[f] {
+			log.Println("New file:", vs.sequins.backend.DisplayPath(vs.db, vs.name, f))
+			different = true
+		}
+	}
+
+	for _, f := range oldFiles {
+		if !setNew[f] {
+			log.Println("Missing file:", vs.sequins.backend.DisplayPath(vs.db, vs.name, f))
+			different = true
+		}
+	}
+
+	return different
 }
 
 // TODO: parallelize files

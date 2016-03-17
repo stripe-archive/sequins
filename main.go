@@ -69,7 +69,7 @@ func main() {
 	var s *sequins
 	switch parsed.Scheme {
 	case "", "file":
-		if config.ZK.Servers != nil {
+		if config.ZK.Servers != nil && !config.Test.AllowLocalCluster {
 			log.Fatal("You can't run sequins in distributed mode on local paths.")
 		}
 		s = localSetup(config.Root, config)

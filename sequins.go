@@ -186,7 +186,7 @@ func (s *sequins) refreshAll() {
 
 	dbs, err := s.backend.ListDBs()
 	if err != nil {
-		log.Println("Error listing DBs from %s: %s", s.backend.DisplayPath(""), err)
+		log.Printf("Error listing DBs from %s: %s", s.backend.DisplayPath(""), err)
 		return
 	}
 

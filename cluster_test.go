@@ -122,6 +122,7 @@ func (tc *testCluster) addSequins() *testSequins {
 	config.ZK.TimeToConverge = duration{100 * time.Millisecond}
 	config.ZK.ProxyTimeout = duration{300 * time.Millisecond}
 	config.ZK.AdvertisedHostname = "localhost"
+	config.Test.AllowLocalCluster = true
 
 	// Slow everything down to an observable level.
 	config.ThrottleLoads = duration{10 * time.Millisecond}

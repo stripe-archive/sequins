@@ -48,7 +48,8 @@ type zkConfig struct {
 // testConfig has some options used in functional tests to slow sequins down
 // and make it more observable.
 type testConfig struct {
-	UpgradeDelay duration `toml:"upgrade_delay"`
+	UpgradeDelay      duration `toml:"upgrade_delay"`
+	AllowLocalCluster bool     `toml:"allow_local_cluster"`
 }
 
 func defaultConfig() sequinsConfig {

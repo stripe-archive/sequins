@@ -212,9 +212,6 @@ func (ts *testSequins) setup() {
 	err = toml.NewEncoder(f).Encode(ts.config)
 	require.NoError(ts.T, err, "setup: create config")
 	f.Close()
-
-	// TODO: if there is an init version, start sequins up, wait for it to index,
-	// and then kill it.
 }
 
 func (ts *testSequins) makeVersionAvailable(version testVersion) {

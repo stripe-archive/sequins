@@ -69,7 +69,9 @@ func main() {
 	var s *sequins
 	switch parsed.Scheme {
 	case "", "file":
-		// TODO: don't allow distributed setup with local paths
+		if config.ZK.Servers != nil {
+			log.Fatal("You can't run sequins in distributed mode on local paths.")
+		}
 		s = localSetup(config.Root, config)
 	case "s3":
 		s = s3Setup(parsed.Host, parsed.Path, config)

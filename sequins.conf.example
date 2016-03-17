@@ -95,3 +95,16 @@ root = "hdfs://namenode:8020/path/to/sequins"
 # the same  partitions. This can be useful if you don't have stable hostnames,
 # but want to be able to rebuild a server to take the place of a dead or
 # decomissioning one.
+
+[debug]
+
+# bind = "localhost:6060"
+# Unset by default. If set, binds the golang debug http server, which can serve
+# expvars and profiling information, to the specified address.
+
+# expvars = true
+# If set, this adds expvars to the debug HTTP server, including the default ones
+# and a few sequins-specific ones.
+
+# pprof = false
+# If set, this adds the default pprof handlers to the debug HTTP server.

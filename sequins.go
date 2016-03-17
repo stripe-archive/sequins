@@ -154,8 +154,13 @@ func (s *sequins) initLocalStore() error {
 func (s *sequins) start() {
 	defer s.shutdown()
 
+	var h http.Handler = s
+	if s.config.Debug.Bind != "" && s.config.Debug.Expvars {
+		h = trackQueries(s)
+	}
+
 	log.Println("Listening on", s.config.Bind)
-	graceful.Run(s.config.Bind, time.Second, s)
+	graceful.Run(s.config.Bind, time.Second, h)
 }
 
 func (s *sequins) shutdown() {
@@ -319,4 +324,15 @@ func (s *sequins) serveStatus(w http.ResponseWriter, r *http.Request) {
 
 	w.Header()["Content-Type"] = []string{"application/json"}
 	w.Write(jsonBytes)
+}
+
+func dirSize(path string) (int64, error) {
+	var size int64
+	err := filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+		if !info.IsDir() {
+			size += info.Size()
+		}
+		return err
+	})
+	return size, err
 }

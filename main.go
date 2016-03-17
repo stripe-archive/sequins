@@ -3,8 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"net/http"
-	_ "net/http/pprof"
 	"net/url"
 	"path/filepath"
 	"time"
@@ -23,19 +21,12 @@ var (
 	root       = kingpin.Flag("root", "Where the sequencefiles are. Overrides the config option of the same name.").Short('r').PlaceHolder("URI").String()
 	localStore = kingpin.Flag("local-store", "Where to store local data. Overrides the config option of the same name.").Short('l').PlaceHolder("PATH").String()
 	configPath = kingpin.Flag("config", "The config file to use. By default, either sequins.conf in the local directory or /etc/sequins.conf will be used.").PlaceHolder("PATH").String()
-	pprof      = kingpin.Flag("pprof", "Address to bind to for pprof, which provides profiling information over HTTP.").PlaceHolder("ADDRESS").String()
+	debugBind  = kingpin.Flag("debug-bind", "Address to bind to for pprof and expvars. Overrides the config option of the same name.").PlaceHolder("ADDRESS").String()
 )
 
 func main() {
 	kingpin.Version("sequins version " + sequinsVersion)
 	kingpin.Parse()
-
-	if *pprof != "" {
-		go func() {
-			log.Println("Starting pprof server at", *pprof)
-			log.Println(http.ListenAndServe(*pprof, nil))
-		}()
-	}
 
 	config, err := loadConfig(*configPath)
 	if err == errNoConfig {
@@ -46,11 +37,15 @@ func main() {
 			log.Fatal("No config file found! Please see the README for instructions.")
 		}
 	} else if err != nil {
-		log.Fatal("Error loading config:", err)
+		log.Fatal("Error loading config: ", err)
 	}
 
 	if *root != "" {
 		config.Root = *root
+	}
+
+	if config.Root == "" {
+		log.Fatal("Root must be defined, either in the config file or with --root. Please see the README for instructions.")
 	}
 
 	if *bind != "" {
@@ -59,6 +54,10 @@ func main() {
 
 	if *localStore != "" {
 		config.LocalStore = *localStore
+	}
+
+	if *debugBind != "" {
+		config.Debug.Bind = *debugBind
 	}
 
 	parsed, err := url.Parse(config.Root)
@@ -88,6 +87,10 @@ func main() {
 	err = s.init()
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	if config.Debug.Bind != "" {
+		startDebugServer(config)
 	}
 
 	s.start()

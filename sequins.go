@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -15,10 +16,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/nightlyone/lockfile"
 	"github.com/tylerb/graceful"
 
 	"github.com/stripe/sequins/backend"
 )
+
+var errDirLocked = errors.New("failed to acquire lock")
 
 type sequins struct {
 	config  sequinsConfig
@@ -36,6 +40,8 @@ type sequins struct {
 	refreshWorkers chan bool
 	refreshTicker  *time.Ticker
 	sighups        chan os.Signal
+
+	storeLock lockfile.Lockfile
 }
 
 type status struct {
@@ -141,11 +147,22 @@ func (s *sequins) initCluster() error {
 }
 
 func (s *sequins) initLocalStore() error {
-	// TODO: lock local filestore
 	dataPath := filepath.Join(s.config.LocalStore, "data")
 	err := os.MkdirAll(dataPath, 0755|os.ModeDir)
 	if err != nil {
 		return err
+	}
+
+	lock, _ := lockfile.New(filepath.Join(s.config.LocalStore, "sequins.lock"))
+	s.storeLock = lock
+	err = s.storeLock.TryLock()
+	if err != nil {
+		p, err := s.storeLock.GetOwner()
+		if err == nil {
+			log.Printf("The local store at %s is locked by process %d", s.config.LocalStore, p.Pid)
+		}
+
+		return errDirLocked
 	}
 
 	return nil
@@ -178,6 +195,8 @@ func (s *sequins) shutdown() {
 	// for _, db := range s.dbs {
 	// 	db.close()
 	// }
+
+	s.storeLock.Unlock()
 }
 
 func (s *sequins) refreshAll() {

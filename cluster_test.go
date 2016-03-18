@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const expectTimeout = 5 * time.Second
+const expectTimeout = 10 * time.Second
 
 type testVersion string
 
@@ -125,7 +125,7 @@ func (tc *testCluster) addSequins() *testSequins {
 	config.Test.AllowLocalCluster = true
 
 	// Slow everything down to an observable level.
-	config.ThrottleLoads = duration{10 * time.Millisecond}
+	config.ThrottleLoads = duration{5 * time.Millisecond}
 	config.Test.UpgradeDelay = duration{1 * time.Second}
 
 	s := &testSequins{

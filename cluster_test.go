@@ -309,7 +309,8 @@ func (ts *testSequins) hup() {
 }
 
 func (ts *testSequins) stop() {
-	ts.process.Process.Kill()
+	ts.process.Process.Signal(syscall.SIGTERM)
+	ts.process.Process.Wait()
 }
 
 func (ts *testSequins) assertProgression() {

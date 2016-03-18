@@ -270,7 +270,9 @@ func (db *db) cleanupStore() {
 	defer db.cleanupLock.Unlock()
 
 	dirs, err := ioutil.ReadDir(db.localPath(""))
-	if err != nil {
+	if os.IsNotExist(err) {
+		return
+	} else if err != nil {
 		log.Println("Error listing local dir:", err)
 		return
 	}

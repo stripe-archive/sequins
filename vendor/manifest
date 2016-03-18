@@ -26,15 +26,15 @@
 			"branch": "master"
 		},
 		{
-			"importpath": "github.com/codegangsta/negroni",
-			"repository": "https://github.com/codegangsta/negroni",
-			"revision": "c7477ad8e330bef55bf1ebe300cf8aa67c492d1b",
+			"importpath": "github.com/bsm/go-sparkey",
+			"repository": "https://github.com/bsm/go-sparkey",
+			"revision": "872e3e71d0fa4d53ffca9652eb8354cf7f29eb5b",
 			"branch": "master"
 		},
 		{
-			"importpath": "github.com/colinmarc/cdb",
-			"repository": "https://github.com/colinmarc/cdb",
-			"revision": "3dc23d89c86cbd7bcfdfde03b7a63ec04646297f",
+			"importpath": "github.com/codegangsta/negroni",
+			"repository": "https://github.com/codegangsta/negroni",
+			"revision": "c7477ad8e330bef55bf1ebe300cf8aa67c492d1b",
 			"branch": "master"
 		},
 		{
@@ -102,12 +102,6 @@
 			"revision": "218e9c81c0dd8b3b18172b2bbfad92cc7d6db55f",
 			"branch": "master",
 			"path": "/zk"
-		},
-		{
-			"importpath": "github.com/spaolacci/murmur3",
-			"repository": "https://github.com/spaolacci/murmur3",
-			"revision": "0d12bf811670bf6a1a63828dfbd003eded177fce",
-			"branch": "master"
 		},
 		{
 			"importpath": "github.com/stretchr/testify/assert",

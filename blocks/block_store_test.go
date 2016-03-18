@@ -15,7 +15,7 @@ func TestBlockStore(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("", "sequins-test-")
 	require.NoError(t, err, "creating a test tmpdir")
 
-	bs := New(tmpDir, 2, nil)
+	bs := New(tmpDir, 2, nil, "snappy", 8192)
 
 	f, err := os.Open("../test/test.sequencefile")
 	require.NoError(t, err, "opening a test file")
@@ -40,8 +40,7 @@ func TestBlockStore(t *testing.T) {
 	assert.Equal(t, "Hope", string(res), "fetching value for 'Bob'")
 
 	// Close the index, then load it from the manifest.
-	err = bs.Close()
-	require.NoError(t, err, "closing the BlockStore")
+	bs.Close()
 
 	bs, err = NewFromManifest(tmpDir, nil)
 	require.NoError(t, err, "loading from manifest")

@@ -109,7 +109,8 @@ func (vs *version) createStore(files []string, partitions map[int]bool) (*blocks
 		return nil, fmt.Errorf("error creating local storage directory: %s", err)
 	}
 
-	blockStore := blocks.New(vs.path, len(files), partitions)
+	blockStore := blocks.New(vs.path, len(files), partitions,
+		vs.sequins.config.Storage.Compression, vs.sequins.config.Storage.BlockSize)
 	for _, file := range files {
 		err := vs.addFile(blockStore, file)
 		if err != nil {

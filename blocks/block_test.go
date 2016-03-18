@@ -12,7 +12,7 @@ func TestBlock(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("", "sequins-test-")
 	require.NoError(t, err, "creating a test tmpdir")
 
-	bw, err := newBlock(tmpDir, 1)
+	bw, err := newBlock(tmpDir, 1, "snappy", 8192)
 	require.NoError(t, err, "initializing a block")
 
 	err = bw.add([]byte("foo"), []byte("bar"))
@@ -40,8 +40,7 @@ func TestBlock(t *testing.T) {
 	manifest := block.manifest()
 	require.NotNil(t, manifest, "manifest shouldn't be nil")
 
-	err = block.Close()
-	require.NoError(t, err, "closing the block")
+	block.Close()
 
 	block, err = loadBlock(tmpDir, manifest)
 	require.NoError(t, err, "loading the block from a manifest")

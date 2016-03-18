@@ -7,15 +7,17 @@ import (
 	"os"
 )
 
-const manifestVersion = 2
+const manifestVersion = 3
 
-var ErrWrongVersion = errors.New("Wrong manifest version")
+var ErrWrongVersion = errors.New("wrong manifest version")
 
 type manifest struct {
 	Version            int             `json:"version"`
 	Blocks             []blockManifest `json:"blocks"`
 	NumPartitions      int             `json:"num_partitions"`
 	SelectedPartitions []int           `json:"selected_partitions,omitempty"`
+	Compression        string          `json:"compression"`
+	BlockSize          int             `json:"block_size"`
 }
 
 type blockManifest struct {
@@ -48,6 +50,10 @@ func readManifest(path string) (manifest, error) {
 
 	if m.Version != manifestVersion {
 		return m, ErrWrongVersion
+	}
+
+	if m.Compression == "" {
+		m.Compression = "snappy"
 	}
 
 	return m, nil

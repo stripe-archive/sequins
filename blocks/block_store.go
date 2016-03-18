@@ -20,6 +20,8 @@ var ErrWrongPartition = errors.New("the file is cleanly partitioned, but doesn't
 // takes advantage of the way that the output of hadoop jobs are laid out.
 type BlockStore struct {
 	path               string
+	compression        string
+	blockSize          int
 	numPartitions      int
 	selectedPartitions map[int]bool
 	count              int
@@ -31,9 +33,11 @@ type BlockStore struct {
 	blockMapLock sync.RWMutex
 }
 
-func New(path string, numPartitions int, selectedPartitions map[int]bool) *BlockStore {
+func New(path string, numPartitions int, selectedPartitions map[int]bool, compression string, blockSize int) *BlockStore {
 	return &BlockStore{
 		path:               path,
+		compression:        compression,
+		blockSize:          blockSize,
 		numPartitions:      numPartitions,
 		selectedPartitions: selectedPartitions,
 
@@ -72,7 +76,8 @@ func NewFromManifest(path string, selectedPartitions map[int]bool) (*BlockStore,
 		}
 	}
 
-	store := New(path, manifest.NumPartitions, selectedPartitions)
+	store := New(path, manifest.NumPartitions, selectedPartitions,
+		manifest.Compression, manifest.BlockSize)
 	store.blockMapLock.Lock()
 	defer store.blockMapLock.Unlock()
 
@@ -95,8 +100,6 @@ func NewFromManifest(path string, selectedPartitions map[int]bool) (*BlockStore,
 // them out to at least one block. If the data is not partitioned cleanly, it
 // will sort it into blocks as it reads.
 func (store *BlockStore) AddFile(reader *sequencefile.Reader, throttle time.Duration) error {
-	savedBlocks := make(map[int][]*Block)
-
 	canAssumePartition := true
 	assumedPartition := -1
 	assumedFor := 0
@@ -139,7 +142,7 @@ func (store *BlockStore) AddFile(reader *sequencefile.Reader, throttle time.Dura
 		block, ok := store.newBlocks[partition]
 		var err error
 		if !ok {
-			block, err = newBlock(store.path, partition)
+			block, err = newBlock(store.path, partition, store.compression, store.blockSize)
 			if err != nil {
 				return err
 			}
@@ -150,44 +153,13 @@ func (store *BlockStore) AddFile(reader *sequencefile.Reader, throttle time.Dura
 		// Write the key/value pair. If the block is full, save it
 		// and start a new one.
 		err = block.add(reader.Key(), reader.Value())
-		if err == errBlockFull {
-			savedBlock, err := block.save()
-			if err != nil {
-				return err
-			}
-
-			savedBlocks[partition] = append(savedBlocks[partition], savedBlock)
-
-			// Create a new block, and write to that.
-			block, err = newBlock(store.path, partition)
-			if err != nil {
-				return err
-			}
-
-			store.newBlocks[partition] = block
-			err = block.add(reader.Key(), reader.Value())
-			if err != nil {
-				return err
-			}
-		} else if err != nil {
+		if err != nil {
 			return err
 		}
 	}
 
 	if reader.Err() != nil {
 		return reader.Err()
-	}
-
-	// Update the block map with the new blocks.
-	store.blockMapLock.Lock()
-	defer store.blockMapLock.Unlock()
-
-	for partition, blocks := range savedBlocks {
-		for _, block := range blocks {
-			store.Blocks = append(store.Blocks, block)
-			store.BlockMap[partition] = append(store.BlockMap[partition], block)
-			store.count += block.Count
-		}
 	}
 
 	return nil
@@ -285,13 +257,10 @@ func (store *BlockStore) Count() int {
 }
 
 // Close closes the BlockStore, and any files it has open.
-func (store *BlockStore) Close() error {
-	var err error
+func (store *BlockStore) Close() {
 	for _, block := range store.Blocks {
-		err = block.Close()
+		block.Close()
 	}
-
-	return err
 }
 
 // Delete removes any local data the BlockStore has stored.

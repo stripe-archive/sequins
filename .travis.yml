@@ -5,13 +5,14 @@ before_install:
   - wget http://apache.claz.org/zookeeper/zookeeper-3.4.6/zookeeper-3.4.6.tar.gz
   - tar -zxvf zookeeper*tar.gz
 before_script:
+  - make
   - export NN_PORT=9000
   - export HADOOP_NAMENODE="localhost:$NN_PORT"
   - export HADOOP_DISTRO=cdh
   - export HADOOP_HOME="$HOME/hadoop"
   - sh vendor/github.com/colinmarc/hdfs/setup_test_env.sh
 script: make test
-before_deploy: make clean release
+before_deploy: make release
 deploy:
   provider: releases
   api_key:

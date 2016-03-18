@@ -65,8 +65,6 @@ func (b *Block) Get(key []byte) ([]byte, error) {
 		return nil, nil
 	}
 
-	// TODO: bloom filter
-
 	return b.cdb.Get(key)
 }
 

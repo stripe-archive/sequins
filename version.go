@@ -21,11 +21,6 @@ const versionHeader = "X-Sequins-Version"
 var errNoAvailablePeers = errors.New("no available peers")
 var errProxiedIncorrectly = errors.New("this server doesn't have the requested partition")
 
-// TODO: need a way to clean up zookeeper cruft
-
-// TODO: verify that the set of files stays consistent; once at startup, once
-// when we finish indexing, and then maybe periodically after that.
-
 // A version represents a single version of a particular sequins db: in
 // other words, a collection of files. In the distributed case, it understands
 // partitions and can route requests.

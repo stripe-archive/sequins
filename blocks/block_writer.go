@@ -15,8 +15,6 @@ import (
 
 var errBlockFull = errors.New("The block is full")
 
-// TODO: use a map[string]string for very small blocks
-
 type blockWriter struct {
 	minKey    []byte
 	maxKey    []byte

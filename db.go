@@ -3,8 +3,10 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -22,6 +24,8 @@ type db struct {
 
 	versionStatus     map[string]versionStatus
 	versionStatusLock sync.RWMutex
+
+	cleanupLock sync.Mutex
 }
 
 type dbStatus struct {
@@ -124,8 +128,7 @@ func (db *db) backfillVersions() error {
 		}
 	}
 
-	// TODO: delete any other data lying around
-
+	go db.cleanupStore()
 	return nil
 }
 
@@ -238,6 +241,9 @@ func (db *db) takeNewVersions() {
 // removeVersion removes a version, blocking until it is no longer being
 // requested by peers.
 func (db *db) removeVersion(old *version, shouldWait bool) {
+	db.cleanupLock.Lock()
+	defer db.cleanupLock.Unlock()
+
 	db.trackVersion(old, versionRemoving)
 
 	// If we don't have any peers, we never need to wait until the versions
@@ -257,7 +263,32 @@ func (db *db) removeVersion(old *version, shouldWait bool) {
 
 		db.untrackVersion(removed)
 	}
+}
 
+func (db *db) cleanupStore() {
+	db.cleanupLock.Lock()
+	defer db.cleanupLock.Unlock()
+
+	dirs, err := ioutil.ReadDir(db.localPath(""))
+	if err != nil {
+		log.Println("Error listing local dir:", err)
+		return
+	}
+
+	for _, info := range dirs {
+		if !info.IsDir() {
+			continue
+		}
+
+		v := info.Name()
+		version := db.mux.getVersion(v)
+		if version != nil {
+			continue
+		}
+
+		log.Println("Clearing defunct version", v, "of", db.name)
+		os.RemoveAll(db.localPath(v))
+	}
 }
 
 func (db *db) localPath(version string) string {

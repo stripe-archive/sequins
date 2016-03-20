@@ -226,7 +226,7 @@ func (db *db) upgrade(version *version) {
 	current := db.mux.getCurrent()
 	db.mux.release(current)
 	if current != nil && version.name < current.name {
-		go db.removeVersion(version, false)
+		go db.removeVersion(version, true)
 		return
 	} else if version == current {
 		return

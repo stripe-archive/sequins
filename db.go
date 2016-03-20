@@ -110,7 +110,7 @@ func (db *db) backfillVersions() error {
 			log.Println("Starting with pre-loaded version", v, "of", db.name)
 
 			db.mux.prepare(version)
-			db.mux.upgrade(version)
+			db.upgrade(version)
 			db.trackVersion(version, versionAvailable)
 			go func() {
 				version.build(files)
@@ -178,7 +178,7 @@ func (db *db) refresh() error {
 	return nil
 }
 
-// Switch version goes through the upgrade process, making sure that we switch
+// switchVersion goes through the upgrade process, making sure that we switch
 // versions in step with our peers.
 func (db *db) switchVersion(version *version) {
 	// Prepare the version, so that during the switching period we can respond
@@ -217,23 +217,31 @@ func (db *db) takeNewVersions() {
 			time.Sleep(delay)
 		}
 
-		current := db.mux.getCurrent()
-		db.mux.release(current)
-		if current != nil && version.name <= current.name {
-			continue
-		}
+		db.upgrade(version)
+	}
+}
 
-		log.Printf("Switching to version %s of %s!", version.name, db.name)
-		db.mux.upgrade(version)
+func (db *db) upgrade(version *version) {
+	// Make sure we always roll forward.
+	current := db.mux.getCurrent()
+	db.mux.release(current)
+	if current != nil && version.name < current.name {
+		go db.removeVersion(version, false)
+		return
+	} else if version == current {
+		return
+	}
 
-		// Close the current version, and any older versions that were
-		// also being prepared (effectively preempting them).
-		for _, old := range db.mux.getAll() {
-			if old == current {
-				go db.removeVersion(old, true)
-			} else if old.name < version.name {
-				go db.removeVersion(old, false)
-			}
+	log.Printf("Switching to version %s of %s!", version.name, db.name)
+	db.mux.upgrade(version)
+
+	// Close the current version, and any older versions that were
+	// also being prepared (effectively preempting them).
+	for _, old := range db.mux.getAll() {
+		if old == current {
+			go db.removeVersion(old, true)
+		} else if old.name < version.name {
+			go db.removeVersion(old, false)
 		}
 	}
 }

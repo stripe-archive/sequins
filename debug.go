@@ -181,7 +181,7 @@ func (s *sequinsStats) updateDiskStats(path string) {
 func (s *sequinsStats) calculateDiskUsage(path string) {
 	var size int64
 	err := filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
-		if !info.IsDir() {
+		if info != nil && !info.IsDir() {
 			size += info.Size()
 		}
 		return err

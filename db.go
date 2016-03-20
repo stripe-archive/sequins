@@ -292,6 +292,7 @@ func (db *db) cleanupStore() {
 
 		v := info.Name()
 		version := db.mux.getVersion(v)
+		db.mux.release(version)
 		if version != nil {
 			continue
 		}

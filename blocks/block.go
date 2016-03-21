@@ -2,12 +2,11 @@ package blocks
 
 import (
 	"bytes"
-	"os"
+	"fmt"
 	"path/filepath"
 	"sync"
 
-	"github.com/colinmarc/cdb"
-	"github.com/spaolacci/murmur3"
+	"github.com/bsm/go-sparkey"
 )
 
 // A block represents a chunk of data, all of the keys of which match a
@@ -23,9 +22,9 @@ type Block struct {
 	Partition int
 	Count     int
 
-	cdb    *cdb.CDB
-	minKey []byte
-	maxKey []byte
+	sparkeyReader *sparkey.HashIter
+	minKey        []byte
+	maxKey        []byte
 
 	readLock sync.Mutex
 }
@@ -41,17 +40,17 @@ func loadBlock(storePath string, manifest blockManifest) (*Block, error) {
 		maxKey: manifest.MaxKey,
 	}
 
-	f, err := os.Open(filepath.Join(storePath, b.Name))
+	reader, err := sparkey.Open(filepath.Join(storePath, b.Name))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("opening the block: %s", err)
 	}
 
-	cdb, err := cdb.New(f, murmur3.New32())
+	iter, err := reader.Iterator()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("opening the block: %s", err)
 	}
 
-	b.cdb = cdb
+	b.sparkeyReader = iter
 	return b, nil
 }
 
@@ -65,11 +64,11 @@ func (b *Block) Get(key []byte) ([]byte, error) {
 		return nil, nil
 	}
 
-	return b.cdb.Get(key)
+	return b.sparkeyReader.Get(key)
 }
 
-func (b *Block) Close() error {
-	return b.cdb.Close()
+func (b *Block) Close() {
+	b.sparkeyReader.Close()
 }
 
 func (b *Block) manifest() blockManifest {

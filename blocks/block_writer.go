@@ -2,18 +2,13 @@ package blocks
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"log"
-	"os"
 	"path/filepath"
 
-	"github.com/colinmarc/cdb"
+	"github.com/bsm/go-sparkey"
 	"github.com/pborman/uuid"
-	"github.com/spaolacci/murmur3"
 )
-
-var errBlockFull = errors.New("The block is full")
 
 type blockWriter struct {
 	minKey    []byte
@@ -21,36 +16,33 @@ type blockWriter struct {
 	count     int
 	partition int
 
-	path      string
-	id        string
-	cdbWriter *cdb.Writer
+	path          string
+	id            string
+	sparkeyWriter *sparkey.LogWriter
 }
 
-func newBlock(storePath string, partition int) (*blockWriter, error) {
+func newBlock(storePath string, partition int, compression string, blockSize int) (*blockWriter, error) {
 	id := uuid.New()
-	name := fmt.Sprintf("block-%05d-%s.cdb", partition, id)
+	name := fmt.Sprintf("block-%05d-%s.spl", partition, id)
 
 	path := filepath.Join(storePath, name)
 	log.Println("Initializing block at", path)
 
-	f, err := os.Create(path)
-	if err != nil {
-		return nil, err
+	c := sparkey.COMPRESSION_NONE
+	if compression == "snappy" {
+		c = sparkey.COMPRESSION_SNAPPY
 	}
-
-	// The CDB has function is too similar to the default hadoop partitioning
-	// scheme (which is also the one we use to sort into blocks), and this can
-	// result in weirdly distributed CDB files. So we use murmur3 to be safe.
-	cdbWriter, err := cdb.NewWriter(f, murmur3.New32())
+	options := &sparkey.Options{Compression: c, CompressionBlockSize: blockSize}
+	sparkeyWriter, err := sparkey.CreateLogWriter(path, options)
 	if err != nil {
 		return nil, err
 	}
 
 	bw := &blockWriter{
-		partition: partition,
-		path:      path,
-		id:        id,
-		cdbWriter: cdbWriter,
+		partition:     partition,
+		path:          path,
+		id:            id,
+		sparkeyWriter: sparkeyWriter,
 	}
 
 	return bw, nil
@@ -71,18 +63,28 @@ func (bw *blockWriter) add(key, value []byte) error {
 		copy(bw.minKey, key)
 	}
 
-	err := bw.cdbWriter.Put(key, value)
-	if err == cdb.ErrTooMuchData {
-		return errBlockFull
-	}
-
-	return err
+	return bw.sparkeyWriter.Put(key, value)
 }
 
 func (bw *blockWriter) save() (*Block, error) {
-	cdb, err := bw.cdbWriter.Freeze()
+	err := bw.sparkeyWriter.WriteHashFile(0)
 	if err != nil {
 		return nil, err
+	}
+
+	err = bw.sparkeyWriter.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	reader, err := sparkey.Open(bw.path)
+	if err != nil {
+		return nil, fmt.Errorf("opening block for reads: err")
+	}
+
+	iter, err := reader.Iterator()
+	if err != nil {
+		return nil, fmt.Errorf("opening block for reads: err")
 	}
 
 	b := &Block{
@@ -91,9 +93,9 @@ func (bw *blockWriter) save() (*Block, error) {
 		Partition: bw.partition,
 		Count:     bw.count,
 
-		cdb:    cdb,
-		minKey: bw.minKey,
-		maxKey: bw.maxKey,
+		sparkeyReader: iter,
+		minKey:        bw.minKey,
+		maxKey:        bw.maxKey,
 	}
 
 	return b, nil

@@ -24,10 +24,16 @@ type sequinsConfig struct {
 	RequireSuccessFile bool     `toml:"require_success_file"`
 	ContentType        string   `toml:"content_type"`
 
-	S3    s3Config    `toml:"s3"`
-	ZK    zkConfig    `toml:"zk"`
-	Debug debugConfig `toml:"debug"`
-	Test  testConfig  `toml:"test"`
+	Storage storageConfig `toml:"storage"`
+	S3      s3Config      `toml:"s3"`
+	ZK      zkConfig      `toml:"zk"`
+	Debug   debugConfig   `toml:"debug"`
+	Test    testConfig    `toml:"test"`
+}
+
+type storageConfig struct {
+	Compression string `toml:"compression"`
+	BlockSize   int    `toml:"block_size"`
 }
 
 type s3Config struct {
@@ -68,6 +74,10 @@ func defaultConfig() sequinsConfig {
 		RefreshPeriod:      duration{time.Duration(0)},
 		RequireSuccessFile: false,
 		ContentType:        "",
+		Storage: storageConfig{
+			Compression: "snappy",
+			BlockSize:   4096,
+		},
 		S3: s3Config{
 			Region:          "",
 			AccessKeyId:     "",
@@ -110,10 +120,20 @@ func loadConfig(searchPath string) (sequinsConfig, error) {
 			return config, fmt.Errorf("found unrecognized properties: %v", md.Undecoded())
 		}
 
-		return config, nil
+		return validateConfig(config)
 	}
 
 	return config, errNoConfig
+}
+
+func validateConfig(config sequinsConfig) (sequinsConfig, error) {
+	switch config.Storage.Compression {
+	case "snappy", "none":
+	default:
+		return config, fmt.Errorf("Unrecognized compression option: %s", config.Storage.Compression)
+	}
+
+	return config, nil
 }
 
 type duration struct {

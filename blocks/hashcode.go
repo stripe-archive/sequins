@@ -80,7 +80,8 @@ func KeyPartition(key string, totalPartitions int) (int, int) {
 func alternatePathologicalKeyPartition(hc int32, totalPartitions int) int {
 	if hc > (math.MaxInt32 - 32) {
 		tupleHC := int((hc+31)&math.MaxInt32) % totalPartitions
-		return tupleHC + (totalPartitions - (31 % totalPartitions))
+		rotate := (totalPartitions - (31 % totalPartitions))
+		return (tupleHC + rotate) % totalPartitions
 	} else {
 		return -1
 	}

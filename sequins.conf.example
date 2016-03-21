@@ -46,6 +46,15 @@ root = "hdfs://namenode:8020/path/to/sequins"
 # Unset by default. If this is set, sequins will set this Content-Type header on
 # responses.
 
+[storage]
+
+# compression = "snappy"
+# This can be either 'snappy' or 'none', and defines how data is compressed
+# on disk.
+
+# block_size = 4096
+# This controls the block size for on-disk compression.
+
 [s3]
 
 # region = "us-west-1"

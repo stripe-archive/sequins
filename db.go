@@ -30,7 +30,7 @@ type db struct {
 
 type dbStatus struct {
 	CurrentVersion string                   `json:"current_version"`
-	Versions       map[string]versionStatus `json:"versions",omitempty`
+	Versions       map[string]versionStatus `json:"versions,omitempty"`
 }
 
 type versionStatus struct {
@@ -266,7 +266,7 @@ func (db *db) removeVersion(old *version, shouldWait bool) {
 		removed.close()
 		err := removed.delete()
 		if err != nil {
-			log.Println("Error cleaning up version %s of %s: %s", removed.name, db.name, err)
+			log.Printf("Error cleaning up version %s of %s: %s", removed.name, db.name, err)
 		}
 
 		db.untrackVersion(removed)

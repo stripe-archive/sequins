@@ -8,6 +8,7 @@ import (
 	"net/http/pprof"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -217,7 +218,10 @@ func trackQueries(s *sequins) trackingHandler {
 }
 
 func (t trackingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Query().Get("proxy") == "" {
+	// Don't track queries to the status pages, and don't track proxied
+	// queries.
+	path := strings.TrimPrefix(r.URL.Path, "/")
+	if strings.Index(path, "/") > 0 && r.URL.Query().Get("proxy") == "" {
 		w = trackQuery(w)
 		defer w.(*queryTracker).done()
 	}

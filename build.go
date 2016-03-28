@@ -36,7 +36,7 @@ func (vs *version) build(files []string) error {
 	}
 
 	log.Println("Loading", vs.db, "version", vs.name, "from",
-		vs.sequins.backend.DisplayPath(vs.name), "into local directory", vs.path)
+		vs.sequins.backend.DisplayPath(vs.db, vs.name), "into local directory", vs.path)
 
 	blockStore, err := vs.createStore(files, local)
 	if err != nil {

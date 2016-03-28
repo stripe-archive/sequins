@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
+	"log"
 	"net/http"
 	"net/http/pprof"
 	"os"
@@ -139,7 +140,7 @@ func (s *sequinsStats) updateRequestStats() {
 			case 502:
 				s.Qps.status502++
 			default:
-				panic("unknown http status code")
+				log.Println("Untrackable http status:", q.status)
 			}
 		}
 	}

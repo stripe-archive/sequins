@@ -9,7 +9,7 @@ import (
 
 // TODO testable
 
-const versionExpiry = 5 * time.Minute
+const versionExpiry = 10 * time.Minute
 
 // A versionMux handles routing requests to the various versions available for
 // a db. It handles two specific problems that crop up:

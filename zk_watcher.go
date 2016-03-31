@@ -88,8 +88,7 @@ func (w *zkWatcher) reconnect() error {
 	log.Println("Successfully connected to zookeeper!")
 
 	go func() {
-		for {
-			ev := <-events
+		for ev := range events {
 			if ev.Err != nil {
 				sendErr(w.errs, ev.Err)
 				return
@@ -145,7 +144,7 @@ func (w *zkWatcher) run() {
 		err := w.runHooks()
 		if err != nil {
 			log.Println("Zookeeper error:", err)
-			time.Sleep(time.Second)
+			time.Sleep(10 * time.Second)
 			w.reconnect()
 		}
 

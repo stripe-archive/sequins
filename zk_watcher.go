@@ -137,6 +137,8 @@ func (w *zkWatcher) cancelWatches() {
 	}
 }
 
+const zkReconnectPeriod = 10 * time.Second
+
 // sync runs the main loop. On any errors, it resets the connection.
 func (w *zkWatcher) run() {
 	for {
@@ -144,7 +146,7 @@ func (w *zkWatcher) run() {
 		err := w.runHooks()
 		if err != nil {
 			log.Println("Zookeeper error:", err)
-			time.Sleep(10 * time.Second)
+			time.Sleep(zkReconnectPeriod)
 			w.reconnect()
 		}
 
@@ -155,7 +157,7 @@ func (w *zkWatcher) run() {
 		}
 
 		w.cancelWatches()
-		time.Sleep(time.Second)
+		time.Sleep(zkReconnectPeriod)
 		w.reconnect()
 	}
 }

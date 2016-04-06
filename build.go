@@ -43,12 +43,15 @@ func (vs *version) build(files []string) error {
 		return err
 	}
 
-	// Verify that the list of files stayed the same.
+	// Verify that the list of files stayed the same. If files do not match,
+	// discard the new blockstore in order to prevent the manifest from updating.
 	newFiles, err := vs.sequins.backend.ListFiles(vs.db, vs.name)
 	if err != nil {
 		return err
 	} else {
 		if vs.compareFileSets(files, newFiles) {
+			blockStore.Close()
+			blockStore.Delete()
 			return errFilesChanged
 		}
 	}

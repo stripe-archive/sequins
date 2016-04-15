@@ -78,6 +78,7 @@ func (p *peers) updatePeers(addrs []string) {
 	// Log any new peers.
 	newPeers := make(map[peer]bool)
 	shards := make(map[string]bool)
+	disp := make([]string, 0, len(addrs))
 	for _, node := range addrs {
 		parts := strings.SplitN(node, "@", 2)
 		id := parts[0]
@@ -88,6 +89,7 @@ func (p *peers) updatePeers(addrs []string) {
 		}
 
 		peer := peer{shardID: id, address: addr}
+		disp = append(disp, peer.display())
 		if !p.peers[peer] {
 			log.Println("New peer:", peer.display())
 		}
@@ -102,6 +104,8 @@ func (p *peers) updatePeers(addrs []string) {
 			log.Println("Lost peer:", peer.display())
 		}
 	}
+
+	log.Println("Peers: ", disp)
 
 	shards[p.shardID] = true
 	allShards := make([]string, 0, len(shards))

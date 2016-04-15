@@ -4,7 +4,7 @@ RELEASE_NAME = sequins-$(TRAVIS_TAG)-$(ARCH)
 
 SOURCES = $(shell find . -name '*.go')
 BUILD = $(shell pwd)/build
-CGO_PREAMBLE = CGO_CFLAGS="-I$(BUILD)/include -I$(BUILD)/include/zookeeper" CGO_LDFLAGS="$(BUILD)/lib/libsparkey.a $(BUILD)/lib/libsnappy.a $(BUILD)/lib/libzookeeper_mt.a -lstdc++"
+CGO_PREAMBLE = CGO_CFLAGS="-I$(BUILD)/include -I$(BUILD)/include/zookeeper" CGO_LDFLAGS="$(BUILD)/lib/libsparkey.a $(BUILD)/lib/libsnappy.a $(BUILD)/lib/libzookeeper_mt.a -lrt -lm -lstdc++"
 
 all: sequins sequins-dump
 

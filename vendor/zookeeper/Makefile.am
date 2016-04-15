@@ -1,7 +1,6 @@
 # need this for Doxygen integration
 include $(top_srcdir)/aminclude.am
 
-AUTOMAKE_OPTIONS = serial-tests
 if SOLARIS
   SOLARIS_CPPFLAGS = -D_POSIX_PTHREAD_SEMANTICS
   SOLARIS_LIB_LDFLAGS = -lnsl -lsocket

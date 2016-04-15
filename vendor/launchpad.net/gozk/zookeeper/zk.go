@@ -9,9 +9,6 @@
 package zookeeper
 
 /*
-#cgo CFLAGS: -I/usr/include/c-client-src -I/usr/include/zookeeper
-#cgo LDFLAGS: -lzookeeper_mt
-
 #include <zookeeper.h>
 #include "helpers.h"
 */

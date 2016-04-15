@@ -20,15 +20,15 @@
 			"branch": "master"
 		},
 		{
-			"importpath": "github.com/codahale/hdrhistogram",
-			"repository": "https://github.com/codahale/hdrhistogram",
-			"revision": "e88be87d51429689cef99043a54150d733265cd7",
-			"branch": "master"
-		},
-		{
 			"importpath": "github.com/bsm/go-sparkey",
 			"repository": "https://github.com/bsm/go-sparkey",
 			"revision": "872e3e71d0fa4d53ffca9652eb8354cf7f29eb5b",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/codahale/hdrhistogram",
+			"repository": "https://github.com/codahale/hdrhistogram",
+			"revision": "e88be87d51429689cef99043a54150d733265cd7",
 			"branch": "master"
 		},
 		{
@@ -135,6 +135,13 @@
 			"repository": "https://gopkg.in/alecthomas/kingpin.v2",
 			"revision": "8cccfa8eb2e3183254457fb1749b2667fbc364c7",
 			"branch": "master"
+		},
+		{
+			"importpath": "launchpad.net/gozk/zookeeper",
+			"repository": "https://launchpad.net/gozk//zookeeper",
+			"revision": "1",
+			"branch": "master",
+			"notests": true
 		},
 		{
 			"importpath": "stathat.com/c/consistent",

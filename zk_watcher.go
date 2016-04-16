@@ -214,8 +214,6 @@ func (w *zkWatcher) removeEphemeral(node string) {
 }
 
 func (w *zkWatcher) hookCreateEphemeral(node string) error {
-	log.Println("creating", node)
-
 	_, err := w.conn.Create(node, "", zk.EPHEMERAL, defaultZkACL)
 	if err != nil && !isNodeExists(err) {
 		return err

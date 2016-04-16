@@ -67,14 +67,13 @@ func (w *zkWatcher) reconnect() error {
 	var err error
 
 	servers := strings.Join(w.zkServers, ",")
-	if w.conn == nil || w.clientId == nil {
+	if w.clientId == nil {
 		log.Println("Connecting to zookeeper at", servers)
 		conn, events, err = zk.Dial(servers, 1*time.Second)
 		if err != nil {
 			return err
 		}
 	} else {
-		w.conn.Close()
 		conn, events, err = zk.Redial(servers, 1*time.Second, w.clientId)
 		if err != nil {
 			w.clientId = nil
@@ -82,6 +81,9 @@ func (w *zkWatcher) reconnect() error {
 		}
 	}
 
+	if w.conn != nil {
+		w.conn.Close()
+	}
 	w.conn = conn
 
 	connectTimeout := time.NewTimer(1 * time.Second)

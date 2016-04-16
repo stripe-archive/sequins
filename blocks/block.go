@@ -22,7 +22,8 @@ type Block struct {
 	Partition int
 	Count     int
 
-	sparkeyReader *sparkey.HashIter
+	sparkeyReader *sparkey.HashReader
+	sparkeyIter   *sparkey.HashIter
 	minKey        []byte
 	maxKey        []byte
 
@@ -50,7 +51,8 @@ func loadBlock(storePath string, manifest blockManifest) (*Block, error) {
 		return nil, fmt.Errorf("opening the block: %s", err)
 	}
 
-	b.sparkeyReader = iter
+	b.sparkeyReader = reader
+	b.sparkeyIter = iter
 	return b, nil
 }
 
@@ -64,10 +66,11 @@ func (b *Block) Get(key []byte) ([]byte, error) {
 		return nil, nil
 	}
 
-	return b.sparkeyReader.Get(key)
+	return b.sparkeyIter.Get(key)
 }
 
 func (b *Block) Close() {
+	b.sparkeyIter.Close()
 	b.sparkeyReader.Close()
 }
 

@@ -93,7 +93,8 @@ func (bw *blockWriter) save() (*Block, error) {
 		Partition: bw.partition,
 		Count:     bw.count,
 
-		sparkeyReader: iter,
+		sparkeyReader: reader,
+		sparkeyIter:   iter,
 		minKey:        bw.minKey,
 		maxKey:        bw.maxKey,
 	}

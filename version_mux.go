@@ -54,13 +54,20 @@ func (mux *versionMux) serveKey(w http.ResponseWriter, r *http.Request, key stri
 	if proxyVersion != "" {
 		vs = mux.getVersion(proxyVersion)
 
-		// If this is a proxy request, we need to indicate to the peer that we don't
-		// have the version they are asking for (although this should never happen,
-		// since they should only route to us if we're publishing that we *do* have
-		// the version).
+		// If this is a proxy request, but we don't have the version the peer is
+		// asking for, just return what we have. This should never happen unless
+		// sharding is broken, since peers should only route requests for versions
+		// that we expressly make available.
 		if vs == nil {
-			w.WriteHeader(http.StatusNotImplemented)
-			return
+			vs = mux.getCurrent()
+
+			// If we don't have *any* version, we need to indicate that, rather than
+			// returning a 404, which might indicate that we do have the dataset but
+			// that key doesn't exist. We use http 501 for this.
+			if vs == nil {
+				w.WriteHeader(http.StatusNotImplemented)
+				return
+			}
 		}
 	} else {
 		vs = mux.getCurrent()

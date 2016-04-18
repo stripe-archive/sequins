@@ -14,9 +14,12 @@ import (
 
 // TODO testable
 
-const coordinationVersion = "v1"
-const zkReconnectPeriod = 1 * time.Second
-const defaultZKPort = 2181
+const (
+	coordinationVersion = "v1"
+	zkReconnectPeriod   = 1 * time.Second
+	zkTimeout           = 10 * time.Second
+	defaultZKPort       = 2181
+)
 
 var defaultZkACL = zk.WorldACL(zk.PERM_ALL)
 
@@ -26,13 +29,13 @@ var defaultZkACL = zk.WorldACL(zk.PERM_ALL)
 // defaults to silently not providing updates.
 type zkWatcher struct {
 	zkServers []string
-	clientId  *zk.ClientId
 	prefix    string
 	conn      *zk.Conn
 	errs      chan error
 	shutdown  chan bool
 
 	hooksLock      sync.Mutex
+	reconnectLock  sync.RWMutex
 	ephemeralNodes map[string]bool
 	watchedNodes   map[string]watchedNode
 }
@@ -74,18 +77,12 @@ func (w *zkWatcher) reconnect() error {
 	}
 
 	servers := strings.Join(w.zkServers, ",")
-	if w.clientId == nil {
-		log.Println("Connecting to zookeeper at", servers)
-		conn, events, err = zk.Dial(servers, 1*time.Second)
-		if err != nil {
-			return err
-		}
-	} else {
-		conn, events, err = zk.Redial(servers, 1*time.Second, w.clientId)
-		if err != nil {
-			w.clientId = nil
-			return err
-		}
+	w.reconnectLock.Lock()
+	defer w.reconnectLock.Unlock()
+	log.Println("Connecting to zookeeper at", servers)
+	conn, events, err = zk.Dial(servers, zkTimeout)
+	if err != nil {
+		return err
 	}
 
 	if w.conn != nil {
@@ -96,11 +93,9 @@ func (w *zkWatcher) reconnect() error {
 	connectTimeout := time.NewTimer(1 * time.Second)
 	select {
 	case <-connectTimeout.C:
-		w.clientId = nil
 		return errors.New("connection timeout")
 	case event := <-events:
 		if event.State != zk.STATE_CONNECTED {
-			w.clientId = nil
 			return fmt.Errorf("connection error: %s", event)
 		}
 	}
@@ -111,9 +106,6 @@ func (w *zkWatcher) reconnect() error {
 	if err != nil {
 		return err
 	}
-
-	log.Println("Successfully connected to zookeeper!")
-	w.clientId = w.conn.ClientId()
 
 	go func() {
 		for ev := range events {
@@ -285,7 +277,10 @@ func (w *zkWatcher) hookWatchChildren(node string, wn watchedNode) error {
 				return
 			}
 
+			w.reconnectLock.RLock()
 			children, _, events, err = w.conn.ChildrenW(node)
+			w.reconnectLock.RUnlock()
+
 			if err != nil {
 				sendErr(w.errs, err)
 				<-wn.cancel

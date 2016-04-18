@@ -32,117 +32,101 @@ using namespace std;
 TestClientId testClientId;
 const char* TestClientId::PASSWD="1234567890123456";
 
-HandshakeRequest* HandshakeRequest::parse(const std::string& buf) {
+HandshakeRequest* HandshakeRequest::parse(const std::string& buf){
     auto_ptr<HandshakeRequest> req(new HandshakeRequest);
 
     memcpy(&req->protocolVersion,buf.data(), sizeof(req->protocolVersion));
     req->protocolVersion = htonl(req->protocolVersion);
-
+    
     int offset=sizeof(req->protocolVersion);
-
+    
     memcpy(&req->lastZxidSeen,buf.data()+offset,sizeof(req->lastZxidSeen));
     req->lastZxidSeen = zoo_htonll(req->lastZxidSeen);
     offset+=sizeof(req->lastZxidSeen);
-
+    
     memcpy(&req->timeOut,buf.data()+offset,sizeof(req->timeOut));
     req->timeOut = htonl(req->timeOut);
     offset+=sizeof(req->timeOut);
-
+    
     memcpy(&req->sessionId,buf.data()+offset,sizeof(req->sessionId));
     req->sessionId = zoo_htonll(req->sessionId);
     offset+=sizeof(req->sessionId);
-
+    
     memcpy(&req->passwd_len,buf.data()+offset,sizeof(req->passwd_len));
     req->passwd_len = htonl(req->passwd_len);
     offset+=sizeof(req->passwd_len);
-
+    
     memcpy(req->passwd,buf.data()+offset,sizeof(req->passwd));
-    offset+=sizeof(req->passwd);
-
-    memcpy(&req->readOnly,buf.data()+offset,sizeof(req->readOnly));
-
     if(testClientId.client_id==req->sessionId &&
             !memcmp(testClientId.passwd,req->passwd,sizeof(req->passwd)))
         return req.release();
     // the request didn't match -- may not be a handshake request after all
-
     return 0;
 }
 
 // *****************************************************************************
 // watcher action implementation
-void activeWatcher(zhandle_t *zh,
-                   int type, int state, const char *path,void* ctx) {
-
-    if (zh == 0 || ctx == 0)
-      return;
-
-    WatcherAction* action = (WatcherAction *)ctx;
-
-    if (type == ZOO_SESSION_EVENT) {
-        if (state == ZOO_EXPIRED_SESSION_STATE)
+void activeWatcher(zhandle_t *zh, int type, int state, const char *path,void* ctx){
+    if(zh==0 || ctx==0) return;
+    WatcherAction* action=(WatcherAction*)ctx;
+    
+    if(type==ZOO_SESSION_EVENT){
+        if(state==ZOO_EXPIRED_SESSION_STATE)
             action->onSessionExpired(zh);
-        else if(state == ZOO_CONNECTING_STATE)
+        else if(state==ZOO_CONNECTING_STATE)
             action->onConnectionLost(zh);
-        else if(state == ZOO_CONNECTED_STATE)
+        else if(state==ZOO_CONNECTED_STATE)
             action->onConnectionEstablished(zh);
-    } else if (type == ZOO_CHANGED_EVENT)
+    }else if(type==ZOO_CHANGED_EVENT)
         action->onNodeValueChanged(zh,path);
-    else if (type == ZOO_DELETED_EVENT)
+    else if(type==ZOO_DELETED_EVENT)
         action->onNodeDeleted(zh,path);
-    else if (type == ZOO_CHILD_EVENT)
+    else if(type==ZOO_CHILD_EVENT)
         action->onChildChanged(zh,path);
-
     // TODO: implement for the rest of the event types
-
-    action->setWatcherTriggered();
+    // ...
+    action->setWatcherTriggered();    
 }
-
-SyncedBoolCondition WatcherAction::isWatcherTriggered() const {
+SyncedBoolCondition WatcherAction::isWatcherTriggered() const{
     return SyncedBoolCondition(triggered_,mx_);
 }
 
+// *****************************************************************************
 // a set of async completion signatures
-
 void asyncCompletion(int rc, ACL_vector *acl,Stat *stat, const void *data){
     assert("Completion data is NULL"&&data);
     static_cast<AsyncCompletion*>((void*)data)->aclCompl(rc,acl,stat);
 }
-
-void asyncCompletion(int rc, const char *value, int len, const Stat *stat,
-        const void *data) {
+void asyncCompletion(int rc, const char *value, int len, const Stat *stat, 
+        const void *data){    
     assert("Completion data is NULL"&&data);
-    static_cast<AsyncCompletion*>((void*)data)->dataCompl(rc,value,len,stat);
+    static_cast<AsyncCompletion*>((void*)data)->dataCompl(rc,value,len,stat);    
 }
-
-void asyncCompletion(int rc, const Stat *stat, const void *data) {
+void asyncCompletion(int rc, const Stat *stat, const void *data){    
     assert("Completion data is NULL"&&data);
     static_cast<AsyncCompletion*>((void*)data)->statCompl(rc,stat);
 }
-
-void asyncCompletion(int rc, const char *value, const void *data) {
+void asyncCompletion(int rc, const char *value, const void *data){
     assert("Completion data is NULL"&&data);
     static_cast<AsyncCompletion*>((void*)data)->stringCompl(rc,value);
 }
-
-void asyncCompletion(int rc,const String_vector *strings, const void *data) {
+void asyncCompletion(int rc,const String_vector *strings, const void *data){    
     assert("Completion data is NULL"&&data);
     static_cast<AsyncCompletion*>((void*)data)->stringsCompl(rc,strings);
 }
-
-void asyncCompletion(int rc, const void *data) {
+void asyncCompletion(int rc, const void *data){    
     assert("Completion data is NULL"&&data);
     static_cast<AsyncCompletion*>((void*)data)->voidCompl(rc);
 }
 
+// *****************************************************************************
 // a predicate implementation
 bool IOThreadStopped::operator()() const{
 #ifdef THREADED
     adaptor_threads* adaptor=(adaptor_threads*)zh_->adaptor_priv;
     return CheckedPthread::isTerminated(adaptor->io);
 #else
-    assert("IOThreadStopped predicate is only for use with THREADED client" &&
-           false);
+    assert("IOThreadStopped predicate is only for use with THREADED client"&& false);
     return false;
 #endif
 }
@@ -185,7 +169,7 @@ Mock_activateWatcher* Mock_activateWatcher::mock_=0;
 class ActivateWatcherWrapper: public Mock_activateWatcher{
 public:
     ActivateWatcherWrapper():ctx_(0),activated_(false){}
-
+    
     virtual void call(zhandle_t *zh, watcher_registration_t* reg, int rc){
         CALL_REAL(activateWatcher,(zh, reg,rc));
         synchronized(mx_);
@@ -194,13 +178,13 @@ public:
             ctx_=0;
         }
     }
-
+    
     void setContext(void* ctx){
         synchronized(mx_);
         ctx_=ctx;
         activated_=false;
     }
-
+    
     SyncedBoolCondition isActivated() const{
         return SyncedBoolCondition(activated_,mx_);
     }
@@ -211,7 +195,7 @@ public:
 
 WatcherActivationTracker::WatcherActivationTracker():
     wrapper_(new ActivateWatcherWrapper)
-{
+{    
 }
 
 WatcherActivationTracker::~WatcherActivationTracker(){
@@ -261,8 +245,7 @@ public:
     DeliverWatchersWrapper(int type,int state,bool terminate):
         type_(type),state_(state),
         allDelivered_(false),terminate_(terminate),zh_(0),deliveryCounter_(0){}
-    virtual void call(zhandle_t* zh, int type, int state,
-                      const char* path, watcher_object_list **list) {
+    virtual void call(zhandle_t* zh,int type,int state, const char* path, watcher_object_list **list){
         {
             synchronized(mx_);
             zh_=zh;
@@ -272,8 +255,8 @@ public:
         if(type_==type && state_==state){
             if(terminate_){
                 // prevent zhandle_t from being prematurely distroyed;
-                // this will also ensure that zookeeper_close() cleanups the
-                //  thread resources by calling finish_adaptor()
+                // this will also ensure that zookeeper_close() cleanups the thread
+                // resources by calling finish_adaptor()
                 inc_ref_counter(zh,1);
                 terminateZookeeperThreads(zh);
             }
@@ -319,7 +302,7 @@ WatcherDeliveryTracker::~WatcherDeliveryTracker(){
     delete deliveryWrapper_;
 }
 
-SyncedBoolCondition WatcherDeliveryTracker::isWatcherProcessingCompleted() const {
+SyncedBoolCondition WatcherDeliveryTracker::isWatcherProcessingCompleted() const{
     return deliveryWrapper_->isDelivered();
 }
 
@@ -327,7 +310,7 @@ void WatcherDeliveryTracker::resetDeliveryCounter(){
     deliveryWrapper_->resetDeliveryCounter();
 }
 
-SyncedIntegerEqual WatcherDeliveryTracker::deliveryCounterEquals(int expected) const {
+SyncedIntegerEqual WatcherDeliveryTracker::deliveryCounterEquals(int expected) const{
     return deliveryWrapper_->deliveryCounterEquals(expected);
 }
 
@@ -344,7 +327,6 @@ string HandshakeResponse::toString() const {
     tmp=htonl(passwd_len);
     buf.append((char*)&tmp,sizeof(tmp));
     buf.append(passwd,sizeof(passwd));
-    buf.append(&readOnly,sizeof(readOnly));
     // finally set the buffer length
     tmp=htonl(buf.size()+sizeof(tmp));
     buf.insert(0,(char*)&tmp, sizeof(tmp));
@@ -353,12 +335,12 @@ string HandshakeResponse::toString() const {
 
 string ZooGetResponse::toString() const{
     oarchive* oa=create_buffer_oarchive();
-
+    
     ReplyHeader h = {xid_,1,ZOK};
     serialize_ReplyHeader(oa, "hdr", &h);
-
+    
     GetDataResponse resp;
-    char buf[1024];
+	char buf[1024];
     assert("GetDataResponse is too long"&&data_.size()<=sizeof(buf));
     resp.data.len=data_.size();
     resp.data.buff=buf;
@@ -368,34 +350,34 @@ string ZooGetResponse::toString() const{
     int32_t len=htonl(get_buffer_len(oa));
     string res((char*)&len,sizeof(len));
     res.append(get_buffer(oa),get_buffer_len(oa));
-
+    
     close_buffer_oarchive(&oa,1);
     return res;
 }
 
 string ZooStatResponse::toString() const{
     oarchive* oa=create_buffer_oarchive();
-
+    
     ReplyHeader h = {xid_,1,rc_};
     serialize_ReplyHeader(oa, "hdr", &h);
-
+    
     SetDataResponse resp;
     resp.stat=stat_;
     serialize_SetDataResponse(oa, "reply", &resp);
     int32_t len=htonl(get_buffer_len(oa));
     string res((char*)&len,sizeof(len));
     res.append(get_buffer(oa),get_buffer_len(oa));
-
+    
     close_buffer_oarchive(&oa,1);
     return res;
 }
 
 string ZooGetChildrenResponse::toString() const{
     oarchive* oa=create_buffer_oarchive();
-
+    
     ReplyHeader h = {xid_,1,rc_};
     serialize_ReplyHeader(oa, "hdr", &h);
-
+ 
     GetChildrenResponse resp;
     // populate the string vector
     allocate_String_vector(&resp.children,strings_.size());
@@ -403,11 +385,11 @@ string ZooGetChildrenResponse::toString() const{
         resp.children.data[i]=strdup(strings_[i].c_str());
     serialize_GetChildrenResponse(oa, "reply", &resp);
     deallocate_GetChildrenResponse(&resp);
-
+    
     int32_t len=htonl(get_buffer_len(oa));
     string res((char*)&len,sizeof(len));
     res.append(get_buffer(oa),get_buffer_len(oa));
-
+    
     close_buffer_oarchive(&oa,1);
     return res;
 }
@@ -416,35 +398,35 @@ string ZNodeEvent::toString() const{
     oarchive* oa=create_buffer_oarchive();
     struct WatcherEvent evt = {type_,0,(char*)path_.c_str()};
     struct ReplyHeader h = {WATCHER_EVENT_XID,0,ZOK };
-
+    
     serialize_ReplyHeader(oa, "hdr", &h);
     serialize_WatcherEvent(oa, "event", &evt);
-
+    
     int32_t len=htonl(get_buffer_len(oa));
     string res((char*)&len,sizeof(len));
     res.append(get_buffer(oa),get_buffer_len(oa));
-
+    
     close_buffer_oarchive(&oa,1);
     return res;
 }
 
 string PingResponse::toString() const{
     oarchive* oa=create_buffer_oarchive();
-
+    
     ReplyHeader h = {PING_XID,1,ZOK};
     serialize_ReplyHeader(oa, "hdr", &h);
-
+    
     int32_t len=htonl(get_buffer_len(oa));
     string res((char*)&len,sizeof(len));
     res.append(get_buffer(oa),get_buffer_len(oa));
-
+    
     close_buffer_oarchive(&oa,1);
     return res;
 }
 
 //******************************************************************************
 // Zookeeper server simulator
-//
+// 
 bool ZookeeperServer::hasMoreRecv() const{
   return recvHasMore.get()!=0  || connectionLost;
 }
@@ -485,7 +467,7 @@ void ZookeeperServer::notifyBufferSent(const std::string& buffer){
             // handle the handshake
             int64_t sessId=sessionExpired?req->sessionId+1:req->sessionId;
             sessionExpired=false;
-            addRecvResponse(new HandshakeResponse(sessId));
+            addRecvResponse(new HandshakeResponse(sessId));            
             return;
         }
         // not a connect request -- fall thru
@@ -509,8 +491,7 @@ void ZookeeperServer::notifyBufferSent(const std::string& buffer){
         ++closeSent;
         return; // no reply for close requests
     }
-    // get the next response from the response queue and append it to the
-    // receive list
+    // get the next response from the response queue and append it to the receive list
     Element e;
     {
         synchronized(respQMx);
@@ -526,16 +507,10 @@ void ZookeeperServer::notifyBufferSent(const std::string& buffer){
 void forceConnected(zhandle_t* zh){
     // simulate connected state
     zh->state=ZOO_CONNECTED_STATE;
-
-    // Simulate we're connected to the first host in our host list
     zh->fd=ZookeeperServer::FD;
-    assert(zh->addrs.count > 0);
-    zh->addr_cur = zh->addrs.data[0];
-    zh->addrs.next++;
-
     zh->input_buffer=0;
-    gettimeofday(&zh->last_recv,0);
-    gettimeofday(&zh->last_send,0);
+    gettimeofday(&zh->last_recv,0);    
+    gettimeofday(&zh->last_send,0);    
 }
 
 void terminateZookeeperThreads(zhandle_t* zh){

@@ -75,8 +75,8 @@ void waitCounter(){
 }
 
 void listener(zhandle_t *zzh, int type, int state, const char *path,void* ctx) {
-    if (type == ZOO_SESSION_EVENT) {
-        if (state == ZOO_CONNECTED_STATE || state == ZOO_READONLY_STATE) {
+    if(type == ZOO_SESSION_EVENT){
+        if(state == ZOO_CONNECTED_STATE){
             pthread_mutex_lock(&lock);
             pthread_cond_broadcast(&cond);
             pthread_mutex_unlock(&lock);
@@ -88,7 +88,7 @@ void listener(zhandle_t *zzh, int type, int state, const char *path,void* ctx) {
 void create_completion(int rc, const char *name, const void *data) {
     incCounter(-1);
     if(rc!=ZOK){
-        LOG_ERROR(LOGSTREAM, "Failed to create a node rc=%d",rc);
+        LOG_ERROR(("Failed to create a node rc=%d",rc));
     }
 }
 
@@ -102,7 +102,7 @@ int doCreateNodes(const char* root, int count){
         rc=zoo_acreate(zh, nodeName, "first", 5, &ZOO_OPEN_ACL_UNSAFE, 0,
                             create_completion, 0);
         if(i%1000==0){
-            LOG_INFO(LOGSTREAM, "Created %s", nodeName);
+            LOG_INFO(("Created %s",nodeName));
         }
         if(rc!=ZOK) return rc;        
     }
@@ -117,7 +117,7 @@ int createRoot(const char* root){
 void write_completion(int rc, const struct Stat *stat, const void *data) {
     incCounter(-1);
     if(rc!=ZOK){
-        LOG_ERROR(LOGSTREAM, "Failed to write a node rc=%d",rc);
+        LOG_ERROR(("Failed to write a node rc=%d",rc));
     }
 }
 
@@ -139,13 +139,13 @@ void read_completion(int rc, const char *value, int value_len,
         const struct Stat *stat, const void *data) {
     incCounter(-1);    
     if(rc!=ZOK){
-        LOG_ERROR(LOGSTREAM, "Failed to read a node rc=%d",rc);
+        LOG_ERROR(("Failed to read a node rc=%d",rc));
         return;
     }
     if(memcmp(value,"second",6)!=0){
         char buf[value_len+1];
         memcpy(buf,value,value_len);buf[value_len]=0;
-        LOG_ERROR(LOGSTREAM, "Invalid read, expected [second], received [%s]\n",buf);
+        LOG_ERROR(("Invalid read, expected [second], received [%s]\n",buf));
         exit(1);
     }
 }
@@ -202,7 +202,7 @@ int recursiveDelete(const char* root){
     int rc=zoo_get_children(zh,root,0,&children);
     if(rc!=ZNONODE){
         if(rc!=ZOK){
-            LOG_ERROR(LOGSTREAM, "Failed to get children of %s, rc=%d",root,rc);
+            LOG_ERROR(("Failed to get children of %s, rc=%d",root,rc));
             return rc;
         }
         for(i=0;i<children.count; i++){
@@ -218,10 +218,10 @@ int recursiveDelete(const char* root){
         free_String_vector(&children);
     }
     if(deletedCounter%1000==0)
-        LOG_INFO(LOGSTREAM, "Deleting %s",root);
+        LOG_INFO(("Deleting %s",root));
     rc=zoo_delete(zh,root,-1);
     if(rc!=ZOK){
-        LOG_ERROR(LOGSTREAM, "Failed to delete znode %s, rc=%d",root,rc);
+        LOG_ERROR(("Failed to delete znode %s, rc=%d",root,rc));
     }else
         deletedCounter++;
     return rc;
@@ -249,15 +249,15 @@ int main(int argc, char **argv) {
     if (!zh)
         return errno;
 
-    LOG_INFO(LOGSTREAM, "Checking server connection...");
+    LOG_INFO(("Checking server connection..."));
     ensureConnected();
     if(cleaning==1){
         int rc = 0;
         deletedCounter=0;
         rc=recursiveDelete(argv[2]);
         if(rc==ZOK){
-            LOG_INFO(LOGSTREAM, "Successfully deleted a subtree starting at %s (%d nodes)",
-                    argv[2],deletedCounter);
+            LOG_INFO(("Succesfully deleted a subtree starting at %s (%d nodes)",
+                    argv[2],deletedCounter));
             exit(0);
         }
         exit(1);
@@ -266,18 +266,18 @@ int main(int argc, char **argv) {
     createRoot(argv[2]);
     while(1) {
         ensureConnected();
-        LOG_INFO(LOGSTREAM, "Creating children for path %s",argv[2]);
+        LOG_INFO(("Creating children for path %s",argv[2]));
         doCreateNodes(argv[2],nodeCount);
         waitCounter();
         
-        LOG_INFO(LOGSTREAM, "Starting the write cycle for path %s",argv[2]);
+        LOG_INFO(("Starting the write cycle for path %s",argv[2]));
         doWrites(argv[2],nodeCount);
         waitCounter();
-        LOG_INFO(LOGSTREAM, "Starting the read cycle for path %s",argv[2]);
+        LOG_INFO(("Starting the read cycle for path %s",argv[2]));
         doReads(argv[2],nodeCount);
         waitCounter();
 
-        LOG_INFO(LOGSTREAM, "Starting the delete cycle for path %s",argv[2]);
+        LOG_INFO(("Starting the delete cycle for path %s",argv[2]));
         doDeletes(argv[2],nodeCount);
         waitCounter();
     }

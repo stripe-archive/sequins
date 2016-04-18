@@ -303,9 +303,8 @@ public:
 class HandshakeResponse: public Response
 {
 public:
-    HandshakeResponse(int64_t sessId=1):
-        protocolVersion(1),timeOut(10000),sessionId(sessId),
-        passwd_len(sizeof(passwd)),readOnly(0)
+    HandshakeResponse(int64_t sessId=1)
+        :protocolVersion(1),timeOut(10000),sessionId(sessId),passwd_len(sizeof(passwd))
     {
         memcpy(passwd,"1234567890123456",sizeof(passwd));
     }
@@ -314,7 +313,6 @@ public:
     int64_t sessionId;
     int32_t passwd_len;
     char passwd[16];
-    char readOnly;
     virtual std::string toString() const ;
 };
 

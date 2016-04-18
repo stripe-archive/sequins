@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.59)
 
-AC_INIT([zookeeper C client],3.6.0,[user@zookeeper.apache.org],[zookeeper])
+AC_INIT([zookeeper C client],3.4.8,[user@zookeeper.apache.org],[zookeeper])
 AC_CONFIG_SRCDIR([src/zookeeper.c])
 
 # Save initial CFLAGS and CXXFLAGS values before AC_PROG_CC and AC_PROG_CXX
@@ -141,14 +141,6 @@ if test x"$ipv6" = xyes; then
   USEIPV6="-DZOO_IPV6_ENABLED"
   AC_SUBST(USEIPV6)
 fi
-
-# Determine which libraries we need to use clock_gettime
-saved_LIBS="$LIBS"
-LIBS=""
-AC_CHECK_LIB(rt, clock_gettime)
-CLOCK_GETTIME_LIBS=$LIBS
-AC_SUBST(CLOCK_GETTIME_LIBS)
-LIBS="$saved_LIBS"
 
 # Checks for library functions.
 AC_CHECK_FUNCS([getcwd gethostbyname gethostname getlogin getpwuid_r gettimeofday getuid memmove memset poll socket strchr strdup strerror strtol])

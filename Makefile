@@ -4,7 +4,18 @@ RELEASE_NAME = sequins-$(TRAVIS_TAG)-$(ARCH)
 
 SOURCES = $(shell find . -name '*.go')
 BUILD = $(shell pwd)/build
-CGO_PREAMBLE = CGO_CFLAGS="-I$(BUILD)/include" CGO_LDFLAGS="$(BUILD)/lib/libsparkey.a $(BUILD)/lib/libsnappy.a -lstdc++"
+
+VENDORED_LIBS = $(BUILD)/lib/libsparkey.a $(BUILD)/lib/libsnappy.a $(BUILD)/lib/libzookeeper_mt.a
+
+UNAME := $(shell uname)
+ifeq ($(UNAME), Darwin)
+	CGO_PREAMBLE_LDFLAGS = -lstdc++
+else
+	CGO_PREAMBLE_LDFLAGS = -lrt -lm -lstdc++
+endif
+
+CGO_PREAMBLE = CGO_CFLAGS="-I$(BUILD)/include -I$(BUILD)/include/zookeeper" CGO_LDFLAGS="$(VENDORED_LIBS) $(CGO_PREAMBLE_LDFLAGS)"
+
 
 all: sequins sequins-dump
 
@@ -26,7 +37,16 @@ vendor/sparkey/Makefile: vendor/sparkey/configure $(BUILD)/lib/libsnappy.a
 $(BUILD)/lib/libsparkey.a: vendor/sparkey/Makefile
 	cd vendor/sparkey && make install
 
-sequins: $(SOURCES) $(BUILD)/lib/libsparkey.a $(BUILD)/lib/libsnappy.a
+vendor/zookeeper/configure:
+	cd vendor/zookeeper && autoreconf --install -v -I $(CURDIR)/vendor/zookeeper/
+
+vendor/zookeeper/Makefile: vendor/zookeeper/configure
+	cd vendor/zookeeper && ./configure --prefix=$(BUILD)
+
+$(BUILD)/lib/libzookeeper_mt.a: vendor/zookeeper/Makefile
+	cd vendor/zookeeper && make install
+
+sequins: $(SOURCES) $(BUILD)/lib/libsparkey.a $(BUILD)/lib/libsnappy.a $(BUILD)/lib/libzookeeper_mt.a
 	$(CGO_PREAMBLE) go build -x -ldflags "-X main.sequinsVersion=$(TRAVIS_TAG)"
 
 sequins-dump: $(SOURCES)
@@ -49,6 +69,8 @@ clean:
 	cd vendor/snappy && make distclean; true
 	rm -f vendor/sparkey/configure
 	cd vendor/sparkey && make distclean; true
+	rm -f vendor/zookeeper/configure
+	cd vendor/zookeeper && make distclean; true
 	rm -f sequins sequins-dump sequins-*.tar.gz
 	rm -rf $(RELEASE_NAME)
 

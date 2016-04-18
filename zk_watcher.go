@@ -9,21 +9,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/samuel/go-zookeeper/zk"
+	zk "launchpad.net/gozk/zookeeper"
 )
 
 // TODO testable
 
 const coordinationVersion = "v1"
+const zkReconnectPeriod = 1 * time.Second
 
-var defaultACL = zk.WorldACL(zk.PermAll)
-
-// nullLogger is a noop logger for the zk client.
-type nullLogger struct{}
-
-func (n nullLogger) Printf(string, ...interface{}) {}
-
-func setNullLogger(c *zk.Conn) { c.SetLogger(nullLogger{}) }
+var defaultZkACL = zk.WorldACL(zk.PERM_ALL)
 
 // A zkWatcher manages a single connection to zookeeper, watching for changes
 // to directories and managing ephemeral nodes. It lazily connects and
@@ -31,6 +25,7 @@ func setNullLogger(c *zk.Conn) { c.SetLogger(nullLogger{}) }
 // defaults to silently not providing updates.
 type zkWatcher struct {
 	zkServers []string
+	clientId  *zk.ClientId
 	prefix    string
 	conn      *zk.Conn
 	errs      chan error
@@ -59,7 +54,7 @@ func connectZookeeper(zkServers []string, prefix string) (*zkWatcher, error) {
 
 	err := w.reconnect()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Zookeeper error: %s", err)
 	}
 
 	go w.run()
@@ -67,16 +62,41 @@ func connectZookeeper(zkServers []string, prefix string) (*zkWatcher, error) {
 }
 
 func (w *zkWatcher) reconnect() error {
-	log.Println("Connecting to zookeeper at", strings.Join(w.zkServers, ","))
-	conn, events, err := zk.Connect(w.zkServers, 100*time.Millisecond, setNullLogger)
-	if err != nil {
-		return err
+	var conn *zk.Conn
+	var events <-chan zk.Event
+	var err error
+
+	servers := strings.Join(w.zkServers, ",")
+	if w.clientId == nil {
+		log.Println("Connecting to zookeeper at", servers)
+		conn, events, err = zk.Dial(servers, 1*time.Second)
+		if err != nil {
+			return err
+		}
+	} else {
+		conn, events, err = zk.Redial(servers, 1*time.Second, w.clientId)
+		if err != nil {
+			w.clientId = nil
+			return err
+		}
 	}
 
 	if w.conn != nil {
 		w.conn.Close()
 	}
 	w.conn = conn
+
+	connectTimeout := time.NewTimer(1 * time.Second)
+	select {
+	case <-connectTimeout.C:
+		w.clientId = nil
+		return errors.New("connection timeout")
+	case event := <-events:
+		if event.State != zk.STATE_CONNECTED {
+			w.clientId = nil
+			return fmt.Errorf("connection error: %s", event)
+		}
+	}
 
 	// TODO: recreate permanent paths? What if zookeeper dies and loses data?
 	// TODO: clear data on setup? or just hope that it's uniquely namespaced enough
@@ -86,14 +106,12 @@ func (w *zkWatcher) reconnect() error {
 	}
 
 	log.Println("Successfully connected to zookeeper!")
+	w.clientId = w.conn.ClientId()
 
 	go func() {
 		for ev := range events {
-			if ev.Err != nil {
-				sendErr(w.errs, ev.Err)
-				return
-			} else if ev.State == zk.StateDisconnected {
-				sendErr(w.errs, errors.New("zk disconnected"))
+			if !ev.Ok() {
+				sendErr(w.errs, errors.New(ev.String()))
 				return
 			}
 		}
@@ -137,28 +155,42 @@ func (w *zkWatcher) cancelWatches() {
 	}
 }
 
-const zkReconnectPeriod = 10 * time.Second
-
 // sync runs the main loop. On any errors, it resets the connection.
 func (w *zkWatcher) run() {
+	first := true
 	for {
+		if !first {
+			// Wait before trying to reconnect again.
+			wait := time.NewTimer(zkReconnectPeriod)
+			select {
+			case <-w.shutdown:
+				break
+			case <-wait.C:
+			}
+
+			err := w.reconnect()
+			if err != nil {
+				log.Println("Zookeeper error:", err)
+				continue
+			}
+		} else {
+			first = false
+		}
+
 		// Every time we connect, reset watches and recreate ephemeral nodes.
 		err := w.runHooks()
 		if err != nil {
-			log.Println("Zookeeper error:", err)
-			time.Sleep(zkReconnectPeriod)
-			w.reconnect()
+			log.Println("Error running zookeeper hooks:", err)
+			continue
 		}
 
 		select {
 		case <-w.shutdown:
+			w.cancelWatches()
 			break
 		case <-w.errs:
+			w.cancelWatches()
 		}
-
-		w.cancelWatches()
-		time.Sleep(zkReconnectPeriod)
-		w.reconnect()
 	}
 }
 
@@ -184,8 +216,8 @@ func (w *zkWatcher) removeEphemeral(node string) {
 }
 
 func (w *zkWatcher) hookCreateEphemeral(node string) error {
-	_, err := w.conn.Create(node, nil, zk.FlagEphemeral, defaultACL)
-	if err != nil && err != zk.ErrNodeExists {
+	_, err := w.conn.Create(node, "", zk.EPHEMERAL, defaultZkACL)
+	if err != nil && !isNodeExists(err) {
 		return err
 	}
 
@@ -237,8 +269,8 @@ func (w *zkWatcher) hookWatchChildren(node string, wn watchedNode) error {
 
 			select {
 			case ev := <-events:
-				if ev.Err != nil {
-					sendErr(w.errs, ev.Err)
+				if !ev.Ok() {
+					sendErr(w.errs, errors.New(ev.String()))
 					<-wn.cancel
 					return
 				}
@@ -277,8 +309,8 @@ func (w *zkWatcher) createAll(fullNode string) error {
 		}
 	}
 
-	_, err := w.conn.Create(path.Clean(fullNode), nil, 0, defaultACL)
-	if err != nil && err != zk.ErrNodeExists {
+	_, err := w.conn.Create(path.Clean(fullNode), "", 0, defaultZkACL)
+	if err != nil && !isNodeExists(err) {
 		return err
 	}
 
@@ -292,12 +324,18 @@ func (w *zkWatcher) close() {
 
 // sendErr sends the error over the channel, or discards it if the error is full.
 func sendErr(errs chan error, err error) {
-	if err != zk.ErrClosing {
-		log.Println("Zookeeper error:", err)
-	}
+	log.Println("Zookeeper error:", err)
 
 	select {
 	case errs <- err:
 	default:
 	}
+}
+
+func isNodeExists(err error) bool {
+	if zkErr, ok := err.(*zk.Error); ok && zkErr.Code == zk.ZNODEEXISTS {
+		return true
+	}
+
+	return false
 }

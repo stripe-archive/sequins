@@ -16,6 +16,7 @@ import (
 
 const coordinationVersion = "v1"
 const zkReconnectPeriod = 1 * time.Second
+const defaultZKPort = 2181
 
 var defaultZkACL = zk.WorldACL(zk.PERM_ALL)
 
@@ -65,6 +66,12 @@ func (w *zkWatcher) reconnect() error {
 	var conn *zk.Conn
 	var events <-chan zk.Event
 	var err error
+
+	for i, s := range w.zkServers {
+		if strings.Index(s, ":") < 0 {
+			w.zkServers[i] = fmt.Sprintf("%s:%d", s, defaultZKPort)
+		}
+	}
 
 	servers := strings.Join(w.zkServers, ",")
 	if w.clientId == nil {

@@ -140,16 +140,22 @@ func (w *zkWatcher) runHooks() error {
 	return nil
 }
 
-func (w *zkWatcher) cancelWatches() {
-	w.hooksLock.Lock()
-	defer w.hooksLock.Unlock()
-
+func (w *zkWatcher) notifyDisconnected() {
 	for _, wn := range w.watchedNodes {
 		select {
 		case wn.disconnected <- true:
 		default:
 		}
+	}
+}
 
+func (w *zkWatcher) cancelWatches() {
+	w.notifyDisconnected()
+
+	w.hooksLock.Lock()
+	defer w.hooksLock.Unlock()
+
+	for _, wn := range w.watchedNodes {
 		wn.cancel <- true
 	}
 }
@@ -159,6 +165,8 @@ func (w *zkWatcher) run() {
 	first := true
 	for {
 		if !first {
+			w.notifyDisconnected()
+
 			// Wait before trying to reconnect again.
 			wait := time.NewTimer(zkReconnectPeriod)
 			select {

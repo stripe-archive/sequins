@@ -39,20 +39,12 @@ using namespace std;
 #include <errno.h>
 #include <recordio.h>
 #include "Util.h"
-#include "ZKMocks.h"
 
 struct buff_struct_2 {
     int32_t len;
     int32_t off;
     char *buffer;
 };
-
-// For testing LogMessage Callback functionality
-list<string> logMessages;
-void logMessageHandler(const char* message) {
-    cout << "Log Message Received: [" << message << "]" << endl;
-    logMessages.push_back(message);
-}
 
 static int Stat_eq(struct Stat* a, struct Stat* b)
 {
@@ -180,7 +172,6 @@ public:
         }
         return connected;
     }
-
     bool waitForDisconnected(zhandle_t *zh) {
         time_t expires = time(0) + 15;
         while(connected && time(0) < expires) {
@@ -188,15 +179,11 @@ public:
         }
         return !connected;
     }
-
 } watchctx_t;
 
 class Zookeeper_simpleSystem : public CPPUNIT_NS::TestFixture
 {
     CPPUNIT_TEST_SUITE(Zookeeper_simpleSystem);
-    CPPUNIT_TEST(testLogCallbackSet);
-    CPPUNIT_TEST(testLogCallbackInit);
-    CPPUNIT_TEST(testLogCallbackClear);
     CPPUNIT_TEST(testAsyncWatcherAutoReset);
     CPPUNIT_TEST(testDeserializeString);
     CPPUNIT_TEST(testFirstServerDown);
@@ -205,7 +192,6 @@ class Zookeeper_simpleSystem : public CPPUNIT_NS::TestFixture
 #ifdef ZOO_IPV6_ENABLED
     CPPUNIT_TEST(testIPV6);
 #endif
-    CPPUNIT_TEST(testCreate);
     CPPUNIT_TEST(testPath);
     CPPUNIT_TEST(testPathValidation);
     CPPUNIT_TEST(testPing);
@@ -216,8 +202,6 @@ class Zookeeper_simpleSystem : public CPPUNIT_NS::TestFixture
     CPPUNIT_TEST(testWatcherAutoResetWithGlobal);
     CPPUNIT_TEST(testWatcherAutoResetWithLocal);
     CPPUNIT_TEST(testGetChildren2);
-    CPPUNIT_TEST(testLastZxid);
-    CPPUNIT_TEST(testRemoveWatchers);
 #endif
     CPPUNIT_TEST_SUITE_END();
 
@@ -245,13 +229,6 @@ class Zookeeper_simpleSystem : public CPPUNIT_NS::TestFixture
     
     zhandle_t *createClient(watchctx_t *ctx) {
         return createClient(hostPorts, ctx);
-    }
-
-    zhandle_t *createClient(watchctx_t *ctx, log_callback_fn logCallback) {
-        zhandle_t *zk = zookeeper_init2(hostPorts, watcher, 10000, 0, ctx, 0, logCallback);
-        ctx->zh = zk;
-        sleep(1);
-        return zk;
     }
 
     zhandle_t *createClient(const char *hp, watchctx_t *ctx) {
@@ -287,6 +264,7 @@ public:
     {
         zoo_set_log_stream(logfile);
     }
+
 
     void startServer() {
         char cmd[1024];
@@ -336,20 +314,6 @@ public:
         zrc = zoo_create(zh, "/mytest/test1", buff, 10, &ZOO_OPEN_ACL_UNSAFE, 0, path, 512);
         zrc = zoo_wget_children(zh, "/mytest", default_zoo_watcher, NULL, &str_vec);
         zrc = zoo_delete(zh, "/mytest/test1", -1);
-        zookeeper_close(zh);
-    }
-
-    void testBadDescriptor() {
-        int zrc = 0;
-        watchctx_t *ctx;
-        zhandle_t *zh = zookeeper_init(hostPorts, NULL, 10000, 0, ctx, 0);
-        sleep(1);
-        zh->io_count = 0;
-        //close socket
-        close(zh->fd);
-        sleep(1);
-        //Check that doIo isn't spinning
-        CPPUNIT_ASSERT(zh->io_count < 2);
         zookeeper_close(zh);
     }
     
@@ -423,12 +387,6 @@ public:
         if (path) {
             free(path);
         }
-    }
-
-    static void stringStatCompletion(int rc, const char *value, const struct Stat *stat,
-            const void *data) {
-        stringCompletion(rc, value, data);
-        CPPUNIT_ASSERT(stat != 0);
     }
 
     static void create_completion_fn(int rc, const char* value, const void *data) {
@@ -674,33 +632,6 @@ public:
         startServer();
         CPPUNIT_ASSERT(ctx5.waitForConnected(zk));
         CPPUNIT_ASSERT(zookeeper_get_connected_host(zk, &addr, &addr_len) != NULL);
-    }
-
-    void testCreate() {
-        watchctx_t ctx;
-        int rc = 0;
-        zhandle_t *zk = createClient(&ctx);
-        CPPUNIT_ASSERT(zk);
-        char pathbuf[80];
-
-        struct Stat stat_a = {0};
-        struct Stat stat_b = {0};
-        rc = zoo_create2(zk, "/testcreateA", "", 0,
-                        &ZOO_OPEN_ACL_UNSAFE, 0, pathbuf, sizeof(pathbuf), &stat_a);
-        CPPUNIT_ASSERT_EQUAL((int) ZOK, rc);
-        CPPUNIT_ASSERT(strcmp(pathbuf, "/testcreateA") == 0);
-        CPPUNIT_ASSERT(stat_a.czxid > 0);
-        CPPUNIT_ASSERT(stat_a.mtime > 0);
-
-        rc = zoo_create2(zk, "/testcreateB", "", 0,
-                        &ZOO_OPEN_ACL_UNSAFE, 0, pathbuf, sizeof(pathbuf), &stat_b);
-        CPPUNIT_ASSERT_EQUAL((int) ZOK, rc);
-        CPPUNIT_ASSERT(strcmp(pathbuf, "/testcreateB") == 0);
-        CPPUNIT_ASSERT(stat_b.czxid > 0);
-        CPPUNIT_ASSERT(stat_b.mtime > 0);
-
-        // Should get different Stats back from different creates
-        CPPUNIT_ASSERT(Stat_eq(&stat_a, &stat_b) != 1);
     }
 
     void testGetChildren2() {
@@ -954,69 +885,6 @@ public:
         CPPUNIT_ASSERT_EQUAL(string(path), string(path_buffer));
     }
 
-    // Test creating normal handle via zookeeper_init then explicitly setting callback
-    void testLogCallbackSet()
-    {
-        watchctx_t ctx;
-        CPPUNIT_ASSERT(logMessages.empty());
-        zhandle_t *zk = createClient(&ctx);
-
-        zoo_set_log_callback(zk, &logMessageHandler);
-        CPPUNIT_ASSERT_EQUAL(zoo_get_log_callback(zk), &logMessageHandler);
-
-        // Log 10 messages and ensure all go to callback
-        int expected = 10;
-        for (int i = 0; i < expected; i++)
-        {
-            LOG_INFO(LOGCALLBACK(zk), "%s #%d", __FUNCTION__, i);
-        }
-        CPPUNIT_ASSERT(expected == logMessages.size());
-    }
-
-    // Test creating handle via zookeeper_init2 to ensure all connection messages go to callback
-    void testLogCallbackInit()
-    {
-        logMessages.clear();
-        watchctx_t ctx;
-        zhandle_t *zk = createClient(&ctx, &logMessageHandler);
-        CPPUNIT_ASSERT_EQUAL(zoo_get_log_callback(zk), &logMessageHandler);
-
-        // All the connection messages should have gone to the callback -- don't
-        // want this to be a maintenance issue so we're not asserting exact count
-        int numBefore = logMessages.size();
-        CPPUNIT_ASSERT(numBefore != 0);
-
-        // Log 10 messages and ensure all go to callback
-        int expected = 10;
-        for (int i = 0; i < expected; i++)
-        {
-            LOG_INFO(LOGCALLBACK(zk), "%s #%d", __FUNCTION__, i);
-        }
-        CPPUNIT_ASSERT(logMessages.size() == numBefore + expected);
-    }
-
-    // Test clearing log callback -- logging should resume going to logstream
-    void testLogCallbackClear()
-    {
-        logMessages.clear();
-        watchctx_t ctx;
-        zhandle_t *zk = createClient(&ctx, &logMessageHandler);
-        CPPUNIT_ASSERT_EQUAL(zoo_get_log_callback(zk), &logMessageHandler);
-
-        // All the connection messages should have gone to the callback -- again, we don't
-        // want this to be a maintenance issue so we're not asserting exact count
-        int numBefore = logMessages.size();
-        CPPUNIT_ASSERT(numBefore > 0);
-
-        // Clear log_callback
-        zoo_set_log_callback(zk, NULL);
-
-        // Future log messages should go to logstream not callback
-        LOG_INFO(LOGCALLBACK(zk), __FUNCTION__);
-        int numAfter = logMessages.size();
-        CPPUNIT_ASSERT_EQUAL(numBefore, numAfter);
-    }
-
     void testAsyncWatcherAutoReset()
     {
         watchctx_t ctx;
@@ -1036,17 +904,9 @@ public:
 
         yield(zk, 0);
 
-        for(i = 0; i < COUNT/4; i++) {
+        for(i = 0; i < COUNT/2; i++) {
             sprintf(path, "/awar%d", i);
-            rc = zoo_acreate(zk, path, "", 0,  &ZOO_OPEN_ACL_UNSAFE, 0,
-                stringCompletion, strdup(path));
-            CPPUNIT_ASSERT_EQUAL((int)ZOK, rc);
-        }
-
-        for(i = COUNT/4; i < COUNT/2; i++) {
-            sprintf(path, "/awar%d", i);
-            rc = zoo_acreate2(zk, path, "", 0,  &ZOO_OPEN_ACL_UNSAFE, 0,
-                stringStatCompletion, strdup(path));
+            rc = zoo_acreate(zk, path, "", 0,  &ZOO_OPEN_ACL_UNSAFE, 0, stringCompletion, strdup(path));
             CPPUNIT_ASSERT_EQUAL((int)ZOK, rc);
         }
 
@@ -1266,128 +1126,6 @@ public:
         zhandle_t *zk = createchClient(&ctx, "127.0.0.1:22181/testarwl/arwl");
         testWatcherAutoReset(zk, &ctx, &lctx);
       }
-    }
-
-    void testLastZxid() {
-      // ZOOKEEPER-1417: Test that c-client only update last zxid upon
-      // receiving request response only.
-      const int timeout = 5000;
-      int rc;
-      watchctx_t ctx1, ctx2;
-      zhandle_t *zk1 = createClient(&ctx1);
-      zhandle_t *zk2 = createClient(&ctx2);
-      CPPUNIT_ASSERT(zk1);
-      CPPUNIT_ASSERT(zk2);
-
-      int64_t original = zk2->last_zxid;
-
-      // Create txn to increase system zxid
-      rc = zoo_create(zk1, "/lastzxid", "", 0,
-                      &ZOO_OPEN_ACL_UNSAFE, 0, 0, 0);
-      CPPUNIT_ASSERT_EQUAL((int)ZOK, rc);
-
-      // This should be enough time for zk2 to receive ping request
-      usleep(timeout/2 * 1000);
-
-      // check that zk1's last zxid is updated
-      struct Stat stat;
-      rc = zoo_exists(zk1, "/lastzxid", 0, &stat);
-      CPPUNIT_ASSERT_EQUAL((int) ZOK, rc);
-      CPPUNIT_ASSERT_EQUAL((int64_t) zk1->last_zxid, stat.czxid);
-      // zk2's last zxid should remain the same
-      CPPUNIT_ASSERT_EQUAL(original, (int64_t) zk2->last_zxid);
-
-      // Perform read and also register a watch
-      rc = zoo_wexists(zk2, "/lastzxid", watcher, &ctx2, &stat);
-      CPPUNIT_ASSERT_EQUAL((int) ZOK, rc);
-      int64_t updated = zk2->last_zxid;
-      // check that zk2's last zxid is updated
-      CPPUNIT_ASSERT_EQUAL(updated, stat.czxid);
-
-      // Increment system zxid again
-      rc = zoo_set(zk1, "/lastzxid", NULL, -1, -1);
-      CPPUNIT_ASSERT_EQUAL((int) ZOK, rc);
-
-      // Wait for zk2 to get watch event
-      CPPUNIT_ASSERT(waitForEvent(zk2, &ctx2, 5));
-      // zk2's last zxid should remain the same
-      CPPUNIT_ASSERT_EQUAL(updated, (int64_t) zk2->last_zxid);
-    }
-
-    static void watcher_remove_watchers(zhandle_t *zh, int type,
-                                    int state, const char *path,void *watcherCtx) {
-        count++;
-    }
-
-    void testRemoveWatchers() {
-      int rc;
-      watchctx_t ctx;
-      zhandle_t *zk = createClient(&ctx);
-      CPPUNIT_ASSERT(zk);
-
-      count = 0;
-
-      rc = zoo_create(zk, "/something", "", 0,
-                      &ZOO_OPEN_ACL_UNSAFE, 0, 0, 0);
-      CPPUNIT_ASSERT_EQUAL((int)ZOK, rc);
-
-      char buf[1024];
-      int blen = sizeof(buf);
-      rc = zoo_get(zk, "/something", 1, buf, &blen, NULL);
-
-      /* remove all watchers */
-      rc = zoo_remove_watchers(zk, "/something", ZWATCHERTYPE_DATA,
-                               NULL, NULL, 0);
-      CPPUNIT_ASSERT_EQUAL((int)ZOK, rc);
-
-      /* remove a specific watcher before it's added (should fail) */
-      rc = zoo_remove_watchers(zk, "/something", ZWATCHERTYPE_DATA,
-                               watcher_remove_watchers, NULL, 0);
-      CPPUNIT_ASSERT_EQUAL((int)ZNOWATCHER, rc);
-
-      /* now add a specific watcher and then remove it */
-      rc = zoo_wget(zk, "/something", watcher_remove_watchers, NULL,
-                    buf, &blen, NULL);
-      CPPUNIT_ASSERT_EQUAL((int)ZOK, rc);
-      rc = zoo_remove_watchers(zk, "/something", ZWATCHERTYPE_DATA,
-                               watcher_remove_watchers, NULL, 0);
-      CPPUNIT_ASSERT_EQUAL((int)ZOK, rc);
-
-      /* ditto for children watcher */
-      rc = zoo_remove_watchers(zk, "/something", ZWATCHERTYPE_CHILDREN,
-                               watcher_remove_watchers, NULL, 0);
-      CPPUNIT_ASSERT_EQUAL((int)ZNOWATCHER, rc);
-
-      struct String_vector str_vec = {0, NULL};
-      rc = zoo_wget_children(zk, "/something", watcher_remove_watchers, NULL,
-                             &str_vec);
-      CPPUNIT_ASSERT_EQUAL((int)ZOK, rc);
-      rc = zoo_remove_watchers(zk, "/something", ZWATCHERTYPE_CHILDREN,
-                               watcher_remove_watchers, NULL, 0);
-      CPPUNIT_ASSERT_EQUAL((int)ZOK, rc);
-
-      /* add a watch, stop the server, and have remove fail */
-      rc = zoo_wget(zk, "/something", watcher_remove_watchers, NULL,
-                    buf, &blen, NULL);
-      CPPUNIT_ASSERT_EQUAL((int)ZOK, rc);
-      stopServer();
-      ctx.waitForDisconnected(zk);
-      rc = zoo_remove_watchers(zk, "/something", ZWATCHERTYPE_DATA,
-                               watcher_remove_watchers, NULL, 0);
-      CPPUNIT_ASSERT_EQUAL((int)ZCONNECTIONLOSS, rc);
-
-      /* bring the server back */
-      startServer();
-      zk = createClient(&ctx);
-
-      /* add a watch, stop the server, and remove it locally */
-      rc = zoo_wget(zk, "/something", watcher_remove_watchers, NULL,
-                    buf, &blen, NULL);
-      CPPUNIT_ASSERT_EQUAL((int)ZOK, rc);
-      stopServer();
-      rc = zoo_remove_watchers(zk, "/something", ZWATCHERTYPE_DATA,
-                               watcher_remove_watchers, NULL, 1);
-      CPPUNIT_ASSERT_EQUAL((int)ZOK, rc);
     }
 };
 

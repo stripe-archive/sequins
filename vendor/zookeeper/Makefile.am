@@ -6,7 +6,7 @@ if SOLARIS
   SOLARIS_LIB_LDFLAGS = -lnsl -lsocket
 endif
 AM_CPPFLAGS = -I${srcdir}/include -I${srcdir}/tests -I${srcdir}/generated $(SOLARIS_CPPFLAGS)
-AM_CFLAGS = -Wall -Werror -Wdeclaration-after-statement
+AM_CFLAGS = -Wall -Werror 
 AM_CXXFLAGS = -Wall $(USEIPV6)
 
 LIB_LDFLAGS = -no-undefined -version-info 2 $(SOLARIS_LIB_LDFLAGS)
@@ -23,14 +23,13 @@ libhashtable_la_SOURCES = $(HASHTABLE_SRC)
 COMMON_SRC = src/zookeeper.c include/zookeeper.h include/zookeeper_version.h include/zookeeper_log.h\
     src/recordio.c include/recordio.h include/proto.h \
     src/zk_adaptor.h generated/zookeeper.jute.c \
-    src/zk_log.c src/zk_hashtable.h src/zk_hashtable.c \
-	src/addrvec.h src/addrvec.c
+    src/zookeeper_log.h src/zk_log.c src/zk_hashtable.h src/zk_hashtable.c
 
 # These are the symbols (classes, mostly) we want to export from our library.
 EXPORT_SYMBOLS = '(zoo_|zookeeper_|zhandle|Z|format_log_message|log_message|logLevel|deallocate_|allocate_|zerror|is_unrecoverable)'
 noinst_LTLIBRARIES += libzkst.la
 libzkst_la_SOURCES =$(COMMON_SRC) src/st_adaptor.c
-libzkst_la_LIBADD = -lm $(CLOCK_GETTIME_LIBS)
+libzkst_la_LIBADD = -lm
 
 lib_LTLIBRARIES = libzookeeper_st.la
 libzookeeper_st_la_SOURCES =
@@ -42,7 +41,7 @@ if WANT_SYNCAPI
 noinst_LTLIBRARIES += libzkmt.la
 libzkmt_la_SOURCES =$(COMMON_SRC) src/mt_adaptor.c
 libzkmt_la_CFLAGS = -DTHREADED
-libzkmt_la_LIBADD = -lm $(CLOCK_GETTIME_LIBS)
+libzkmt_la_LIBADD = -lm
 
 lib_LTLIBRARIES += libzookeeper_mt.la
 libzookeeper_mt_la_SOURCES =
@@ -75,31 +74,13 @@ endif
 EXTRA_DIST+=$(wildcard ${srcdir}/tests/*.cc) $(wildcard ${srcdir}/tests/*.h) \
     ${srcdir}/tests/wrappers.opt ${srcdir}/tests/wrappers-mt.opt
 
-# These tests are ordered in a logical manner such that each builds upon basic
-# functionality tested in prior tests. e.g. the most basic functionality is
-# tested in TestZookeeperInit and TestZookeeperClose and as such should be tested
-# first as a foundation with more complex test suites to follow.
-TEST_SOURCES = \
-	tests/TestDriver.cc \
-	tests/LibCMocks.cc \
-	tests/LibCSymTable.cc \
-	tests/MocksBase.cc \
-	tests/ZKMocks.cc \
-	tests/Util.cc \
-	tests/ThreadingUtil.cc \
-	tests/TestZookeeperInit.cc \
-	tests/TestZookeeperClose.cc \
-	tests/TestReconfig.cc \
-	tests/TestReconfigServer.cc \
+TEST_SOURCES = tests/TestDriver.cc tests/LibCMocks.cc tests/LibCSymTable.cc \
+    tests/MocksBase.cc  tests/ZKMocks.cc tests/Util.cc tests/ThreadingUtil.cc \
     tests/TestClientRetry.cc \
-	tests/TestOperations.cc \
-	tests/TestMulti.cc \
-	tests/TestWatchers.cc \
-	tests/TestClient.cc \
-	tests/ZooKeeperQuorumServer.cc \
-	tests/ZooKeeperQuorumServer.h \
-	tests/TestReadOnlyClient.cc \
-	$(NULL)
+    tests/TestOperations.cc tests/TestZookeeperInit.cc \
+    tests/TestZookeeperClose.cc tests/TestClient.cc \
+    tests/TestMulti.cc tests/TestWatchers.cc
+
 
 if SOLARIS
   SHELL_SYMBOL_WRAPPERS = cat ${srcdir}/tests/wrappers.opt
@@ -109,8 +90,6 @@ else
 endif
 
 check_PROGRAMS = zktest-st
-TESTS_ENVIRONMENT = ZKROOT=${srcdir}/../.. \
-                    CLASSPATH=$$CLASSPATH:$$CLOVER_HOME/lib/clover.jar
 nodist_zktest_st_SOURCES = $(TEST_SOURCES)
 zktest_st_LDADD = libzkst.la libhashtable.la $(CPPUNIT_LIBS)
 zktest_st_CXXFLAGS = -DUSE_STATIC_LIB $(CPPUNIT_CFLAGS) $(USEIPV6) $(SOLARIS_CPPFLAGS)
@@ -130,7 +109,11 @@ endif
   zktest_mt_LDFLAGS = -static-libtool-libs $(SYMBOL_WRAPPERS_MT) $(SOLARIS_LIB_LDFLAGS)
 endif
 
-TESTS = $(check_PROGRAMS)
+run-check: check
+	./zktest-st $(TEST_OPTIONS)
+if WANT_SYNCAPI
+	./zktest-mt $(TEST_OPTIONS)
+endif
 
 clean-local: clean-check
 	$(RM) $(DX_CLEANFILES)

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="UTF-8"?>
+???<?xml version="1.0" encoding="UTF-8"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="9.00"
@@ -179,10 +179,6 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
-				RelativePath=".\src\addrvec.h"
-				>
-			</File>
-			<File
 				RelativePath=".\src\hashtable\hashtable.h"
 				>
 			</File>
@@ -257,10 +253,6 @@
 			Filter="cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx"
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
-			<File
-				RelativePath=".\src\addrvec.c"
-				>
-			</File>
 			<File
 				RelativePath=".\src\hashtable\hashtable.c"
 				>

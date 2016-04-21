@@ -562,7 +562,14 @@ func TestClusterNodeWithoutData(t *testing.T) {
 	defer tc.tearDown()
 
 	tc.addSequinses(3)
-	tc.sequinses[0].expectProgression(down, noVersion, v1)
+
+	// By default this is 10 minutes; we're reducing it to confirm that
+	// nodes are not removing versions that their peers still have.
+	tc.sequinses[0].config.Test.VersionRemoveTimeout = duration{5 * time.Second}
+	tc.sequinses[1].config.Test.VersionRemoveTimeout = duration{5 * time.Second}
+	tc.sequinses[2].config.Test.VersionRemoveTimeout = duration{5 * time.Second}
+
+	tc.sequinses[0].expectProgression(down, noVersion, v1, v3)
 	tc.sequinses[1].expectProgression(down, noVersion, v1, v2, v3)
 	tc.sequinses[2].expectProgression(down, noVersion, v1, v2, v3)
 
@@ -576,8 +583,7 @@ func TestClusterNodeWithoutData(t *testing.T) {
 	tc.hup()
 
 	time.Sleep(expectTimeout)
-	tc.sequinses[1].makeVersionAvailable(v3)
-	tc.sequinses[2].makeVersionAvailable(v3)
+	tc.makeVersionAvailable(v3)
 	tc.hup()
 
 	tc.assertProgression()

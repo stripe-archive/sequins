@@ -56,7 +56,7 @@ func newDB(sequins *sequins, name string) *db {
 	db := &db{
 		sequins:       sequins,
 		name:          name,
-		mux:           newVersionMux(),
+		mux:           newVersionMux(sequins.config.Test.VersionRemoveTimeout.Duration),
 		versionStatus: make(map[string]versionStatus),
 		newVersions:   make(chan *version),
 	}

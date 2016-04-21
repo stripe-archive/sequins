@@ -9,7 +9,7 @@ import (
 
 // TODO testable
 
-const versionExpiry = 10 * time.Minute
+const defaultVersionRemoveTimeout = 10 * time.Minute
 
 // A versionMux handles routing requests to the various versions available for
 // a db. It handles two specific problems that crop up:
@@ -30,9 +30,10 @@ const versionExpiry = 10 * time.Minute
 // to increment a reference count to the version when we pass one out and
 // decrement it after the request is done.
 type versionMux struct {
-	versions       map[string]versionReferenceCount
-	currentVersion versionReferenceCount
-	lock           sync.RWMutex
+	versions             map[string]versionReferenceCount
+	currentVersion       versionReferenceCount
+	lock                 sync.RWMutex
+	versionRemoveTimeout time.Duration
 }
 
 type versionReferenceCount struct {
@@ -42,8 +43,20 @@ type versionReferenceCount struct {
 	removing   bool
 }
 
-func newVersionMux() *versionMux {
-	return &versionMux{versions: make(map[string]versionReferenceCount)}
+func newVersionMux(overrideVersionRemoveTimeout time.Duration) *versionMux {
+	mux := &versionMux{
+		versions: make(map[string]versionReferenceCount),
+	}
+
+	// This is overridden by a secret config property, and then only
+	// in tests.
+	if overrideVersionRemoveTimeout != 0 {
+		mux.versionRemoveTimeout = overrideVersionRemoveTimeout
+	} else {
+		mux.versionRemoveTimeout = defaultVersionRemoveTimeout
+	}
+
+	return mux
 }
 
 // serveKey is the entrypoint for HTTP requests.
@@ -91,7 +104,7 @@ func (mux *versionMux) getCurrent() *version {
 	if vs.version != nil {
 		vs.count.Add(1)
 		if vs.closeTimer != nil {
-			vs.closeTimer.Reset(versionExpiry)
+			vs.closeTimer.Reset(mux.versionRemoveTimeout)
 		}
 	}
 
@@ -109,7 +122,7 @@ func (mux *versionMux) getVersion(name string) *version {
 	if vs.version != nil {
 		vs.count.Add(1)
 		if vs.closeTimer != nil {
-			vs.closeTimer.Reset(versionExpiry)
+			vs.closeTimer.Reset(mux.versionRemoveTimeout)
 		}
 	}
 
@@ -203,8 +216,9 @@ func (mux *versionMux) remove(version *version, shouldWait bool) *version {
 	// timer.
 	if shouldWait {
 		mux.lock.Lock()
-		timer := time.NewTimer(versionExpiry)
+		timer := time.NewTimer(mux.versionRemoveTimeout)
 		vs.closeTimer = timer
+		mux.versions[version.name] = vs
 		mux.lock.Unlock()
 
 		// Wait for the timer, which is reset on every request.

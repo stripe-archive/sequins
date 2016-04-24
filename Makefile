@@ -46,7 +46,13 @@ vendor/zookeeper/Makefile: vendor/zookeeper/configure
 $(BUILD)/lib/libzookeeper_mt.a: vendor/zookeeper/Makefile
 	cd vendor/zookeeper && make install
 
-sequins: $(SOURCES) $(BUILD)/lib/libsparkey.a $(BUILD)/lib/libsnappy.a $(BUILD)/lib/libzookeeper_mt.a
+$(BUILD)/bin/go-bindata:
+	go build -o $(BUILD)/bin/go-bindata ./vendor/github.com/jteeuwen/go-bindata/go-bindata/
+
+status.tmpl.go: status.tmpl $(BUILD)/bin/go-bindata
+	$(BUILD)/bin/go-bindata -o status.tmpl.go status.tmpl
+
+sequins: $(SOURCES) status.tmpl.go $(BUILD)/lib/libsparkey.a $(BUILD)/lib/libsnappy.a $(BUILD)/lib/libzookeeper_mt.a
 	$(CGO_PREAMBLE) go build -x -ldflags "-X main.sequinsVersion=$(TRAVIS_TAG)"
 
 sequins-dump: $(SOURCES)

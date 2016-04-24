@@ -114,6 +114,7 @@ func testBasicSequins(t *testing.T, ts *sequins, expectedDBPath string) {
 	assert.Equal(t, "", w.HeaderMap.Get(versionHeader), "when fetching from a nonexistent db, the sequins version header shouldn't be set")
 
 	req, _ = http.NewRequest("GET", "/", nil)
+	req.Header.Set("Accept", "application/json")
 	w = httptest.NewRecorder()
 	ts.ServeHTTP(w, req)
 
@@ -126,6 +127,7 @@ func testBasicSequins(t *testing.T, ts *sequins, expectedDBPath string) {
 	validateStatus(t, status.DBs["baby-names"], expectedDBPath)
 
 	req, _ = http.NewRequest("GET", "/baby-names/", nil)
+	req.Header.Set("Accept", "application/json")
 	w = httptest.NewRecorder()
 	ts.ServeHTTP(w, req)
 
@@ -137,15 +139,13 @@ func testBasicSequins(t *testing.T, ts *sequins, expectedDBPath string) {
 }
 
 func validateStatus(t *testing.T, status dbStatus, expectedPath string) {
-	assert.Equal(t, "1", status.CurrentVersion, "dbStatus current_version should be correct")
 	require.Equal(t, 1, len(status.Versions), "dbStatus should have one version registered")
 
 	versionStatus := status.Versions["1"]
 	assert.Equal(t, expectedPath, versionStatus.Path, "versionStatus path should be correct")
-
-	now := time.Now().Unix() - 3
-	assert.True(t, versionStatus.Created >= now, "versionStatus created should be now")
-	assert.Equal(t, versionAvailable, versionStatus.State, "versionStatus state should be correct")
+	for _, nodeStatus := range versionStatus.Nodes {
+		assert.True(t, nodeStatus.Current, "dbStatus should be registered as the current one")
+	}
 }
 
 func TestSequins(t *testing.T) {

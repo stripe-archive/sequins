@@ -27,14 +27,15 @@ var errProxiedIncorrectly = errors.New("this server doesn't have the requested p
 type version struct {
 	sequins *sequins
 
-	path           string
-	db             string
-	name           string
-	created        time.Time
-	blockStore     *blocks.BlockStore
-	blockStoreLock sync.RWMutex
-	partitions     *partitions
-	numPartitions  int
+	path                    string
+	db                      string
+	name                    string
+	created                 time.Time
+	blockStore              *blocks.BlockStore
+	blockStoreLock          sync.RWMutex
+	partitions              *partitions
+	numPartitions           int
+	selectedLocalPartitions map[int]bool
 }
 
 func newVersion(sequins *sequins, path, db, name string, numPartitions int) *version {
@@ -53,6 +54,7 @@ func newVersion(sequins *sequins, path, db, name string, numPartitions int) *ver
 			db, name, numPartitions, sequins.config.ZK.Replication)
 
 		local = vs.partitions.pickLocalPartitions()
+		vs.selectedLocalPartitions = local
 	}
 
 	// Try loading anything we have locally. If it doesn't work out, that's ok.

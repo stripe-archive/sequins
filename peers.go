@@ -117,6 +117,18 @@ func (p *peers) updatePeers(addrs []string) {
 	p.peers = newPeers
 }
 
+func (p *peers) getAll() []string {
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+
+	addrs := make([]string, 0, len(p.peers))
+	for peer := range p.peers {
+		addrs = append(addrs, peer.address)
+	}
+
+	return addrs
+}
+
 func (p *peers) pick(partitionId string, n int) []string {
 	p.lock.RLock()
 	defer p.lock.RUnlock()

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"log"
@@ -26,30 +25,6 @@ type db struct {
 	versionStatusLock sync.RWMutex
 
 	cleanupLock sync.Mutex
-}
-
-type dbStatus struct {
-	CurrentVersion string                   `json:"current_version"`
-	Versions       map[string]versionStatus `json:"versions,omitempty"`
-}
-
-type versionStatus struct {
-	Path    string       `json:"path"`
-	Created int64        `json:"created"`
-	State   versionState `json:"state"`
-}
-
-type versionState string
-
-const (
-	versionAvailable versionState = "AVAILABLE"
-	versionRemoving               = "REMOVING"
-	versionBuilding               = "BUILDING"
-)
-
-type trackedVersionState struct {
-	versionState
-	time.Time
 }
 
 func newDB(sequins *sequins, name string) *db {
@@ -111,9 +86,16 @@ func (db *db) backfillVersions() error {
 
 			db.mux.prepare(version)
 			db.upgrade(version)
-			db.trackVersion(version, versionAvailable)
+			db.trackVersion(version, versionBuilding)
 			go func() {
-				version.build(files)
+				err := version.build(files)
+				if err != nil {
+					log.Println("Error building version %s of %s: %s", v, db.name, err)
+					db.trackVersion(version, versionError)
+				}
+
+				log.Println("Finished building version", v, "of", db.name)
+				db.trackVersion(version, versionAvailable)
 				version.advertiseAndWait()
 			}()
 
@@ -171,6 +153,7 @@ func (db *db) refresh() error {
 	db.trackVersion(vs, versionBuilding)
 	err = vs.build(files)
 	if err != nil {
+		db.trackVersion(vs, versionError)
 		return err
 	}
 
@@ -234,6 +217,7 @@ func (db *db) upgrade(version *version) {
 
 	log.Printf("Switching to version %s of %s!", version.name, db.name)
 	db.mux.upgrade(version)
+	db.trackVersion(version, versionAvailable)
 
 	// Close the current version, and any older versions that were
 	// also being prepared (effectively preempting them).
@@ -268,9 +252,9 @@ func (db *db) removeVersion(old *version, shouldWait bool) {
 		if err != nil {
 			log.Printf("Error cleaning up version %s of %s: %s", removed.name, db.name, err)
 		}
-
-		db.untrackVersion(removed)
 	}
+
+	db.untrackVersion(old)
 }
 
 func (db *db) cleanupStore() {
@@ -306,61 +290,9 @@ func (db *db) localPath(version string) string {
 	return filepath.Join(db.sequins.config.LocalStore, "data", db.name, version)
 }
 
-func (db *db) status() dbStatus {
-	status := dbStatus{Versions: make(map[string]versionStatus)}
-
-	db.versionStatusLock.RLock()
-	defer db.versionStatusLock.RUnlock()
-
-	for name, versionStatus := range db.versionStatus {
-		status.Versions[name] = versionStatus
-	}
-
-	current := db.mux.getCurrent()
-	db.mux.release(current)
-	if current != nil {
-		status.CurrentVersion = current.name
-	}
-
-	return status
-}
-
-func (db *db) trackVersion(version *version, state versionState) {
-	db.versionStatusLock.Lock()
-	defer db.versionStatusLock.Unlock()
-
-	st := db.versionStatus[version.name]
-	if st.State == "" {
-		st = versionStatus{
-			Path:    db.sequins.backend.DisplayPath(db.name, version.name),
-			Created: version.created.Unix(),
-			State:   state,
-		}
-	} else {
-		st.State = state
-	}
-
-	db.versionStatus[version.name] = st
-}
-
-func (db *db) untrackVersion(version *version) {
-	db.versionStatusLock.Lock()
-	defer db.versionStatusLock.Unlock()
-
-	delete(db.versionStatus, version.name)
-}
-
 func (db *db) serveKey(w http.ResponseWriter, r *http.Request, key string) {
 	if key == "" {
-		jsonBytes, err := json.Marshal(db.status())
-		if err != nil {
-			log.Println("Error serving status:", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		w.Header()["Content-Type"] = []string{"application/json"}
-		w.Write(jsonBytes)
+		db.serveStatus(w, r)
 		return
 	}
 

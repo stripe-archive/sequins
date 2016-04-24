@@ -72,6 +72,12 @@
 			"path": "/proto"
 		},
 		{
+			"importpath": "github.com/jteeuwen/go-bindata",
+			"repository": "https://github.com/jteeuwen/go-bindata",
+			"revision": "a0ff2567cfb70903282db057e799fd826784d41d",
+			"branch": "master"
+		},
+		{
 			"importpath": "github.com/nightlyone/lockfile",
 			"repository": "https://github.com/nightlyone/lockfile",
 			"revision": "b30dcbfa86e3a1eaa4e6622de2ce57be2c138c10",

@@ -21,7 +21,7 @@ type blockWriter struct {
 	sparkeyWriter *sparkey.LogWriter
 }
 
-func newBlock(storePath string, partition int, compression string, blockSize int) (*blockWriter, error) {
+func newBlock(storePath string, partition int, compression Compression, blockSize int) (*blockWriter, error) {
 	id := uuid.New()
 	name := fmt.Sprintf("block-%05d-%s.spl", partition, id)
 
@@ -29,7 +29,7 @@ func newBlock(storePath string, partition int, compression string, blockSize int
 	log.Println("Initializing block at", path)
 
 	c := sparkey.COMPRESSION_NONE
-	if compression == "snappy" {
+	if compression == SnappyCompression {
 		c = sparkey.COMPRESSION_SNAPPY
 	}
 	options := &sparkey.Options{Compression: c, CompressionBlockSize: blockSize}

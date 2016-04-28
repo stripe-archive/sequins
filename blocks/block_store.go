@@ -15,12 +15,17 @@ var ErrPartitionNotFound = errors.New("the block store doesn't have the correct 
 var ErrMissingPartitions = errors.New("existing block store missing partitions")
 var ErrWrongPartition = errors.New("the file is cleanly partitioned, but doesn't contain a partition we want")
 
+type Compression string
+
+const SnappyCompression Compression = "snappy"
+const NoCompression Compression = "none"
+
 // A BlockStore stores ingested key/value data in discrete blocks, each stored
 // as a separate CDB file. The blocks are arranged and sorted in a way that
 // takes advantage of the way that the output of hadoop jobs are laid out.
 type BlockStore struct {
 	path               string
-	compression        string
+	compression        Compression
 	blockSize          int
 	numPartitions      int
 	selectedPartitions map[int]bool
@@ -33,7 +38,7 @@ type BlockStore struct {
 	blockMapLock sync.RWMutex
 }
 
-func New(path string, numPartitions int, selectedPartitions map[int]bool, compression string, blockSize int) *BlockStore {
+func New(path string, numPartitions int, selectedPartitions map[int]bool, compression Compression, blockSize int) *BlockStore {
 	return &BlockStore{
 		path:               path,
 		compression:        compression,

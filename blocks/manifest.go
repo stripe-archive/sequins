@@ -16,7 +16,7 @@ type manifest struct {
 	Blocks             []blockManifest `json:"blocks"`
 	NumPartitions      int             `json:"num_partitions"`
 	SelectedPartitions []int           `json:"selected_partitions,omitempty"`
-	Compression        string          `json:"compression"`
+	Compression        Compression     `json:"compression"`
 	BlockSize          int             `json:"block_size"`
 }
 
@@ -52,8 +52,9 @@ func readManifest(path string) (manifest, error) {
 		return m, ErrWrongVersion
 	}
 
+	// TODO: remove
 	if m.Compression == "" {
-		m.Compression = "snappy"
+		m.Compression = SnappyCompression
 	}
 
 	return m, nil

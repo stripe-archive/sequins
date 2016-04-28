@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/stripe/sequins/blocks"
 )
 
 const defaultSearchPath = "sequins.conf:/etc/sequins.conf"
@@ -32,8 +34,8 @@ type sequinsConfig struct {
 }
 
 type storageConfig struct {
-	Compression string `toml:"compression"`
-	BlockSize   int    `toml:"block_size"`
+	Compression blocks.Compression `toml:"compression"`
+	BlockSize   int                `toml:"block_size"`
 }
 
 type s3Config struct {
@@ -61,9 +63,9 @@ type debugConfig struct {
 // testConfig has some options used in functional tests to slow sequins down
 // and make it more observable.
 type testConfig struct {
-	UpgradeDelay      		duration `toml:"upgrade_delay"`
-	AllowLocalCluster 		bool     `toml:"allow_local_cluster"`
-	VersionRemoveTimeout	duration `toml:"version_remove_timeout"`
+	UpgradeDelay         duration `toml:"upgrade_delay"`
+	AllowLocalCluster    bool     `toml:"allow_local_cluster"`
+	VersionRemoveTimeout duration `toml:"version_remove_timeout"`
 }
 
 func defaultConfig() sequinsConfig {
@@ -76,7 +78,7 @@ func defaultConfig() sequinsConfig {
 		RequireSuccessFile: false,
 		ContentType:        "",
 		Storage: storageConfig{
-			Compression: "snappy",
+			Compression: blocks.SnappyCompression,
 			BlockSize:   4096,
 		},
 		S3: s3Config{
@@ -99,7 +101,7 @@ func defaultConfig() sequinsConfig {
 			Pprof:   false,
 		},
 		Test: testConfig{
-			UpgradeDelay: duration{time.Duration(0)},
+			UpgradeDelay:         duration{time.Duration(0)},
 			VersionRemoveTimeout: duration{time.Duration(0)},
 		},
 	}
@@ -130,7 +132,7 @@ func loadConfig(searchPath string) (sequinsConfig, error) {
 
 func validateConfig(config sequinsConfig) (sequinsConfig, error) {
 	switch config.Storage.Compression {
-	case "snappy", "none":
+	case blocks.SnappyCompression, blocks.NoCompression:
 	default:
 		return config, fmt.Errorf("Unrecognized compression option: %s", config.Storage.Compression)
 	}

@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBlockStore(t *testing.T) {
+func testBlockStoreCompression(t *testing.T, compression Compression) {
 	tmpDir, err := ioutil.TempDir("", "sequins-test-")
 	require.NoError(t, err, "creating a test tmpdir")
 
-	bs := New(tmpDir, 2, nil, "snappy", 8192)
+	bs := New(tmpDir, 2, nil, compression, 8192)
 
 	f, err := os.Open("../test/test.sequencefile")
 	require.NoError(t, err, "opening a test file")
@@ -54,4 +54,12 @@ func TestBlockStore(t *testing.T) {
 	res, err = bs.Get("Bob")
 	require.NoError(t, err, "fetching value for 'Bob'")
 	assert.Equal(t, "Hope", string(res), "fetching value for 'Bob'")
+}
+
+func TestBlockStoreSnappy(t *testing.T) {
+	testBlockStoreCompression(t, SnappyCompression)
+}
+
+func TestBlockStoreNoCompression(t *testing.T) {
+	testBlockStoreCompression(t, NoCompression)
 }

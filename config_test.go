@@ -120,7 +120,7 @@ func TestConfigSearchPath(t *testing.T) {
 	os.Remove(path)
 }
 
-func TestConfigWithExtraKeys(t *testing.T) {
+func TestConfigExtraKeys(t *testing.T) {
 	path := createTestConfig(t, `
 		root = "s3://foo/bar"
 		require_success_file = true
@@ -133,7 +133,23 @@ func TestConfigWithExtraKeys(t *testing.T) {
 	`)
 
 	_, err := loadConfig(path)
-	assert.Error(t, err, "we should throw an error if there are extra config properties")
+	assert.Error(t, err, "it should throw an error if there are extra config properties")
+
+	os.Remove(path)
+}
+
+func TestConfigInvalidCompression(t *testing.T) {
+	path := createTestConfig(t, `
+    root = "s3://foo/bar"
+    require_success_file = true
+    refresh_period = "1h"
+
+    [storage]
+    compression = "notacompression"
+  `)
+
+	_, err := loadConfig(path)
+	assert.Error(t, err, "it should throw an error if an invalid compression is specified")
 
 	os.Remove(path)
 }

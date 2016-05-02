@@ -39,7 +39,6 @@ func (s *S3Backend) ListVersions(db, after string, checkForSuccess bool) ([]stri
 		var filtered []string
 		for _, version := range versions {
 			successFile := path.Join(s.path, db, version, "_SUCCESS")
-			fmt.Println(successFile)
 			exists := s.exists(successFile)
 
 			if exists {
@@ -78,7 +77,6 @@ func (s *S3Backend) listDirs(dir, after string) ([]string, error) {
 
 		for _, p := range resp.CommonPrefixes {
 			prefix := strings.TrimSuffix(*p.Prefix, "/")
-			fmt.Println("Prefix", prefix)
 
 			// List the prefix, to make sure it's a "directory"
 			isDir := false

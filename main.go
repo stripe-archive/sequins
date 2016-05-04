@@ -5,11 +5,13 @@ import (
 	"log"
 	"net/url"
 	"path/filepath"
-	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/ec2metadata"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/colinmarc/hdfs"
-	"github.com/crowdmob/goamz/aws"
-	"github.com/crowdmob/goamz/s3" // TODO: use aws-sdk-go
 	"github.com/stripe/sequins/backend"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
@@ -109,26 +111,20 @@ func localSetup(localPath string, config sequinsConfig) *sequins {
 }
 
 func s3Setup(bucketName string, path string, config sequinsConfig) *sequins {
-	auth, err := aws.GetAuth(config.S3.AccessKeyId, config.S3.SecretAccessKey, "", time.Time{})
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	regionName := config.S3.Region
 	if regionName == "" {
-		regionName = aws.InstanceRegion()
-		if regionName == "" {
+		regionName, err := ec2metadata.New(session.New()).Region()
+		if regionName == "" || err != nil {
 			log.Fatal("Unspecified S3 region, and no instance region found.")
 		}
 	}
 
-	region, exists := aws.Regions[regionName]
-	if !exists {
-		log.Fatalf("Invalid AWS region: %s", regionName)
-	}
+	sess := session.New(&aws.Config{
+		Region:      aws.String(regionName),
+		Credentials: credentials.NewStaticCredentials(config.S3.AccessKeyId, config.S3.SecretAccessKey, ""),
+	})
 
-	bucket := s3.New(auth, region).Bucket(bucketName)
-	backend := backend.NewS3Backend(bucket, path)
+	backend := backend.NewS3Backend(bucketName, path, s3.New(sess))
 	return newSequins(backend, config)
 }
 

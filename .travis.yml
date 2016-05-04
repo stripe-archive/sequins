@@ -2,15 +2,15 @@ language: go
 go: 1.6
 sudo: false
 before_install:
-  - wget http://apache.claz.org/zookeeper/zookeeper-3.4.6/zookeeper-3.4.6.tar.gz
-  - tar -zxvf zookeeper*tar.gz
+- wget http://apache.claz.org/zookeeper/zookeeper-3.4.6/zookeeper-3.4.6.tar.gz
+- tar -zxvf zookeeper*tar.gz
 before_script:
-  - make
-  - export NN_PORT=9000
-  - export HADOOP_NAMENODE="localhost:$NN_PORT"
-  - export HADOOP_DISTRO=cdh
-  - export HADOOP_HOME="$HOME/hadoop"
-  - sh vendor/github.com/colinmarc/hdfs/setup_test_env.sh
+- make
+- export NN_PORT=9000
+- export HADOOP_NAMENODE="localhost:$NN_PORT"
+- export HADOOP_DISTRO=cdh
+- export HADOOP_HOME="$HOME/hadoop"
+- sh vendor/github.com/colinmarc/hdfs/setup_test_env.sh
 script: make test
 before_deploy: make release
 deploy:
@@ -24,4 +24,10 @@ deploy:
     tags: true
     all_branches: true
 cache:
-  - $HADOOP_HOME
+- $HADOOP_HOME
+env:
+  global:
+  - secure: d4y27NWdKd13Nj0y9aBJBiJaQLSCw+FHI5W2UXaXPkgi7NCr/dsNYhFfkNSNDR7NVLjeNoG0Ga/488DNeetm/InXvb4iST+sjpBgHhFot97ytqCkQ64bU7QoGG0cu4bI4mgMVPwkVE71NY0bx3mzj+CTZgK/PtBvpB0f8rrXZbc=
+  - secure: wz8uS6uPznAOojsOX7a7RCaae/KDV9r/2N2lLVWxUdLZ6OZ2ZL2Sh8e6aN73JrWc3h/C2/Km7DZysKmVXtnbdZqkZbEP3KjWu9e2t3rC7DZaJxG/8Xr/2PqwU1NBfEzhSS8AMsI8BCNHFcFsYWwJek/+JWXk5+MWhNTwbd3EMcc=
+  - secure: lngtapRncQZGX5D5X5B7TheLjrTW5gmdPwBSD3z/z7R/q7Q8JaWITXk2N4eRkSvrU6J9n/vm9VIFIq95Pm/MraM4X73q72EMXAH55TmVUzWXTjLVPVRnkH4FwB4QFbir/JYD5nNzWZZ6dzl4mv07AsSA8OoExubDfF1Y8/MPdoA=
+  - secure: jkhnGrRC14xbeEYL2twJaTBHaPCxewl97rgs+yS83KtvMXyODtpL6GRsfJNW01+by+gqcY/MeW0z8BjU4D1ul0Jf/Wa/I5YIfvaVQf/eZuSb43akAfr5I53pnC+HyRwcIsDmnQXbCfDWXo7+SVDeM5ZGq8H1HOV6ENfh6+020IY=

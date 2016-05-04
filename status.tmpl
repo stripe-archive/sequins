@@ -1,0 +1,229 @@
+<html>
+  <head>
+    <style type="text/css">
+      body {
+        font-family: monospace;
+        font-size: 12px;
+        margin: 0px;
+        background-color: whitesmoke;
+      }
+
+      div#header {
+        width: 100%;
+        background-color: #2b83ba;
+        padding: 7px 20px;
+        color: white;
+      }
+
+      div#header > h1 {
+        margin: 0;
+      }
+
+      div#wrapper {
+        margin: 20px;
+      }
+
+      div.db {
+        padding: 10px;
+        margin: 0 auto 20px auto;
+        display: table;
+        background-color: white;
+        box-shadow: 5px 5px 10px 0px rgba(0,0,0,0.15);
+      }
+
+      h2.dbname > a {
+        float: right;
+        margin-right: 5px;
+      }
+
+      a, a:visited, a:hover {
+        color: #2b83ba;
+        text-decoration: none;
+      }
+
+      div.version {
+        border-top: 1px solid lightgray;
+        padding: 10px 5px 10px 10px;
+        display: block;
+      }
+
+      div .versionwrapper {
+        margin-top: 7px;
+      }
+
+      span.versionname {
+        font-size: 20px;
+      }
+
+      span.versionpath {
+        font-size: 10px;
+        padding-left: 20px;
+        color: #888888;
+      }
+
+      div.versionwrapper > div {
+        display: inline-block;
+        vertical-align: top;
+      }
+
+      div.node {
+        display: block;
+        padding: 10px 0px;
+      }
+
+      div.nodenotcurrent {
+        opacity: 0.5;
+      }
+
+      div.nodeerror {
+        color: #FF0000;
+      }
+
+      div.nodestatus {
+        font-size: 10px;
+        padding-left: 20px;
+        color: #888888;
+      }
+
+      div.nodemap {
+        margin-left: 7px;
+      }
+
+      div.versioninfo {
+        padding-top: 10px;
+        margin-top: 5px;
+        border-top: 1px solid whitesmoke;
+      }
+
+      div.versioninfo > li {
+        display: inline-block;
+      }
+
+      span.versioninfovalue.highlight {
+        font-weight: bold;
+      }
+    </style>
+
+    <script type="text/javascript">
+      var drawMaps = function() {
+        var status = {{ marshal . }};
+
+        for (dbName in status.dbs) {
+          var db = status.dbs[dbName];
+
+          for (versionName in db.versions) {
+            var version = db.versions[versionName];
+
+            var id = "nodemap_canvas_" + dbName + "_" + versionName,
+                canvas = document.getElementById(id),
+                ctx = canvas.getContext("2d");
+
+            // This makes lines less fuzzy.
+            ctx.translate(0.5, 0.5);
+
+            var numPartitions = version["num_partitions"],
+                replication = [];
+
+            // Size the canvas to the nodes.
+            canvas.height = 0;
+            var totalHeight = canvas.height = canvas.parentElement.parentElement.clientHeight,
+                totalWidth = canvas.width = 400;
+
+            // The size and width of each box.
+            var nodeHeight =  Math.floor(totalHeight / (Object.keys(version.nodes).length)),
+                partitionWidth = Math.floor(totalWidth / numPartitions);
+
+            var n = 0;
+            for (nodeName in version.nodes) {
+              var node = version.nodes[nodeName]
+
+              if (node.state === "AVAILABLE") {
+                ctx.fillStyle = "rgb(153,213,148)";
+              } else if (node.state === "BUILDING") {
+                ctx.fillStyle = "rgb(255,255,191)";
+              } else if (node.state === "REMOVING") {
+                ctx.fillStyle = "rgb(166,166,166)";
+              } else if (node.state === "ERROR") {
+                ctx.fillStyle = "rgb(252,141,89)"
+              }
+
+              node.partitions.forEach(function(p) {
+                if (replication[p] === undefined)
+                  replication[p] = 0;
+
+                if (node.state !== "BUILDING")
+                  replication[p] += 1;
+
+                ctx.fillRect(partitionWidth * p-1, nodeHeight * n, partitionWidth+1, nodeHeight);
+              });
+
+              n += 1;
+            }
+          }
+        }
+      };
+    </script>
+  </head>
+
+  <body onload="drawMaps();">
+    <div id="header">
+      <h1>Sequins!</h1>
+    </div>
+    <div id="wrapper">
+      {{ range $dbName, $db := .DBs}}
+      <div class="db">
+        <h2 class="dbname">/{{ $dbName }} {{ if gt (len $.DBs) 1 }}<a href="/{{ $dbName }}">&rarr;</a>{{ end }}</h2>
+        {{ range $versionName, $version := $db.Versions }}
+        <div class="version">
+          <span class="versionname">/{{ $versionName }}</span><span class="versionpath">({{ $version.Path }})</span>
+          <div class="versionwrapper">
+            <div class="nodes">
+              {{ range $nodeName, $node := $version.Nodes }}
+              <div class="node {{ if $node.Current }}nodecurrent{{else}}nodenotcurrent{{end}}{{ if eq $node.State "ERROR" }} nodeerror{{end}}">
+                <div class="nodename">{{$nodeName}}</div>
+                <div class="nodestatus">
+                {{ if eq $node.State "BUILDING" }}
+                  (building since {{ $node.CreatedAt }})
+                {{ else if eq $node.State "ERROR" }}
+                  (errored)
+                {{ else }}
+                  (available since {{ $node.AvailableAt }})
+                {{ end }}
+                </div>
+              </div>
+              {{ end }}
+            </div>
+            <div class="nodemap">
+              <canvas class="nodemap_canvas" id="nodemap_canvas_{{ $dbName }}_{{ $versionName }}"></canvas>
+            </div>
+          </div>
+          <div class="versioninfo">
+            <li>Overreplicated:
+              <span class="versioninfovalue{{ if ne $version.OverreplicatedPartitions 0 }} highlight{{ end }}">
+              {{ $version.OverreplicatedPartitions }}/{{ $version.NumPartitions }}
+              </span>
+            </li>
+            | <li>Underreplicated:
+                <span class="versioninfovalue{{ if ne $version.UnderreplicatedPartitions 0 }} highlight{{ end }}">
+                  {{ $version.UnderreplicatedPartitions }}/{{ $version.NumPartitions }}
+                </span>
+              </li>
+            | <li>Missing:
+                <span class="versioninfovalue{{ if ne $version.MissingPartitions 0 }} highlight{{ end }}">
+                  {{ $version.MissingPartitions }}/{{ $version.NumPartitions }}
+                </span>
+              </li>
+            | <li>Average replication:
+                <span class="versioninfovalue{{ if ne $version.AverageReplication (castToFloat32 $version.TargetReplication) }} highlight{{ end }}">
+                  {{ $version.AverageReplication }}/{{ $version.TargetReplication }}
+                </span>
+              </li>
+            </ul>
+          </div>
+        </div>
+        {{ end}}
+      </div>
+      {{ end }}
+    </div>
+  </body>
+</html>

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -42,10 +41,6 @@ type sequins struct {
 	sighups        chan os.Signal
 
 	storeLock lockfile.Lockfile
-}
-
-type status struct {
-	DBs map[string]dbStatus `json:"dbs"`
 }
 
 func newSequins(backend backend.Backend, config sequinsConfig) *sequins {
@@ -322,36 +317,4 @@ func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	db.serveKey(w, r, key)
-}
-
-func (s *sequins) serveStatus(w http.ResponseWriter, r *http.Request) {
-	s.dbsLock.RLock()
-
-	status := status{DBs: make(map[string]dbStatus)}
-	for name, db := range s.dbs {
-		status.DBs[name] = db.status()
-	}
-
-	s.dbsLock.RUnlock()
-
-	jsonBytes, err := json.Marshal(status)
-	if err != nil {
-		log.Println("Error serving status:", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	w.Header()["Content-Type"] = []string{"application/json"}
-	w.Write(jsonBytes)
-}
-
-func dirSize(path string) (int64, error) {
-	var size int64
-	err := filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
-		if !info.IsDir() {
-			size += info.Size()
-		}
-		return err
-	})
-	return size, err
 }

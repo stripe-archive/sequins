@@ -6,3 +6,4 @@ testdata
 .manifest
 *.swp
 test_scratch
+status.tmpl.go

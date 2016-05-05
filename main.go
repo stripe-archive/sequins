@@ -8,6 +8,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -111,17 +112,27 @@ func localSetup(localPath string, config sequinsConfig) *sequins {
 }
 
 func s3Setup(bucketName string, path string, config sequinsConfig) *sequins {
+	metadata := ec2metadata.New(session.New())
 	regionName := config.S3.Region
 	if regionName == "" {
-		regionName, err := ec2metadata.New(session.New()).Region()
+		regionName, err := metadata.Region()
 		if regionName == "" || err != nil {
 			log.Fatal("Unspecified S3 region, and no instance region found.")
 		}
 	}
 
+	creds := credentials.NewChainCredentials([]credentials.Provider{
+		&ec2rolecreds.EC2RoleProvider{Client: metadata},
+		&credentials.EnvProvider{},
+		&credentials.StaticProvider{Value: credentials.Value{
+			AccessKeyID:     config.S3.AccessKeyId,
+			SecretAccessKey: config.S3.SecretAccessKey,
+		}},
+	})
+
 	sess := session.New(&aws.Config{
 		Region:      aws.String(regionName),
-		Credentials: credentials.NewStaticCredentials(config.S3.AccessKeyId, config.S3.SecretAccessKey, ""),
+		Credentials: creds,
 	})
 
 	backend := backend.NewS3Backend(bucketName, path, s3.New(sess))

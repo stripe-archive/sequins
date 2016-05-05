@@ -115,7 +115,8 @@ func s3Setup(bucketName string, path string, config sequinsConfig) *sequins {
 	metadata := ec2metadata.New(session.New())
 	regionName := config.S3.Region
 	if regionName == "" {
-		regionName, err := metadata.Region()
+		var err error
+		regionName, err = metadata.Region()
 		if regionName == "" || err != nil {
 			log.Fatal("Unspecified S3 region, and no instance region found.")
 		}

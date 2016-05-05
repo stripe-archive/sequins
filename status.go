@@ -72,7 +72,8 @@ func (s *sequins) serveStatus(w http.ResponseWriter, r *http.Request) {
 
 	status := status{DBs: make(map[string]dbStatus)}
 	for name, db := range s.dbs {
-		status.DBs[name] = db.status()
+		fresh := dbStatus{Versions: make(map[string]versionStatus)}
+		status.DBs[name] = mergePeerDBStatus(fresh, db.status())
 	}
 
 	s.dbsLock.RUnlock()
@@ -208,8 +209,8 @@ func (s *sequins) getPeerStatus(peer string, db string) (status, error) {
 // mergePeerDBStatus merges two dbStatus objects, mutating only the
 // left one.
 func mergePeerDBStatus(left, right dbStatus) dbStatus {
-	for v := range right.Versions {
-		if vst, ok := left.Versions[v]; !ok {
+	for v, vst := range right.Versions {
+		if _, ok := left.Versions[v]; !ok {
 			left.Versions[v] = versionStatus{
 				Nodes:             make(map[string]nodeVersionStatus),
 				Path:              vst.Path,
@@ -218,8 +219,8 @@ func mergePeerDBStatus(left, right dbStatus) dbStatus {
 			}
 		}
 
-		for p, n := range right.Versions[v].Nodes {
-			left.Versions[v].Nodes[p] = n
+		for hostname, node := range right.Versions[v].Nodes {
+			left.Versions[v].Nodes[hostname] = node
 		}
 	}
 

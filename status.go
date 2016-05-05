@@ -249,7 +249,12 @@ func calculateReplicationStats(vst versionStatus) versionStatus {
 		}
 	}
 
-	vst.AverageReplication = float32(total) / float32(vst.NumPartitions)
+	if vst.NumPartitions == 0 {
+		vst.AverageReplication = 0
+	} else {
+		vst.AverageReplication = float32(total) / float32(vst.NumPartitions)
+	}
+
 	return vst
 }
 

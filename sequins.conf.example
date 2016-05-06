@@ -73,6 +73,14 @@ root = "hdfs://namenode:8020/path/to/sequins"
 # Unset by default. If set, sequins will connect to zookeeper at the given
 # addresses and try to join the existing cluster.
 
+# connect_timeout = "1s"
+# This specifies how long to wait while connecting to zookeeper.
+
+# session_timeout = "10s"
+# This specifies the session timeout to use with zookeeper. The
+# actual timeout is negotiated between server and client, but will never be
+# lower than this number.
+
 # replication = 2
 # This is the number of replicas responsible for each partition.
 

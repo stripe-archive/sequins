@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -18,7 +19,24 @@ func randomPort() int {
 	return int(rand.Int31n(6000) + 16000)
 }
 
-func createTestZk(t *testing.T) (string, *zk.Server) {
+type testZK struct {
+	*testing.T
+	dir  string
+	addr string
+	zk   *zk.Server
+}
+
+func (zk testZK) printLogs() {
+	log, _ := ioutil.ReadFile(filepath.Join(zk.dir, "log.txt"))
+	zk.T.Logf("===== ZOOKEEPER LOGS:\n%s", log)
+}
+
+func (zk testZK) close() {
+	zk.printLogs()
+	zk.zk.Destroy()
+}
+
+func createTestZk(t *testing.T) testZK {
 	zkHome := os.Getenv("ZOOKEEPER_HOME")
 	if zkHome == "" {
 		t.Skip("Skipping zk tests because ZOOKEEPER_HOME isn't set")
@@ -34,17 +52,19 @@ func createTestZk(t *testing.T) (string, *zk.Server) {
 	err = zk.Start()
 	require.NoError(t, err, "zk setup")
 
-	// Give it time to start up.
-	time.Sleep(5 * time.Second)
-
-	return fmt.Sprintf("127.0.0.1:%d", port), zk
+	return testZK{
+		T:    t,
+		dir:  dir,
+		addr: fmt.Sprintf("127.0.0.1:%d", port),
+		zk:   zk,
+	}
 }
 
-func connectZookeeperTest(t *testing.T) (*zkWatcher, *zk.Server) {
-	addr, zk := createTestZk(t)
-	defer zk.Destroy()
+func connectZookeeperTest(t *testing.T) (*zkWatcher, testZK) {
+	zk := createTestZk(t)
+	defer zk.close()
 
-	zkWatcher, err := connectZookeeper([]string{addr}, "/test-sequins")
+	zkWatcher, err := connectZookeeper([]string{zk.addr}, "/test-sequins", 5*time.Second, 10*time.Second)
 	require.NoError(t, err, "zkWatcher should connect")
 
 	return zkWatcher, zk

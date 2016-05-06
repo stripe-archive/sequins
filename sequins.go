@@ -108,7 +108,8 @@ func (s *sequins) init() error {
 
 func (s *sequins) initCluster() error {
 	prefix := path.Join("/", s.config.ZK.ClusterName)
-	zkWatcher, err := connectZookeeper(s.config.ZK.Servers, prefix)
+	zkWatcher, err := connectZookeeper(s.config.ZK.Servers, prefix,
+		s.config.ZK.ConnectTimeout.Duration, s.config.ZK.SessionTimeout.Duration)
 	if err != nil {
 		return err
 	}

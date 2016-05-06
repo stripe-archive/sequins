@@ -17,7 +17,6 @@ import (
 const (
 	coordinationVersion = "v1"
 	zkReconnectPeriod   = 1 * time.Second
-	zkTimeout           = 10 * time.Second
 	defaultZKPort       = 2181
 )
 
@@ -28,11 +27,13 @@ var defaultZkACL = zk.WorldACL(zk.PERM_ALL)
 // reconnects to zookeeper, and tries its best to be resilient to failures, but
 // defaults to silently not providing updates.
 type zkWatcher struct {
-	zkServers []string
-	prefix    string
-	conn      *zk.Conn
-	errs      chan error
-	shutdown  chan bool
+	zkServers      []string
+	connectTimeout time.Duration
+	sessionTimeout time.Duration
+	prefix         string
+	conn           *zk.Conn
+	errs           chan error
+	shutdown       chan bool
 
 	hooksLock      sync.Mutex
 	reconnectLock  sync.RWMutex
@@ -46,9 +47,11 @@ type watchedNode struct {
 	cancel       chan bool
 }
 
-func connectZookeeper(zkServers []string, prefix string) (*zkWatcher, error) {
+func connectZookeeper(zkServers []string, prefix string, connectTimeout, sessionTimeout time.Duration) (*zkWatcher, error) {
 	w := &zkWatcher{
 		zkServers:      zkServers,
+		connectTimeout: connectTimeout,
+		sessionTimeout: sessionTimeout,
 		prefix:         path.Join(prefix, coordinationVersion),
 		errs:           make(chan error, 1),
 		shutdown:       make(chan bool),
@@ -80,7 +83,7 @@ func (w *zkWatcher) reconnect() error {
 	w.reconnectLock.Lock()
 	defer w.reconnectLock.Unlock()
 	log.Println("Connecting to zookeeper at", servers)
-	conn, events, err = zk.Dial(servers, zkTimeout)
+	conn, events, err = zk.Dial(servers, w.sessionTimeout)
 	if err != nil {
 		return err
 	}
@@ -90,7 +93,7 @@ func (w *zkWatcher) reconnect() error {
 	}
 	w.conn = conn
 
-	connectTimeout := time.NewTimer(1 * time.Second)
+	connectTimeout := time.NewTimer(w.connectTimeout)
 	select {
 	case <-connectTimeout.C:
 		return errors.New("connection timeout")
@@ -177,7 +180,7 @@ func (w *zkWatcher) run() {
 
 			err := w.reconnect()
 			if err != nil {
-				log.Println("Zookeeper error:", err)
+				log.Println("Error reconnecting to zookeeper:", err)
 				continue
 			}
 		} else {
@@ -195,7 +198,8 @@ func (w *zkWatcher) run() {
 		case <-w.shutdown:
 			w.cancelWatches()
 			break
-		case <-w.errs:
+		case err := <-w.errs:
+			log.Println("Disconnecting because of error:", err)
 			w.cancelWatches()
 		}
 	}

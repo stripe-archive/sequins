@@ -46,6 +46,8 @@ type s3Config struct {
 
 type zkConfig struct {
 	Servers            []string `toml:"servers"`
+	ConnectTimeout     duration `toml:"connect_timeout"`
+	SessionTimeout     duration `toml:"session_timeout"`
 	Replication        int      `toml:"replication"`
 	TimeToConverge     duration `toml:"time_to_converge"`
 	ProxyTimeout       duration `toml:"proxy_timeout"`
@@ -89,6 +91,8 @@ func defaultConfig() sequinsConfig {
 		},
 		ZK: zkConfig{
 			Servers:            nil,
+			ConnectTimeout:     duration{1 * time.Second},
+			SessionTimeout:     duration{10 * time.Second},
 			Replication:        2,
 			TimeToConverge:     duration{10 * time.Second},
 			ProxyTimeout:       duration{100 * time.Millisecond},

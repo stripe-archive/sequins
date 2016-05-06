@@ -103,14 +103,6 @@
 			"path": "/difflib"
 		},
 		{
-			"importpath": "github.com/samuel/go-zookeeper/zk",
-			"repository": "https://github.com/samuel/go-zookeeper",
-			"revision": "218e9c81c0dd8b3b18172b2bbfad92cc7d6db55f",
-			"branch": "master",
-			"path": "/zk",
-			"notests": true
-		},
-		{
 			"importpath": "github.com/stretchr/testify/assert",
 			"repository": "https://github.com/stretchr/testify",
 			"revision": "9f9027faeb0dad515336ed2f28317f9f8f527ab4",

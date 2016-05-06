@@ -2,7 +2,8 @@ TRAVIS_TAG ?= $(shell git rev-parse HEAD)
 ARCH = $(shell go env GOOS)-$(shell go env GOARCH)
 RELEASE_NAME = sequins-$(TRAVIS_TAG)-$(ARCH)
 
-SOURCES = $(shell find . -name '*.go')
+SOURCES = $(shell find . -name '*.go' -not -name '*_test.go')
+TEST_SOURCES = $(shell find . -name '*_test.go')
 BUILD = $(shell pwd)/build
 
 VENDORED_LIBS = $(BUILD)/lib/libsparkey.a $(BUILD)/lib/libsnappy.a $(BUILD)/lib/libzookeeper_mt.a
@@ -65,8 +66,8 @@ release: sequins sequins-dump
 	cp sequins sequins-dump README.md LICENSE.txt $(RELEASE_NAME)/
 	tar -cvzf $(RELEASE_NAME).tar.gz $(RELEASE_NAME)
 
-test: sequins
-	$(CGO_PREAMBLE) go test -short -race -timeout 30s $(shell go list ./... | grep -v vendor )
+test: sequins $(TEST_SOURCES)
+	$(CGO_PREAMBLE) go test -short -race -timeout 30s $(shell go list ./... | grep -v vendor ) -run TestZKWatcher
 	$(CGO_PREAMBLE) go test -timeout 10m -run "^TestCluster"
 
 clean:

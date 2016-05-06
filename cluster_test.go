@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/samuel/go-zookeeper/zk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,11 +22,6 @@ import (
 const expectTimeout = 10 * time.Second
 
 type testVersion string
-
-func randomPort() int {
-	rand.Seed(time.Now().UnixNano())
-	return int(rand.Int31n(6000) + 16000)
-}
 
 const dbName = "db"
 const (
@@ -45,8 +39,7 @@ type testCluster struct {
 	binary     string
 	root       string
 	sequinses  []*testSequins
-	zkCluster  *zk.TestCluster
-	zkServers  []string
+	zk         testZK
 	testClient *http.Client
 }
 
@@ -75,7 +68,7 @@ func newTestCluster(t *testing.T) *testCluster {
 	root, err := ioutil.TempDir("", "sequins-cluster-")
 	require.NoError(t, err)
 
-	zkServers, zkCluster := createTestZkCluster(t)
+	zk := createTestZk(t)
 
 	// Give the zookeeper cluster a chance to start up.
 	time.Sleep(1 * time.Second)
@@ -92,8 +85,7 @@ func newTestCluster(t *testing.T) *testCluster {
 		binary:     binary,
 		root:       root,
 		sequinses:  make([]*testSequins, 0),
-		zkServers:  zkServers,
-		zkCluster:  zkCluster,
+		zk:         zk,
 		testClient: testClient,
 	}
 }
@@ -118,7 +110,7 @@ func (tc *testCluster) addSequins() *testSequins {
 	config.Root = backendPath
 	config.LocalStore = path
 	config.RequireSuccessFile = true
-	config.ZK.Servers = tc.zkServers
+	config.ZK.Servers = []string{tc.zk.addr}
 	config.ZK.TimeToConverge = duration{100 * time.Millisecond}
 	config.ZK.ProxyTimeout = duration{300 * time.Millisecond}
 	config.ZK.AdvertisedHostname = "localhost"
@@ -198,7 +190,7 @@ func (tc *testCluster) tearDown() {
 		tc.T.Logf("===== OUTPUT FOR %s\n%s", ts.name, ts.bufferedOutput.String())
 	}
 
-	tc.zkCluster.Stop()
+	tc.zk.close()
 	os.RemoveAll(tc.root)
 }
 

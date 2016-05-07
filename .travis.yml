@@ -2,15 +2,17 @@ language: go
 go: 1.6
 sudo: false
 before_install:
-- export ZOOKEEPER_HOME="/tmp/zookeeper-3.4.8"
-- test -d $ZOOKEEPER_HOME || (cd /tmp &&
+- export ZOOKEEPER_HOME="$HOME/zookeeper-3.4.8"
+- test -d $ZOOKEEPER_HOME || (cd $HOME &&
     wget http://apache.mirror.iphh.net/zookeeper/zookeeper-3.4.8/zookeeper-3.4.8.tar.gz &&
     tar -zxvf zookeeper-3.4.8.tar.gz)
 - export NN_PORT=9000
 - export HADOOP_NAMENODE="localhost:$NN_PORT"
 - export HADOOP_DISTRO=cdh
-- export HADOOP_HOME="/tmp/hadoop"
+- export HADOOP_HOME="$HOME/hadoop"
 - sh vendor/github.com/colinmarc/hdfs/setup_test_env.sh
+before_script:
+- make
 script: make test
 before_deploy: make release
 deploy:
@@ -23,6 +25,10 @@ deploy:
     repo: stripe/sequins
     tags: true
     all_branches: true
+cache:
+  directories:
+    - $ZOOKEEPER_HOME
+    - $HADOOP_HOME
 env:
   global:
   - secure: d4y27NWdKd13Nj0y9aBJBiJaQLSCw+FHI5W2UXaXPkgi7NCr/dsNYhFfkNSNDR7NVLjeNoG0Ga/488DNeetm/InXvb4iST+sjpBgHhFot97ytqCkQ64bU7QoGG0cu4bI4mgMVPwkVE71NY0bx3mzj+CTZgK/PtBvpB0f8rrXZbc=

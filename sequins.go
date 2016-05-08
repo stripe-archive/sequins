@@ -52,7 +52,7 @@ func newSequins(backend backend.Backend, config sequinsConfig) *sequins {
 }
 
 func (s *sequins) init() error {
-	if s.config.ZK.Servers != nil {
+	if s.config.Sharding.Enabled {
 		err := s.initCluster()
 		if err != nil {
 			return err
@@ -107,14 +107,14 @@ func (s *sequins) init() error {
 }
 
 func (s *sequins) initCluster() error {
-	prefix := path.Join("/", s.config.ZK.ClusterName)
+	prefix := path.Join("/", s.config.Sharding.ClusterName)
 	zkWatcher, err := connectZookeeper(s.config.ZK.Servers, prefix,
 		s.config.ZK.ConnectTimeout.Duration, s.config.ZK.SessionTimeout.Duration)
 	if err != nil {
 		return err
 	}
 
-	hostname := s.config.ZK.AdvertisedHostname
+	hostname := s.config.Sharding.AdvertisedHostname
 	if hostname == "" {
 		hostname, err = os.Hostname()
 		if err != nil {
@@ -128,17 +128,17 @@ func (s *sequins) initCluster() error {
 	}
 
 	routableAddress := net.JoinHostPort(hostname, port)
-	shardID := s.config.ZK.ShardID
+	shardID := s.config.Sharding.ShardID
 	if shardID == "" {
 		shardID = routableAddress
 	}
 
 	peers := watchPeers(zkWatcher, shardID, routableAddress)
-	peers.waitToConverge(s.config.ZK.TimeToConverge.Duration)
+	peers.waitToConverge(s.config.Sharding.TimeToConverge.Duration)
 
 	s.zkWatcher = zkWatcher
 	s.peers = peers
-	s.proxyClient = &http.Client{Timeout: s.config.ZK.ProxyTimeout.Duration}
+	s.proxyClient = &http.Client{Timeout: s.config.Sharding.ProxyTimeout.Duration}
 	return nil
 }
 

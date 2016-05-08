@@ -26,11 +26,12 @@ type sequinsConfig struct {
 	RequireSuccessFile bool     `toml:"require_success_file"`
 	ContentType        string   `toml:"content_type"`
 
-	Storage storageConfig `toml:"storage"`
-	S3      s3Config      `toml:"s3"`
-	ZK      zkConfig      `toml:"zk"`
-	Debug   debugConfig   `toml:"debug"`
-	Test    testConfig    `toml:"test"`
+	Storage  storageConfig  `toml:"storage"`
+	S3       s3Config       `toml:"s3"`
+	Sharding shardingConfig `toml:"sharding"`
+	ZK       zkConfig       `toml:"zk"`
+	Debug    debugConfig    `toml:"debug"`
+	Test     testConfig     `toml:"test"`
 }
 
 type storageConfig struct {
@@ -44,16 +45,20 @@ type s3Config struct {
 	SecretAccessKey string `toml:"secret_access_key"`
 }
 
-type zkConfig struct {
-	Servers            []string `toml:"servers"`
-	ConnectTimeout     duration `toml:"connect_timeout"`
-	SessionTimeout     duration `toml:"session_timeout"`
+type shardingConfig struct {
+	Enabled            bool     `toml:"enabled"`
 	Replication        int      `toml:"replication"`
 	TimeToConverge     duration `toml:"time_to_converge"`
 	ProxyTimeout       duration `toml:"proxy_timeout"`
 	ClusterName        string   `toml:"cluster_name"`
 	AdvertisedHostname string   `toml:"advertised_hostname"`
 	ShardID            string   `toml:"shard_id"`
+}
+
+type zkConfig struct {
+	Servers        []string `toml:"servers"`
+	ConnectTimeout duration `toml:"connect_timeout"`
+	SessionTimeout duration `toml:"session_timeout"`
 }
 
 type debugConfig struct {
@@ -89,16 +94,19 @@ func defaultConfig() sequinsConfig {
 			AccessKeyId:     "",
 			SecretAccessKey: "",
 		},
-		ZK: zkConfig{
-			Servers:            nil,
-			ConnectTimeout:     duration{1 * time.Second},
-			SessionTimeout:     duration{10 * time.Second},
+		Sharding: shardingConfig{
+			Enabled:            false,
 			Replication:        2,
 			TimeToConverge:     duration{10 * time.Second},
 			ProxyTimeout:       duration{100 * time.Millisecond},
 			ClusterName:        "sequins",
 			AdvertisedHostname: "",
 			ShardID:            "",
+		},
+		ZK: zkConfig{
+			Servers:        []string{"localhost:2181"},
+			ConnectTimeout: duration{1 * time.Second},
+			SessionTimeout: duration{10 * time.Second},
 		},
 		Debug: debugConfig{
 			Bind:    "",

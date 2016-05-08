@@ -22,8 +22,8 @@ var errNoAvailablePeers = errors.New("no available peers")
 var errProxiedIncorrectly = errors.New("this server doesn't have the requested partition")
 
 // A version represents a single version of a particular sequins db: in
-// other words, a collection of files. In the distributed case, it understands
-// partitions and can route requests.
+// other words, a collection of files. In the sharding-enabled case, it
+// understands distribution of partitions and can route requests.
 type version struct {
 	sequins *sequins
 
@@ -51,7 +51,7 @@ func newVersion(sequins *sequins, path, db, name string, numPartitions int) *ver
 	var local map[int]bool
 	if sequins.peers != nil {
 		vs.partitions = watchPartitions(sequins.zkWatcher, sequins.peers,
-			db, name, numPartitions, sequins.config.ZK.Replication)
+			db, name, numPartitions, sequins.config.Sharding.Replication)
 
 		local = vs.partitions.pickLocalPartitions()
 		vs.selectedLocalPartitions = local

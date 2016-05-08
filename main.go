@@ -71,8 +71,8 @@ func main() {
 	var s *sequins
 	switch parsed.Scheme {
 	case "", "file":
-		if config.ZK.Servers != nil && !config.Test.AllowLocalCluster {
-			log.Fatal("You can't run sequins in distributed mode on local paths.")
+		if config.Sharding.Enabled && !config.Test.AllowLocalCluster {
+			log.Fatal("You can't run sequins with sharding enabled on local paths.")
 		}
 		s = localSetup(config.Root, config)
 	case "s3":

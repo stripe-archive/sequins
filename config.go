@@ -50,6 +50,7 @@ type shardingConfig struct {
 	Replication        int      `toml:"replication"`
 	TimeToConverge     duration `toml:"time_to_converge"`
 	ProxyTimeout       duration `toml:"proxy_timeout"`
+	ProxyStageTimeout  duration `toml:"proxy_stage_timeout"`
 	ClusterName        string   `toml:"cluster_name"`
 	AdvertisedHostname string   `toml:"advertised_hostname"`
 	ShardID            string   `toml:"shard_id"`
@@ -99,6 +100,7 @@ func defaultConfig() sequinsConfig {
 			Replication:        2,
 			TimeToConverge:     duration{10 * time.Second},
 			ProxyTimeout:       duration{100 * time.Millisecond},
+			ProxyStageTimeout:  duration{time.Duration(0)},
 			ClusterName:        "sequins",
 			AdvertisedHostname: "",
 			ShardID:            "",
@@ -153,6 +155,10 @@ func validateConfig(config sequinsConfig) (sequinsConfig, error) {
 	case blocks.SnappyCompression, blocks.NoCompression:
 	default:
 		return config, fmt.Errorf("Unrecognized compression option: %s", config.Storage.Compression)
+	}
+
+	if config.Sharding.Replication <= 0 {
+		return config, fmt.Errorf("Invalid replication factor: %d", config.Sharding.Replication)
 	}
 
 	return config, nil

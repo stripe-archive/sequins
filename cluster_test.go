@@ -112,7 +112,7 @@ func (tc *testCluster) addSequins() *testSequins {
 	config.RequireSuccessFile = true
 	config.Sharding.Enabled = true
 	config.Sharding.TimeToConverge = duration{100 * time.Millisecond}
-	config.Sharding.ProxyTimeout = duration{300 * time.Millisecond}
+	config.Sharding.ProxyTimeout = duration{600 * time.Millisecond}
 	config.Sharding.AdvertisedHostname = "localhost"
 	config.ZK.Servers = []string{tc.zk.addr}
 	config.Test.AllowLocalCluster = true

@@ -87,6 +87,13 @@ root = "hdfs://namenode:8020/path/to/sequins"
 # particularly cold storage, or if there are other factors significantly
 # increasing request time.
 
+# proxy_stage_timeout = "50ms"
+# Unset by default. After this interval, sequins will try another peer
+# concurrently with the first, as long as there are other peers available and
+# the total time is less than 'proxy_timeout'. If left unset, this defaults to
+# the 'proxy_timeout' divided by 'replication_factor' - enough time for all
+# peers to be tried within the total timeout.
+
 # cluster_name = "sequins"
 # This defines the root prefix to use for zookeeper state. If you are running
 # multiple sequins clusters using the same zookeeper for coordination, you

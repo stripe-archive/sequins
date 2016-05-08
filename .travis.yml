@@ -13,7 +13,7 @@ before_install:
 - sh vendor/github.com/colinmarc/hdfs/setup_test_env.sh
 before_script:
 - make
-script: make test
+script: make test test_functional
 before_deploy: make release
 deploy:
   provider: releases

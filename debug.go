@@ -30,6 +30,7 @@ type sequinsStats struct {
 		status500 int64
 		status501 int64
 		status502 int64
+		status504 int64
 	}
 	Latency struct {
 		Max   float64
@@ -122,6 +123,7 @@ func (s *sequinsStats) updateRequestStats() {
 			s.Qps.status500 = 0
 			s.Qps.status501 = 0
 			s.Qps.status502 = 0
+			s.Qps.status504 = 0
 		case q := <-s.queries:
 			s.latencyHist.RecordValue(int64(q.duration / time.Microsecond))
 
@@ -139,6 +141,8 @@ func (s *sequinsStats) updateRequestStats() {
 				s.Qps.status501++
 			case 502:
 				s.Qps.status502++
+			case 504:
+				s.Qps.status504++
 			default:
 				log.Println("Untrackable http status:", q.status)
 			}
@@ -158,6 +162,7 @@ func (s *sequinsStats) snapshotRequestStats() {
 	s.Qps.ByStatus["500"] = s.Qps.status500
 	s.Qps.ByStatus["501"] = s.Qps.status501
 	s.Qps.ByStatus["502"] = s.Qps.status502
+	s.Qps.ByStatus["504"] = s.Qps.status504
 
 	ms := float64(1000)
 	s.Latency.Max = float64(s.latencyHist.Max()) / ms

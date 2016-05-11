@@ -67,19 +67,12 @@ root = "hdfs://namenode:8020/path/to/sequins"
 # variables AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY will be used, or IAM
 # instance role credentials if they are available.
 
-[zk]
+[sharding]
 
-# servers = ["localhost:2181"]
-# Unset by default. If set, sequins will connect to zookeeper at the given
-# addresses and try to join the existing cluster.
-
-# connect_timeout = "1s"
-# This specifies how long to wait while connecting to zookeeper.
-
-# session_timeout = "10s"
-# This specifies the session timeout to use with zookeeper. The
-# actual timeout is negotiated between server and client, but will never be
-# lower than this number.
+# enabled = false
+# If true, sequins will attempt to connect to zookeeper at the specified
+# addresses (see below), and coordinate with peer instances to shard datasets.
+# For a complete description of the sharding algorithm, see the manual.
 
 # replication = 2
 # This is the number of replicas responsible for each partition.
@@ -93,6 +86,13 @@ root = "hdfs://namenode:8020/path/to/sequins"
 # in a sequins cluster. You may want to increase this if you're running on
 # particularly cold storage, or if there are other factors significantly
 # increasing request time.
+
+# proxy_stage_timeout = "50ms"
+# Unset by default. After this interval, sequins will try another peer
+# concurrently with the first, as long as there are other peers available and
+# the total time is less than 'proxy_timeout'. If left unset, this defaults to
+# the 'proxy_timeout' divided by 'replication_factor' - enough time for all
+# peers to be tried within the total timeout.
 
 # cluster_name = "sequins"
 # This defines the root prefix to use for zookeeper state. If you are running
@@ -112,6 +112,20 @@ root = "hdfs://namenode:8020/path/to/sequins"
 # the same  partitions. This can be useful if you don't have stable hostnames,
 # but want to be able to rebuild a server to take the place of a dead or
 # decomissioning one.
+
+[zk]
+
+# servers = ["localhost:2181"]
+# If set and 'sharding.enabled' is true, sequins will connect to zookeeper at
+# the given addresses.
+
+# connect_timeout = "1s"
+# This specifies how long to wait while connecting to zookeeper.
+
+# session_timeout = "10s"
+# This specifies the session timeout to use with zookeeper. The
+# actual timeout is negotiated between server and client, but will never be
+# lower than this number.
 
 [debug]
 

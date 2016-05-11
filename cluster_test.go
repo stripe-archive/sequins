@@ -110,10 +110,11 @@ func (tc *testCluster) addSequins() *testSequins {
 	config.Root = backendPath
 	config.LocalStore = path
 	config.RequireSuccessFile = true
+	config.Sharding.Enabled = true
+	config.Sharding.TimeToConverge = duration{100 * time.Millisecond}
+	config.Sharding.ProxyTimeout = duration{600 * time.Millisecond}
+	config.Sharding.AdvertisedHostname = "localhost"
 	config.ZK.Servers = []string{tc.zk.addr}
-	config.ZK.TimeToConverge = duration{100 * time.Millisecond}
-	config.ZK.ProxyTimeout = duration{300 * time.Millisecond}
-	config.ZK.AdvertisedHostname = "localhost"
 	config.Test.AllowLocalCluster = true
 
 	// Slow everything down to an observable level.

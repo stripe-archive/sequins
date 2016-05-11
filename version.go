@@ -22,8 +22,8 @@ var errNoAvailablePeers = errors.New("no available peers")
 var errProxiedIncorrectly = errors.New("this server doesn't have the requested partition")
 
 // A version represents a single version of a particular sequins db: in
-// other words, a collection of files. In the distributed case, it understands
-// partitions and can route requests.
+// other words, a collection of files. In the sharding-enabled case, it
+// understands distribution of partitions and can route requests.
 type version struct {
 	sequins *sequins
 
@@ -51,7 +51,7 @@ func newVersion(sequins *sequins, path, db, name string, numPartitions int) *ver
 	var local map[int]bool
 	if sequins.peers != nil {
 		vs.partitions = watchPartitions(sequins.zkWatcher, sequins.peers,
-			db, name, numPartitions, sequins.config.ZK.Replication)
+			db, name, numPartitions, sequins.config.Sharding.Replication)
 
 		local = vs.partitions.pickLocalPartitions()
 		vs.selectedLocalPartitions = local
@@ -104,12 +104,17 @@ func (vs *version) advertiseAndWait() bool {
 
 // serveKey is the entrypoint for incoming HTTP requests.
 func (vs *version) serveKey(w http.ResponseWriter, r *http.Request, key string) {
-	res, err := vs.get(key, r)
+	res, err := vs.get(r, key)
 
 	if err == errNoAvailablePeers {
-		// All of our peers failed us. 502.
-		log.Printf("All peers failed to respond for /%s/%s (version %s)", vs.db, key, vs.name)
+		// Either something is wrong with sharding, or all peers errored for some
+		// other reason. 502
+		log.Printf("No peers available for /%s/%s (version %s)", vs.db, key, vs.name)
 		w.WriteHeader(http.StatusBadGateway)
+	} else if err == errProxyTimeout {
+		// All of our peers failed us. 504.
+		log.Printf("All peers timed out for /%s/%s (version %s)", vs.db, key, vs.name)
+		w.WriteHeader(http.StatusGatewayTimeout)
 	} else if err != nil {
 		// Some other error. 500.
 		log.Printf("Error fetching value for /%s/%s: %s\n", vs.db, key, err)
@@ -130,7 +135,7 @@ func (vs *version) serveKey(w http.ResponseWriter, r *http.Request, key string) 
 
 // get looks up a value locally, or, failing that, asks a peer that has it.
 // If the request was proxied, it is not proxied further.
-func (vs *version) get(key string, r *http.Request) ([]byte, error) {
+func (vs *version) get(r *http.Request, key string) ([]byte, error) {
 	if vs.numPartitions == 0 {
 		return nil, nil
 	}
@@ -140,10 +145,10 @@ func (vs *version) get(key string, r *http.Request) ([]byte, error) {
 	if bs != nil && vs.hasPartition(partition) || vs.hasPartition(alternatePartition) {
 		return bs.Get(key)
 	} else if r.URL.Query().Get("proxy") == "" {
-		res, err := vs.proxyRequest(partition, r)
+		res, err := vs.getPeers(r, partition)
 		if res == nil && err == nil && alternatePartition != partition {
 			log.Println("Trying alternate partition for pathological key", key)
-			res, err = vs.proxyRequest(alternatePartition, r)
+			res, err = vs.getPeers(r, alternatePartition)
 		}
 
 		return res, err
@@ -153,15 +158,11 @@ func (vs *version) get(key string, r *http.Request) ([]byte, error) {
 
 }
 
-// hasPartition returns true if we have the partition available locally.
-func (vs *version) hasPartition(partition int) bool {
-	return vs.getBlockStore() != nil && (vs.partitions == nil || vs.partitions.local[partition])
-}
-
-// proxyRequest proxies the request, trying each peer that should have the key
-// in turn.
-func (vs *version) proxyRequest(partition int, r *http.Request) ([]byte, error) {
+func (vs *version) getPeers(r *http.Request, partition int) ([]byte, error) {
 	peers := vs.partitions.getPeers(partition)
+	if len(peers) == 0 {
+		return nil, errNoAvailablePeers
+	}
 
 	// Shuffle the peers, so we try them in a random order.
 	// TODO: don't blacklist nodes, but we can weight them lower
@@ -171,29 +172,7 @@ func (vs *version) proxyRequest(partition int, r *http.Request) ([]byte, error) 
 		shuffled[v] = peers[i]
 	}
 
-	for _, peer := range shuffled {
-		res, err := vs.proxyAttempt(peer, r)
-		if err != nil {
-			log.Printf("Error proxying request to peer %s: %s", r.URL.String(), err)
-			continue
-		}
-
-		return res, nil
-	}
-
-	return nil, errNoAvailablePeers
-}
-
-func (vs *version) proxyAttempt(peer string, r *http.Request) ([]byte, error) {
-	r.URL.RawQuery = fmt.Sprintf("proxy=%s", vs.name)
-	r.URL.Scheme = "http"
-	r.URL.Host = peer
-	proxyRequest, err := http.NewRequest("GET", r.URL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := vs.sequins.proxyClient.Do(proxyRequest)
+	resp, err := vs.proxyRequest(r, peers)
 	if err != nil {
 		return nil, err
 	}
@@ -206,6 +185,11 @@ func (vs *version) proxyAttempt(peer string, r *http.Request) ([]byte, error) {
 	}
 
 	return ioutil.ReadAll(resp.Body)
+}
+
+// hasPartition returns true if we have the partition available locally.
+func (vs *version) hasPartition(partition int) bool {
+	return vs.getBlockStore() != nil && (vs.partitions == nil || vs.partitions.local[partition])
 }
 
 func (vs *version) close() {

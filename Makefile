@@ -54,10 +54,10 @@ status.tmpl.go: status.tmpl $(BUILD)/bin/go-bindata
 	$(BUILD)/bin/go-bindata -o status.tmpl.go status.tmpl
 
 sequins: $(SOURCES) status.tmpl.go $(BUILD)/lib/libsparkey.a $(BUILD)/lib/libsnappy.a $(BUILD)/lib/libzookeeper_mt.a
-	$(CGO_PREAMBLE) go build -x -ldflags "-X main.sequinsVersion=$(TRAVIS_TAG)"
+	$(CGO_PREAMBLE) go build -ldflags "-X main.sequinsVersion=$(TRAVIS_TAG)"
 
 sequins-dump: $(SOURCES)
-	go build -x -ldflags "-X main.sequinsVersion=$(TRAVIS_TAG)"  ./cmd/sequins-dump
+	go build -ldflags "-X main.sequinsVersion=$(TRAVIS_TAG)"  ./cmd/sequins-dump
 
 release: sequins sequins-dump
 	./sequins --version
@@ -66,8 +66,10 @@ release: sequins sequins-dump
 	cp sequins sequins-dump README.md LICENSE.txt $(RELEASE_NAME)/
 	tar -cvzf $(RELEASE_NAME).tar.gz $(RELEASE_NAME)
 
-test: sequins $(TEST_SOURCES)
-	$(CGO_PREAMBLE) go test -short -race -timeout 30s $(shell go list ./... | grep -v vendor ) -run TestZKWatcher
+test: $(TEST_SOURCES)
+	$(CGO_PREAMBLE) go test -short -race -timeout 30s $(shell go list ./... | grep -v vendor)
+
+test_functional: sequins $(TEST_SOURCES) test
 	$(CGO_PREAMBLE) go test -timeout 10m -run "^TestCluster"
 
 clean:
@@ -81,4 +83,4 @@ clean:
 	rm -f sequins sequins-dump sequins-*.tar.gz
 	rm -rf $(RELEASE_NAME)
 
-.PHONY: release test clean
+.PHONY: release test test_functional clean

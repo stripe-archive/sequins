@@ -31,9 +31,8 @@ type sequins struct {
 	dbs     map[string]*db
 	dbsLock sync.RWMutex
 
-	peers       *peers
-	zkWatcher   *zkWatcher
-	proxyClient *http.Client
+	peers     *peers
+	zkWatcher *zkWatcher
 
 	refreshLock    sync.Mutex
 	refreshWorkers chan bool
@@ -52,7 +51,7 @@ func newSequins(backend backend.Backend, config sequinsConfig) *sequins {
 }
 
 func (s *sequins) init() error {
-	if s.config.ZK.Servers != nil {
+	if s.config.Sharding.Enabled {
 		err := s.initCluster()
 		if err != nil {
 			return err
@@ -107,14 +106,20 @@ func (s *sequins) init() error {
 }
 
 func (s *sequins) initCluster() error {
-	prefix := path.Join("/", s.config.ZK.ClusterName)
+	// This config property is calculated if not set.
+	if s.config.Sharding.ProxyStageTimeout.Duration == 0 {
+		stageTimeout := s.config.Sharding.ProxyTimeout.Duration / time.Duration(s.config.Sharding.Replication)
+		s.config.Sharding.ProxyStageTimeout = duration{stageTimeout}
+	}
+
+	prefix := path.Join("/", s.config.Sharding.ClusterName)
 	zkWatcher, err := connectZookeeper(s.config.ZK.Servers, prefix,
 		s.config.ZK.ConnectTimeout.Duration, s.config.ZK.SessionTimeout.Duration)
 	if err != nil {
 		return err
 	}
 
-	hostname := s.config.ZK.AdvertisedHostname
+	hostname := s.config.Sharding.AdvertisedHostname
 	if hostname == "" {
 		hostname, err = os.Hostname()
 		if err != nil {
@@ -128,17 +133,16 @@ func (s *sequins) initCluster() error {
 	}
 
 	routableAddress := net.JoinHostPort(hostname, port)
-	shardID := s.config.ZK.ShardID
+	shardID := s.config.Sharding.ShardID
 	if shardID == "" {
 		shardID = routableAddress
 	}
 
 	peers := watchPeers(zkWatcher, shardID, routableAddress)
-	peers.waitToConverge(s.config.ZK.TimeToConverge.Duration)
+	peers.waitToConverge(s.config.Sharding.TimeToConverge.Duration)
 
 	s.zkWatcher = zkWatcher
 	s.peers = peers
-	s.proxyClient = &http.Client{Timeout: s.config.ZK.ProxyTimeout.Duration}
 	return nil
 }
 

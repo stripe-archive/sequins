@@ -184,7 +184,7 @@ func (s *sequins) getPeerStatus(peer string, db string) (status, error) {
 		return status, err
 	}
 
-	resp, err := s.proxyClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return status, err
 	}

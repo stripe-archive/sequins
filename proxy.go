@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"time"
@@ -15,7 +16,7 @@ type proxyResponse struct {
 
 var errProxyTimeout = errors.New("all peers timed out")
 
-// proxyRequest proxies the request, trying each peer that should have the key
+// proxy proxies the request, trying each peer that should have the key
 // in turn. The total logical attempt will be capped at the configured proxy
 // timeout, but individual peers will be tried using the following algorithm:
 //   - Each interval of 'proxy_stage_timeout', starting immediately, a request
@@ -30,7 +31,7 @@ var errProxyTimeout = errors.New("all peers timed out")
 //     case the code just waits for one to finish. If the total 'proxy_timeout'
 //     is hit at any point, the method returns immediately with an error and
 //     cancels any running requests.
-func (vs *version) proxyRequest(r *http.Request, peers []string) (*http.Response, error) {
+func (vs *version) proxy(r *http.Request, peers []string) ([]byte, error) {
 	responses := make(chan proxyResponse, len(peers))
 	cancel := make(chan struct{})
 	defer close(cancel)
@@ -56,7 +57,7 @@ func (vs *version) proxyRequest(r *http.Request, peers []string) (*http.Response
 				outstanding -= 1
 				continue
 			} else {
-				return res.resp, nil
+				return readResponse(res)
 			}
 		case <-totalTimeout.C:
 			return nil, errProxyTimeout
@@ -90,4 +91,17 @@ func (vs *version) proxyAttempt(url string, res chan proxyResponse, cancel chan 
 	}
 
 	res <- proxyResponse{resp, nil}
+}
+
+func readResponse(res proxyResponse) ([]byte, error) {
+	resp := res.resp
+
+	defer resp.Body.Close()
+	if resp.StatusCode == 404 {
+		return nil, nil
+	} else if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("got %d", resp.StatusCode)
+	}
+
+	return ioutil.ReadAll(resp.Body)
 }

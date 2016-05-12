@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -38,9 +37,9 @@ func TestProxySinglePeer(t *testing.T) {
 	peers := []string{httptestHost(peer)}
 
 	r, _ := http.NewRequest("GET", "http://localhost", nil)
-	resp, err := proxyTestVersion.proxyRequest(r, peers)
+	res, err := proxyTestVersion.proxy(r, peers)
 	assert.NoError(t, err, "simple proxying should work")
-	assert.NotNil(t, resp, "simple proxying should work")
+	assert.NotNil(t, res, "simple proxying should work")
 }
 
 func TestProxySlowPeer(t *testing.T) {
@@ -59,13 +58,11 @@ func TestProxySlowPeer(t *testing.T) {
 
 	peers := []string{httptestHost(slowPeer), httptestHost(goodPeer), httptestHost(notReachedPeer)}
 	r, _ := http.NewRequest("GET", "http://localhost", nil)
-	resp, err := proxyTestVersion.proxyRequest(r, peers)
+	res, err := proxyTestVersion.proxy(r, peers)
 	require.NoError(t, err, "proxying should work on the second peer")
-	require.NotNil(t, resp, "proxying should work on the second peer")
+	require.NotNil(t, res, "proxying should work on the second peer")
 
-	b, err := ioutil.ReadAll(resp.Body)
-	require.NoError(t, err, "reading proxied response")
-	assert.Equal(t, "all good\n", string(b))
+	assert.Equal(t, "all good\n", string(res))
 }
 
 func TestProxyErrorPeer(t *testing.T) {
@@ -83,13 +80,11 @@ func TestProxyErrorPeer(t *testing.T) {
 
 	peers := []string{httptestHost(errorPeer), httptestHost(goodPeer), httptestHost(notReachedPeer)}
 	r, _ := http.NewRequest("GET", "http://localhost", nil)
-	resp, err := proxyTestVersion.proxyRequest(r, peers)
+	res, err := proxyTestVersion.proxy(r, peers)
 	require.NoError(t, err, "proxying should work on the second peer")
-	require.NotNil(t, resp, "proxying should work on the second peer")
+	require.NotNil(t, res, "proxying should work on the second peer")
 
-	b, err := ioutil.ReadAll(resp.Body)
-	require.NoError(t, err, "reading proxied response")
-	assert.Equal(t, "all good\n", string(b))
+	assert.Equal(t, "all good\n", string(res))
 }
 
 func TestProxySlowPeerErrorPeer(t *testing.T) {
@@ -104,13 +99,11 @@ func TestProxySlowPeerErrorPeer(t *testing.T) {
 
 	peers := []string{httptestHost(slowPeer), httptestHost(errorPeer)}
 	r, _ := http.NewRequest("GET", "http://localhost", nil)
-	resp, err := proxyTestVersion.proxyRequest(r, peers)
+	res, err := proxyTestVersion.proxy(r, peers)
 	require.NoError(t, err, "proxying should work on the first peer")
-	require.NotNil(t, resp, "proxying should work on the first peer")
+	require.NotNil(t, res, "proxying should work on the first peer")
 
-	b, err := ioutil.ReadAll(resp.Body)
-	require.NoError(t, err, "reading proxied response")
-	assert.Equal(t, "all good, sorry to keep you waiting\n", string(b))
+	assert.Equal(t, "all good, sorry to keep you waiting\n", string(res))
 }
 
 func TestProxyTimeout(t *testing.T) {
@@ -131,9 +124,9 @@ func TestProxyTimeout(t *testing.T) {
 	}
 
 	r, _ := http.NewRequest("GET", "http://localhost", nil)
-	resp, err := proxyTestVersion.proxyRequest(r, peers)
+	res, err := proxyTestVersion.proxy(r, peers)
 	assert.Equal(t, errProxyTimeout, err, "proxying should time out with all slow peers")
-	assert.Nil(t, resp, "proxying should time out with all slow peers")
+	assert.Nil(t, res, "proxying should time out with all slow peers")
 }
 
 func TestProxyErrors(t *testing.T) {
@@ -148,7 +141,7 @@ func TestProxyErrors(t *testing.T) {
 	}
 
 	r, _ := http.NewRequest("GET", "http://localhost", nil)
-	resp, err := proxyTestVersion.proxyRequest(r, peers)
+	res, err := proxyTestVersion.proxy(r, peers)
 	assert.Equal(t, errNoAvailablePeers, err, "proxying should return errNoAvailablePeers if all error")
-	assert.Nil(t, resp, "proxying should return errNoAvailablePeers if all error")
+	assert.Nil(t, res, "proxying should return errNoAvailablePeers if all error")
 }

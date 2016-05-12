@@ -3,8 +3,6 @@ package main
 import (
 	"bytes"
 	"errors"
-	"fmt"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
@@ -172,19 +170,7 @@ func (vs *version) getPeers(r *http.Request, partition int) ([]byte, error) {
 		shuffled[v] = peers[i]
 	}
 
-	resp, err := vs.proxyRequest(r, peers)
-	if err != nil {
-		return nil, err
-	}
-
-	defer resp.Body.Close()
-	if resp.StatusCode == 404 {
-		return nil, nil
-	} else if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("got %d", resp.StatusCode)
-	}
-
-	return ioutil.ReadAll(resp.Body)
+	return vs.proxy(r, peers)
 }
 
 // hasPartition returns true if we have the partition available locally.

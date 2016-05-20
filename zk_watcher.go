@@ -12,8 +12,6 @@ import (
 	zk "launchpad.net/gozk/zookeeper"
 )
 
-// TODO testable
-
 const (
 	coordinationVersion = "v1"
 	zkReconnectPeriod   = 1 * time.Second
@@ -153,10 +151,10 @@ func (w *zkWatcher) notifyDisconnected() {
 }
 
 func (w *zkWatcher) cancelWatches() {
-	w.notifyDisconnected()
-
 	w.hooksLock.Lock()
 	defer w.hooksLock.Unlock()
+
+	w.notifyDisconnected()
 
 	for _, wn := range w.watchedNodes {
 		wn.cancel <- true
@@ -166,22 +164,22 @@ func (w *zkWatcher) cancelWatches() {
 // sync runs the main loop. On any errors, it resets the connection.
 func (w *zkWatcher) run() {
 	first := true
+
+Reconnect:
 	for {
 		if !first {
-			w.notifyDisconnected()
-
 			// Wait before trying to reconnect again.
 			wait := time.NewTimer(zkReconnectPeriod)
 			select {
 			case <-w.shutdown:
-				break
+				break Reconnect
 			case <-wait.C:
 			}
 
 			err := w.reconnect()
 			if err != nil {
 				log.Println("Error reconnecting to zookeeper:", err)
-				continue
+				continue Reconnect
 			}
 		} else {
 			first = false
@@ -191,18 +189,20 @@ func (w *zkWatcher) run() {
 		err := w.runHooks()
 		if err != nil {
 			log.Println("Error running zookeeper hooks:", err)
-			continue
+			continue Reconnect
 		}
 
 		select {
 		case <-w.shutdown:
-			w.cancelWatches()
-			break
+			break Reconnect
 		case err := <-w.errs:
-			log.Println("Disconnecting because of error:", err)
+			log.Println("Disconnecting from zookeeper because of error:", err)
 			w.cancelWatches()
+			continue Reconnect
 		}
 	}
+
+	w.cancelWatches()
 }
 
 func (w *zkWatcher) createEphemeral(node string) {
@@ -262,7 +262,7 @@ func (w *zkWatcher) removeWatch(node string) {
 	if wn, ok := w.watchedNodes[node]; ok {
 		delete(w.watchedNodes, node)
 
-		wn.cancel <- true
+		close(wn.cancel)
 		close(wn.updates)
 		close(wn.disconnected)
 	}
@@ -279,14 +279,14 @@ func (w *zkWatcher) hookWatchChildren(node string, wn watchedNode) error {
 			wn.updates <- children
 
 			select {
+			case <-wn.cancel:
+				return
 			case ev := <-events:
 				if !ev.Ok() {
 					sendErr(w.errs, errors.New(ev.String()))
 					<-wn.cancel
 					return
 				}
-			case <-wn.cancel:
-				return
 			}
 
 			w.reconnectLock.RLock()
@@ -296,6 +296,7 @@ func (w *zkWatcher) hookWatchChildren(node string, wn watchedNode) error {
 			if err != nil {
 				sendErr(w.errs, err)
 				<-wn.cancel
+				return
 			}
 		}
 	}()

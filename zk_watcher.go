@@ -112,7 +112,7 @@ func (w *zkWatcher) reconnect() error {
 
 	go func() {
 		for ev := range events {
-			if !ev.Ok() {
+			if ev.State != zk.STATE_CONNECTED && ev.State != zk.STATE_CONNECTING {
 				sendErr(w.errs, errors.New(ev.String()))
 				return
 			}

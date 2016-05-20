@@ -39,7 +39,7 @@ type testCluster struct {
 	binary     string
 	root       string
 	sequinses  []*testSequins
-	zk         testZK
+	zk         *testZK
 	testClient *http.Client
 }
 

@@ -25,6 +25,7 @@ var defaultZkACL = zk.WorldACL(zk.PERM_ALL)
 // reconnects to zookeeper, and tries its best to be resilient to failures, but
 // defaults to silently not providing updates.
 type zkWatcher struct {
+	sync.RWMutex
 	zkServers      []string
 	connectTimeout time.Duration
 	sessionTimeout time.Duration
@@ -34,7 +35,6 @@ type zkWatcher struct {
 	shutdown       chan bool
 
 	hooksLock      sync.Mutex
-	reconnectLock  sync.RWMutex
 	ephemeralNodes map[string]bool
 	watchedNodes   map[string]watchedNode
 }
@@ -77,9 +77,9 @@ func (w *zkWatcher) reconnect() error {
 		}
 	}
 
+	w.Lock()
+
 	servers := strings.Join(w.zkServers, ",")
-	w.reconnectLock.Lock()
-	defer w.reconnectLock.Unlock()
 	log.Println("Connecting to zookeeper at", servers)
 	conn, events, err = zk.Dial(servers, w.sessionTimeout)
 	if err != nil {
@@ -100,6 +100,8 @@ func (w *zkWatcher) reconnect() error {
 			return fmt.Errorf("connection error: %s", event)
 		}
 	}
+
+	w.Unlock()
 
 	// TODO: recreate permanent paths? What if zookeeper dies and loses data?
 	// TODO: clear data on setup? or just hope that it's uniquely namespaced enough
@@ -221,12 +223,18 @@ func (w *zkWatcher) removeEphemeral(node string) {
 	w.hooksLock.Lock()
 	defer w.hooksLock.Unlock()
 
+	w.RLock()
+	defer w.RUnlock()
+
 	node = path.Join(w.prefix, node)
 	w.conn.Delete(node, -1)
 	delete(w.ephemeralNodes, node)
 }
 
 func (w *zkWatcher) hookCreateEphemeral(node string) error {
+	w.RLock()
+	defer w.RUnlock()
+
 	_, err := w.conn.Create(node, "", zk.EPHEMERAL, defaultZkACL)
 	if err != nil {
 		return err
@@ -269,6 +277,9 @@ func (w *zkWatcher) removeWatch(node string) {
 }
 
 func (w *zkWatcher) hookWatchChildren(node string, wn watchedNode) error {
+	w.RLock()
+	defer w.RUnlock()
+
 	children, _, events, err := w.conn.ChildrenW(node)
 	if err != nil {
 		return err
@@ -289,9 +300,9 @@ func (w *zkWatcher) hookWatchChildren(node string, wn watchedNode) error {
 				}
 			}
 
-			w.reconnectLock.RLock()
+			w.RLock()
 			children, _, events, err = w.conn.ChildrenW(node)
-			w.reconnectLock.RUnlock()
+			w.RUnlock()
 
 			if err != nil {
 				sendErr(w.errs, err)
@@ -306,6 +317,9 @@ func (w *zkWatcher) hookWatchChildren(node string, wn watchedNode) error {
 
 // createPath creates a node and all its parents permanently.
 func (w *zkWatcher) createPath(node string) error {
+	w.RLock()
+	defer w.RUnlock()
+
 	node = path.Join(w.prefix, node)
 	err := w.createAll(node)
 	if err != nil {
@@ -333,6 +347,9 @@ func (w *zkWatcher) createAll(fullNode string) error {
 }
 
 func (w *zkWatcher) close() {
+	w.Lock()
+	defer w.Unlock()
+
 	w.shutdown <- true
 	w.conn.Close()
 }

@@ -67,7 +67,7 @@ release: sequins sequins-dump
 	tar -cvzf $(RELEASE_NAME).tar.gz $(RELEASE_NAME)
 
 test: $(TEST_SOURCES)
-	$(CGO_PREAMBLE) go test -short -race -timeout 30s $(shell go list ./... | grep -v vendor)
+	$(CGO_PREAMBLE) go test -short -race -timeout 1m $(shell go list ./... | grep -v vendor)
 
 test_functional: sequins $(TEST_SOURCES) test
 	$(CGO_PREAMBLE) go test -timeout 10m -run "^TestCluster"

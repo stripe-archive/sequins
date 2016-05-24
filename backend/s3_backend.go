@@ -144,7 +144,7 @@ func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 			}
 		}
 
-		if *resp.IsTruncated {
+		if *resp.IsTruncated && len(resp.CommonPrefixes) > 0 {
 			after = resp.CommonPrefixes[len(resp.CommonPrefixes)-1].String()
 		} else {
 			break

@@ -104,7 +104,7 @@ func (s *S3Backend) listDirs(dir, after string) ([]string, error) {
 			}
 		}
 
-		if !*resp.IsTruncated {
+		if !*resp.IsTruncated || len(resp.CommonPrefixes) == 0 {
 			break
 		} else {
 			after = resp.CommonPrefixes[len(resp.CommonPrefixes)-1].String()

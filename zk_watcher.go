@@ -287,7 +287,11 @@ func (w *zkWatcher) hookWatchChildren(node string, wn watchedNode) error {
 
 	go func() {
 		for {
-			wn.updates <- children
+			select {
+			case <-wn.cancel:
+				return
+			case wn.updates <- children:
+			}
 
 			select {
 			case <-wn.cancel:

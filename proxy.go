@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+const proxyHeader = "X-Sequins-Proxied-To"
+
 type proxyResponse struct {
 	resp *http.Response
 	err  error
@@ -31,7 +33,7 @@ var errProxyTimeout = errors.New("all peers timed out")
 //     case the code just waits for one to finish. If the total 'proxy_timeout'
 //     is hit at any point, the method returns immediately with an error and
 //     cancels any running requests.
-func (vs *version) proxy(r *http.Request, peers []string) ([]byte, error) {
+func (vs *version) proxy(w http.ResponseWriter, r *http.Request, peers []string) ([]byte, error) {
 	responses := make(chan proxyResponse, len(peers))
 	cancel := make(chan struct{})
 	defer close(cancel)
@@ -42,7 +44,10 @@ func (vs *version) proxy(r *http.Request, peers []string) ([]byte, error) {
 	for {
 		stageTimeout := time.NewTimer(vs.sequins.config.Sharding.ProxyStageTimeout.Duration)
 		if peerIndex < len(peers) {
-			url := fmt.Sprintf("http://%s%s?proxy=%s", peers[peerIndex], r.URL.Path, vs.name)
+			host := peers[peerIndex]
+			// Adding a header to the response to track proxied requests.
+			w.Header().Add(proxyHeader, host)
+			url := fmt.Sprintf("http://%s%s?proxy=%s", host, r.URL.Path, vs.name)
 			go vs.proxyAttempt(url, responses, cancel)
 			peerIndex += 1
 			outstanding += 1

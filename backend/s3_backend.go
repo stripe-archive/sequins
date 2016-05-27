@@ -61,11 +61,11 @@ func (s *S3Backend) listDirs(dir, after string) ([]string, error) {
 
 	for {
 		params := &s3.ListObjectsInput{
-			Bucket:		aws.String(s.bucket),
-			Delimiter:	aws.String("/"),
-			Marker:		aws.String(after),
-			MaxKeys:	aws.Int64(1000),
-			Prefix:		aws.String(dir+"/"),
+			Bucket:    aws.String(s.bucket),
+			Delimiter: aws.String("/"),
+			Marker:    aws.String(after),
+			MaxKeys:   aws.Int64(1000),
+			Prefix:    aws.String(dir + "/"),
 		}
 		resp, err := s.svc.ListObjects(params)
 
@@ -81,11 +81,11 @@ func (s *S3Backend) listDirs(dir, after string) ([]string, error) {
 			// List the prefix, to make sure it's a "directory"
 			isDir := false
 			params := &s3.ListObjectsInput{
-				Bucket:		aws.String(s.bucket),
-				Delimiter:	aws.String(""),
-				Marker:		aws.String(after),
-				MaxKeys:	aws.Int64(3),
-				Prefix:		aws.String(prefix),
+				Bucket:    aws.String(s.bucket),
+				Delimiter: aws.String(""),
+				Marker:    aws.String(after),
+				MaxKeys:   aws.Int64(3),
+				Prefix:    aws.String(prefix),
 			}
 			resp, err := s.svc.ListObjects(params)
 			if err != nil {
@@ -117,26 +117,17 @@ func (s *S3Backend) listDirs(dir, after string) ([]string, error) {
 
 func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 	versionPrefix := path.Join(s.path, db, version)
-	after := ""
 	res := make([]string, 0)
 
-	for {
-		params := &s3.ListObjectsInput{
-			Bucket:		aws.String(s.bucket),
-			Delimiter:	aws.String(""),
-			Marker:		aws.String(after),
-			MaxKeys:	aws.Int64(1000),
-			Prefix:		aws.String(versionPrefix),
-		}
-		resp, err := s.svc.ListObjects(params)
+	params := &s3.ListObjectsInput{
+		Bucket:    aws.String(s.bucket),
+		Delimiter: aws.String(""),
+		MaxKeys:   aws.Int64(1000),
+		Prefix:    aws.String(versionPrefix),
+	}
 
-		if err != nil {
-			return nil, s.s3error(err)
-		} else if resp.Contents == nil || len(resp.Contents) == 0 {
-			break
-		}
-
-		for _, key := range resp.Contents {
+	err := s.svc.ListObjectsPages(params, func(page *s3.ListObjectsOutput, isLastPage bool) bool {
+		for _, key := range page.Contents {
 			name := path.Base(*key.Key)
 			// S3 sometimes has keys that are the same as the "directory"
 			if strings.TrimSpace(name) != "" && !strings.HasPrefix(name, "_") && !strings.HasPrefix(name, ".") {
@@ -144,11 +135,11 @@ func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 			}
 		}
 
-		if *resp.IsTruncated && len(resp.CommonPrefixes) > 0 {
-			after = resp.CommonPrefixes[len(resp.CommonPrefixes)-1].String()
-		} else {
-			break
-		}
+		return true
+	})
+
+	if err != nil {
+		return nil, s.s3error(err)
 	}
 
 	sort.Strings(res)
@@ -158,8 +149,8 @@ func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 func (s *S3Backend) Open(db, version, file string) (io.ReadCloser, error) {
 	src := path.Join(s.path, db, version, file)
 	params := &s3.GetObjectInput{
-		Bucket:                     aws.String(s.bucket),
-		Key:                        aws.String(src),
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(src),
 	}
 	resp, err := s.svc.GetObject(params)
 
@@ -182,8 +173,8 @@ func (s *S3Backend) displayURL(parts ...string) string {
 
 func (s *S3Backend) exists(key string) bool {
 	params := &s3.GetObjectInput{
-		Bucket:                     aws.String(s.bucket),
-		Key:                        aws.String(key),
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
 	}
 	_, err := s.svc.GetObject(params)
 

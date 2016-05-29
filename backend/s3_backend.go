@@ -117,7 +117,9 @@ func (s *S3Backend) listDirs(dir, after string) ([]string, error) {
 
 func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 	versionPrefix := path.Join(s.path, db, version)
-	res := make([]string, 0)
+
+	// We use a set here because S3 sometimes returns duplicate keys.
+	res := make(map[string]bool)
 
 	params := &s3.ListObjectsInput{
 		Bucket:    aws.String(s.bucket),
@@ -131,7 +133,7 @@ func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 			name := path.Base(*key.Key)
 			// S3 sometimes has keys that are the same as the "directory"
 			if strings.TrimSpace(name) != "" && !strings.HasPrefix(name, "_") && !strings.HasPrefix(name, ".") {
-				res = append(res, name)
+				res[name] = true
 			}
 		}
 
@@ -142,8 +144,13 @@ func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 		return nil, s.s3error(err)
 	}
 
-	sort.Strings(res)
-	return res, nil
+	sorted := make([]string, 0, len(res))
+	for name := range res {
+		sorted = append(sorted, name)
+	}
+
+	sort.Strings(sorted)
+	return sorted, nil
 }
 
 func (s *S3Backend) Open(db, version, file string) (io.ReadCloser, error) {

@@ -269,10 +269,7 @@ func (w *zkWatcher) removeWatch(node string) {
 	node = path.Join(w.prefix, node)
 	if wn, ok := w.watchedNodes[node]; ok {
 		delete(w.watchedNodes, node)
-
 		close(wn.cancel)
-		close(wn.updates)
-		close(wn.disconnected)
 	}
 }
 
@@ -286,15 +283,28 @@ func (w *zkWatcher) hookWatchChildren(node string, wn watchedNode) error {
 	}
 
 	go func() {
+		// Normally, a hookWatchChildren loop closes just so it can be reestablished
+		// once we're reconnected to zookeeper. In that case wn.cancel just gets an
+		// update, rather than being closed. If wn.cancel is closed, then
+		// reconnecting gets set to false below, and we also close wn.updates and
+		// wn.disconnected on our way out.
+		reconnecting := true
+		defer func() {
+			if !reconnecting {
+				close(wn.updates)
+				close(wn.disconnected)
+			}
+		}()
+
 		for {
 			select {
-			case <-wn.cancel:
+			case reconnecting = <-wn.cancel:
 				return
 			case wn.updates <- children:
 			}
 
 			select {
-			case <-wn.cancel:
+			case reconnecting = <-wn.cancel:
 				return
 			case ev := <-events:
 				if !ev.Ok() {
@@ -310,7 +320,7 @@ func (w *zkWatcher) hookWatchChildren(node string, wn watchedNode) error {
 
 			if err != nil {
 				sendErr(w.errs, err)
-				<-wn.cancel
+				reconnecting = <-wn.cancel
 				return
 			}
 		}

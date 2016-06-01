@@ -78,6 +78,7 @@ func (w *zkWatcher) reconnect() error {
 	}
 
 	w.Lock()
+	defer w.Unlock()
 
 	servers := strings.Join(w.zkServers, ",")
 	log.Println("Connecting to zookeeper at", servers)
@@ -101,13 +102,11 @@ func (w *zkWatcher) reconnect() error {
 		}
 	}
 
-	w.Unlock()
-
 	// TODO: recreate permanent paths? What if zookeeper dies and loses data?
 	// TODO: clear data on setup? or just hope that it's uniquely namespaced enough
-	err = w.createPath("")
+	err = w.createAll(w.prefix)
 	if err != nil {
-		return err
+		return fmt.Errorf("creating base path: %s", err)
 	}
 
 	go func() {

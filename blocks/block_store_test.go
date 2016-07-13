@@ -17,7 +17,7 @@ func testBlockStoreCompression(t *testing.T, compression Compression) {
 
 	bs := New(tmpDir, 2, nil, compression, 8192)
 
-	f, err := os.Open("../test/test.sequencefile")
+	f, err := os.Open("../testdata/test.sequencefile")
 	require.NoError(t, err, "opening a test file")
 
 	sf := sequencefile.New(f)

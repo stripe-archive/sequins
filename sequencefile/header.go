@@ -68,7 +68,7 @@ func (r *Reader) ReadHeader() error {
 	if blockCompression > 0 {
 		r.Header.Compression = BlockCompressed
 	} else if valueCompression > 0 {
-		r.Header.Compression = ValueCompressed
+		r.Header.Compression = RecordCompressed
 	} else {
 		r.Header.Compression = NotCompressed
 	}

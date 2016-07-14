@@ -8,6 +8,6 @@ const (
 	SyncSize = 16
 
 	NotCompressed compression = iota + 1
-	ValueCompressed
+	RecordCompressed
 	BlockCompressed
 )

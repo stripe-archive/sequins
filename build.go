@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"log"
@@ -134,7 +135,7 @@ func (vs *version) addFile(bs *blocks.BlockStore, file string) error {
 		return fmt.Errorf("reading %s: %s", disp, err)
 	}
 
-	sf := sequencefile.New(stream)
+	sf := sequencefile.New(bufio.NewReader(stream))
 	err = sf.ReadHeader()
 	if err != nil {
 		return fmt.Errorf("reading header from %s: %s", disp, err)

@@ -54,10 +54,10 @@ status.tmpl.go: status.tmpl $(BUILD)/bin/go-bindata
 	$(BUILD)/bin/go-bindata -o status.tmpl.go status.tmpl
 
 sequins: $(SOURCES) status.tmpl.go $(BUILD)/lib/libsparkey.a $(BUILD)/lib/libsnappy.a $(BUILD)/lib/libzookeeper_mt.a
-	$(CGO_PREAMBLE) go build -ldflags "-X main.sequinsVersion=$(TRAVIS_TAG)"
+	$(CGO_PREAMBLE) go build -ldflags "-X main.sequinsVersion=$(TRAVIS_TAG)" .
 
-sequins-dump: $(SOURCES)
-	go build -ldflags "-X main.sequinsVersion=$(TRAVIS_TAG)"  ./cmd/sequins-dump
+sequins-dump: $(SOURCES) $(BUILD)/lib/libsnappy.a
+	$(CGO_PREAMBLE) go build -ldflags "-X main.sequinsVersion=$(TRAVIS_TAG)"  ./cmd/sequins-dump
 
 release: sequins sequins-dump
 	./sequins --version
@@ -74,11 +74,11 @@ test_functional: sequins $(TEST_SOURCES) test
 
 clean:
 	rm -rf $(BUILD)
-	rm -f vendor/snappy/configure
+	rm -f vendor/snappy/configure vendor/snappy/Makefile
 	cd vendor/snappy && make distclean; true
-	rm -f vendor/sparkey/configure
+	rm -f vendor/sparkey/configure vendor/sparkey/Makefile
 	cd vendor/sparkey && make distclean; true
-	rm -f vendor/zookeeper/configure
+	rm -f vendor/zookeeper/configure vendor/zookeeper/Makefile
 	cd vendor/zookeeper && make distclean; true
 	rm -f sequins sequins-dump sequins-*.tar.gz
 	rm -rf $(RELEASE_NAME)

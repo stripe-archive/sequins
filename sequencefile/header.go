@@ -9,7 +9,8 @@ import (
 // sequencefile.
 type Header struct {
 	Version                   int
-	Compression               compression
+	Compression               Compression
+	CompressionCodec          CompressionCodec
 	CompressionCodecClassName string
 	KeyClassName              string
 	ValueClassName            string
@@ -80,11 +81,18 @@ func (r *Reader) ReadHeader() error {
 		}
 
 		r.Header.CompressionCodecClassName = compressionCodecClassName
+		switch r.Header.CompressionCodecClassName {
+		case "org.apache.hadoop.io.compress.GzipCodec":
+			r.Header.CompressionCodec = GzipCompression
+		case "org.apache.hadoop.io.compress.SnappyCodec":
+			r.Header.CompressionCodec = SnappyCompression
+		default:
+			return fmt.Errorf("Unsupported compression codec: %s", r.Header.CompressionCodecClassName)
+		}
 	}
 
-	if r.Header.Compression != NotCompressed {
-		return fmt.Errorf("Unsupported compression codec: %s", r.Header.CompressionCodecClassName)
-	}
+	r.compression = r.Header.Compression
+	r.codec = r.Header.CompressionCodec
 
 	err = r.readMetadata()
 	if err != nil {

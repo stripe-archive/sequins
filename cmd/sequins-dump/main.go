@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/stripe/sequins/sequencefile"
@@ -15,9 +14,8 @@ import (
 var (
 	version string
 
-	offsets = kingpin.Flag("offsets", "Display offsets.").Short('o').Bool()
-	keys    = kingpin.Flag("keys", "Display keys.").Short('k').Bool()
-	values  = kingpin.Flag("values", "Display values.").Short('v').Bool()
+	keys   = kingpin.Flag("keys", "Display keys.").Short('k').Bool()
+	values = kingpin.Flag("values", "Display values.").Short('v').Bool()
 
 	path = kingpin.Arg("PATH", "Path to dump").Required().String()
 )
@@ -27,7 +25,7 @@ func main() {
 	kingpin.Parse()
 
 	// By default, display keys and values.
-	if !*offsets && !*keys && !*values {
+	if !*keys && !*values {
 		*keys = true
 		*values = true
 	}
@@ -68,15 +66,6 @@ func dump(path string) {
 
 	for reader.Scan() {
 		row := make([]string, 0)
-
-		if *offsets {
-			offset, err := f.Seek(0, os.SEEK_CUR)
-			if err != nil {
-				fatal(err)
-			}
-
-			row = append(row, strconv.FormatInt(offset, 10))
-		}
 
 		if *keys {
 			row = append(row, string(reader.Key()))

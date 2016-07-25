@@ -8,5 +8,5 @@ make
 ./sequins --help 2>&1 | grep usage && echo 'binary looks good'
 
 mkdir -p /build/bin/
-cp -a sequins sequins-dump /build/bin/
+cp -a sequins /build/bin/
 echo "DONE"

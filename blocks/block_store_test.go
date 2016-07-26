@@ -2,11 +2,9 @@ package blocks
 
 import (
 	"io/ioutil"
-	"os"
 	"testing"
 
-	"github.com/stripe/sequins/sequencefile"
-
+	"github.com/colinmarc/sequencefile"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,12 +15,8 @@ func testBlockStoreCompression(t *testing.T, compression Compression) {
 
 	bs := New(tmpDir, 2, nil, compression, 8192)
 
-	f, err := os.Open("../test/test.sequencefile")
+	sf, err := sequencefile.Open("../test/test.sequencefile")
 	require.NoError(t, err, "opening a test file")
-
-	sf := sequencefile.New(f)
-	err = sf.ReadHeader()
-	require.NoError(t, err, "reading the test file")
 
 	err = bs.AddFile(sf, 0)
 	require.NoError(t, err, "adding the file to the block store")

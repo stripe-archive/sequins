@@ -15,11 +15,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/colinmarc/sequencefile"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/stripe/sequins/backend"
-	"github.com/stripe/sequins/sequencefile"
 )
 
 type tuple struct {
@@ -35,11 +35,14 @@ func init() {
 		f, _ := os.Open(filepath.Join("test/baby-names/1", info.Name()))
 		defer f.Close()
 
-		r := sequencefile.New(f)
+		r := sequencefile.NewReader(f)
 		r.ReadHeader()
 
 		for r.Scan() {
-			babyNames = append(babyNames, tuple{string(r.Key()), string(r.Value())})
+			babyNames = append(babyNames, tuple{
+				string(sequencefile.BytesWritable(r.Key())),
+				string(sequencefile.BytesWritable(r.Value())),
+			})
 		}
 	}
 }

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/stripe/sequins/sequencefile"
+	"github.com/colinmarc/sequencefile"
 )
 
 var ErrNoManifest = errors.New("no manifest file found")
@@ -114,7 +114,8 @@ func (store *BlockStore) AddFile(reader *sequencefile.Reader, throttle time.Dura
 			time.Sleep(throttle)
 		}
 
-		partition, alternatePartition := KeyPartition(string(reader.Key()), store.numPartitions)
+		key := sequencefile.BytesWritable(reader.Key())
+		partition, alternatePartition := KeyPartition(string(key), store.numPartitions)
 
 		// If we see the same partition for the first 5000 keys, it's safe to assume
 		// that this file only contains that partition. This is often the case if
@@ -157,7 +158,7 @@ func (store *BlockStore) AddFile(reader *sequencefile.Reader, throttle time.Dura
 
 		// Write the key/value pair. If the block is full, save it
 		// and start a new one.
-		err = block.add(reader.Key(), reader.Value())
+		err = block.add(key, sequencefile.BytesWritable(reader.Value()))
 		if err != nil {
 			return err
 		}

@@ -6,10 +6,11 @@ import (
 )
 
 // A Header represents the information contained in the header of the
-// sequencefile.
+// SequenceFile.
 type Header struct {
 	Version                   int
-	Compression               compression
+	Compression               Compression
+	CompressionCodec          CompressionCodec
 	CompressionCodecClassName string
 	KeyClassName              string
 	ValueClassName            string
@@ -17,24 +18,24 @@ type Header struct {
 	SyncMarker                string
 }
 
-// ReadHeader parses the sequencefile header from the input stream, and fills
+// ReadHeader parses the SequenceFile header from the input stream, and fills
 // in the Header struct with the values. This should be called when the reader
 // is positioned at the start of the file or input stream, before any records
 // are read.
 //
-// ReadHeader will also validate that the settings of the sequencefile
+// ReadHeader will also validate that the settings of the SequenceFile
 // (version, compression, key/value serialization, etc) are compatible.
 func (r *Reader) ReadHeader() error {
 	magic, err := r.consume(4)
 	if err != nil {
-		return fmt.Errorf("Error reading magic number: %s", err)
+		return fmt.Errorf("sequencefile: reading magic number: %s", err)
 	} else if string(magic[:3]) != "SEQ" {
-		return fmt.Errorf("Invalid magic number: %s", magic)
+		return fmt.Errorf("sequencefile: invalid magic number: %s", magic)
 	}
 
 	r.Header.Version = int(magic[3])
 	if r.Header.Version < 5 {
-		return fmt.Errorf("Unsupported sequence file version: %d", r.Header.Version)
+		return fmt.Errorf("sequencefile: unsupported version: %d", r.Header.Version)
 	}
 
 	keyClassName, err := r.readString()
@@ -47,17 +48,10 @@ func (r *Reader) ReadHeader() error {
 		return err
 	}
 
-	if keyClassName != "org.apache.hadoop.io.BytesWritable" {
-		return fmt.Errorf("Unsupported key serialization: %s", keyClassName)
-	}
-
-	if valueClassName != "org.apache.hadoop.io.BytesWritable" {
-		return fmt.Errorf("Unsupported value serialization: %s", valueClassName)
-	}
-
 	r.Header.KeyClassName = keyClassName
 	r.Header.ValueClassName = valueClassName
 
+	r.clear()
 	flags, err := r.consume(2)
 	if err != nil {
 		return err
@@ -66,31 +60,39 @@ func (r *Reader) ReadHeader() error {
 	valueCompression := uint8(flags[0])
 	blockCompression := uint8(flags[1])
 	if blockCompression > 0 {
-		r.Header.Compression = BlockCompressed
+		r.Header.Compression = BlockCompression
 	} else if valueCompression > 0 {
-		r.Header.Compression = ValueCompressed
+		r.Header.Compression = RecordCompression
 	} else {
-		r.Header.Compression = NotCompressed
+		r.Header.Compression = NoCompression
 	}
 
-	if r.Header.Compression != NotCompressed {
+	if r.Header.Compression != NoCompression {
 		compressionCodecClassName, err := r.readString()
 		if err != nil {
 			return err
 		}
 
 		r.Header.CompressionCodecClassName = compressionCodecClassName
+		switch r.Header.CompressionCodecClassName {
+		case "org.apache.hadoop.io.compress.GzipCodec":
+			r.Header.CompressionCodec = GzipCompression
+		case "org.apache.hadoop.io.compress.SnappyCodec":
+			r.Header.CompressionCodec = SnappyCompression
+		default:
+			return fmt.Errorf("sequencefile: unsupported compression codec: %s", r.Header.CompressionCodecClassName)
+		}
 	}
 
-	if r.Header.Compression != NotCompressed {
-		return fmt.Errorf("Unsupported compression codec: %s", r.Header.CompressionCodecClassName)
-	}
+	r.compression = r.Header.Compression
+	r.codec = r.Header.CompressionCodec
 
 	err = r.readMetadata()
 	if err != nil {
 		return err
 	}
 
+	r.clear()
 	marker, err := r.consume(SyncSize)
 	if err != nil {
 		return err
@@ -104,6 +106,7 @@ func (r *Reader) ReadHeader() error {
 }
 
 func (r *Reader) readMetadata() error {
+	r.clear()
 	b, err := r.consume(4)
 	if err != nil {
 		return err
@@ -111,7 +114,7 @@ func (r *Reader) readMetadata() error {
 
 	pairs := int(binary.BigEndian.Uint32(b))
 	if pairs < 0 || pairs > 1024 {
-		return fmt.Errorf("Invalid metadata pair count: %d", pairs)
+		return fmt.Errorf("sequencefile: invalid metadata pair count: %d", pairs)
 	}
 
 	metadata := make(map[string]string, pairs)
@@ -134,12 +137,14 @@ func (r *Reader) readMetadata() error {
 }
 
 func (r *Reader) readString() (string, error) {
+	r.clear()
 	b, err := r.consume(1)
 	if err != nil {
 		return "", err
 	}
 
 	length := int(b[0])
+	r.clear()
 	b, err = r.consume(length)
 	if err != nil {
 		return "", err

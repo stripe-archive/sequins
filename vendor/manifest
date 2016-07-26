@@ -44,6 +44,13 @@
 			"branch": "master"
 		},
 		{
+			"importpath": "github.com/colinmarc/sequencefile",
+			"repository": "https://github.com/colinmarc/sequencefile",
+			"revision": "183d17e59ea5261aa7c54e46fcd3043cd3895354",
+			"branch": "master",
+			"notests": true
+		},
+		{
 			"importpath": "github.com/crowdmob/goamz/aws",
 			"repository": "https://github.com/crowdmob/goamz",
 			"revision": "3a06871fe9fc0281ca90f3a7d97258d042ed64c0",
@@ -70,6 +77,13 @@
 			"revision": "127091107ff5f822298f1faa7487ffcf578adcf6",
 			"branch": "master",
 			"path": "/proto"
+		},
+		{
+			"importpath": "github.com/golang/snappy",
+			"repository": "https://github.com/golang/snappy",
+			"revision": "d9eb7a3d35ec988b8585d4a0068e462c27d28380",
+			"branch": "master",
+			"notests": true
 		},
 		{
 			"importpath": "github.com/jteeuwen/go-bindata",

@@ -1,13 +1,15 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"log"
 	"os"
 
+	"github.com/colinmarc/sequencefile"
+
 	"github.com/stripe/sequins/blocks"
-	"github.com/stripe/sequins/sequencefile"
 )
 
 var errFilesChanged = errors.New("the list of remote files changed while building")
@@ -136,10 +138,16 @@ func (vs *version) addFile(bs *blocks.BlockStore, file string) error {
 		return fmt.Errorf("reading %s: %s", disp, err)
 	}
 
-	sf := sequencefile.New(stream)
+	sf := sequencefile.NewReader(bufio.NewReader(stream))
 	err = sf.ReadHeader()
 	if err != nil {
 		return fmt.Errorf("reading header from %s: %s", disp, err)
+	}
+
+	if sf.Header.KeyClassName != "org.apache.hadoop.io.BytesWritable" {
+		return fmt.Errorf("Unsupported sequencefile key serialization: %s", sf.Header.KeyClassName)
+	} else if sf.Header.ValueClassName != "org.apache.hadoop.io.BytesWritable" {
+		return fmt.Errorf("Unsupported sequencefile value serialization: %s", sf.Header.ValueClassName)
 	}
 
 	err = bs.AddFile(sf, vs.sequins.config.ThrottleLoads.Duration)

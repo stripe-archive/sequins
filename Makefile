@@ -18,7 +18,7 @@ endif
 CGO_PREAMBLE = CGO_CFLAGS="-I$(BUILD)/include -I$(BUILD)/include/zookeeper" CGO_LDFLAGS="$(VENDORED_LIBS) $(CGO_PREAMBLE_LDFLAGS)"
 
 
-all: sequins sequins-dump
+all: sequins
 
 vendor/snappy/configure:
 	cd vendor/snappy && ./autogen.sh
@@ -56,14 +56,10 @@ status.tmpl.go: status.tmpl $(BUILD)/bin/go-bindata
 sequins: $(SOURCES) status.tmpl.go $(BUILD)/lib/libsparkey.a $(BUILD)/lib/libsnappy.a $(BUILD)/lib/libzookeeper_mt.a
 	$(CGO_PREAMBLE) go build -ldflags "-X main.sequinsVersion=$(TRAVIS_TAG)"
 
-sequins-dump: $(SOURCES)
-	go build -ldflags "-X main.sequinsVersion=$(TRAVIS_TAG)"  ./cmd/sequins-dump
-
-release: sequins sequins-dump
+release: sequins
 	./sequins --version
-	./sequins-dump --version
 	mkdir -p $(RELEASE_NAME)
-	cp sequins sequins-dump README.md LICENSE.txt $(RELEASE_NAME)/
+	cp sequins README.md LICENSE.txt $(RELEASE_NAME)/
 	tar -cvzf $(RELEASE_NAME).tar.gz $(RELEASE_NAME)
 
 test: $(TEST_SOURCES)
@@ -80,7 +76,7 @@ clean:
 	cd vendor/sparkey && make distclean; true
 	rm -f vendor/zookeeper/configure
 	cd vendor/zookeeper && make distclean; true
-	rm -f sequins sequins-dump sequins-*.tar.gz
+	rm -f sequins sequins-*.tar.gz
 	rm -rf $(RELEASE_NAME)
 
 .PHONY: release test test_functional clean

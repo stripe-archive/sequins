@@ -117,6 +117,8 @@ func (vs *version) createStore(files []string, partitions map[int]bool) (*blocks
 	for _, file := range files {
 		err := vs.addFile(blockStore, file)
 		if err != nil {
+			blockStore.Close()
+			blockStore.Delete()
 			return nil, err
 		}
 	}

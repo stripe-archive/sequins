@@ -263,8 +263,15 @@ func (store *BlockStore) Count() int {
 
 // Close closes the BlockStore, and any files it has open.
 func (store *BlockStore) Close() {
+	store.blockMapLock.Lock()
+	defer store.blockMapLock.Unlock()
+
 	for _, block := range store.Blocks {
 		block.Close()
+	}
+
+	for _, newBlock := range store.newBlocks {
+		newBlock.close()
 	}
 }
 

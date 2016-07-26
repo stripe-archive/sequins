@@ -101,3 +101,7 @@ func (bw *blockWriter) save() (*Block, error) {
 
 	return b, nil
 }
+
+func (bw *blockWriter) close() {
+	bw.sparkeyWriter.Close()
+}

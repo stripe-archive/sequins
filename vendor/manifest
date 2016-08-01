@@ -46,7 +46,8 @@
 		{
 			"importpath": "github.com/colinmarc/sequencefile",
 			"repository": "https://github.com/colinmarc/sequencefile",
-			"revision": "183d17e59ea5261aa7c54e46fcd3043cd3895354",
+			"vcs": "git",
+			"revision": "1b9a884c88da07bef4eb54a82a94ef2e196a2c89",
 			"branch": "master",
 			"notests": true
 		},

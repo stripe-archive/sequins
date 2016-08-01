@@ -144,12 +144,6 @@ func (vs *version) addFile(bs *blocks.BlockStore, file string) error {
 		return fmt.Errorf("reading header from %s: %s", disp, err)
 	}
 
-	if sf.Header.KeyClassName != "org.apache.hadoop.io.BytesWritable" {
-		return fmt.Errorf("Unsupported sequencefile key serialization: %s", sf.Header.KeyClassName)
-	} else if sf.Header.ValueClassName != "org.apache.hadoop.io.BytesWritable" {
-		return fmt.Errorf("Unsupported sequencefile value serialization: %s", sf.Header.ValueClassName)
-	}
-
 	err = bs.AddFile(sf, vs.sequins.config.ThrottleLoads.Duration)
 	if err == blocks.ErrWrongPartition {
 		log.Println("Skipping", disp, "because it contains no relevant partitions")

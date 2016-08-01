@@ -2,6 +2,7 @@ package blocks
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -114,7 +115,11 @@ func (store *BlockStore) AddFile(reader *sequencefile.Reader, throttle time.Dura
 			time.Sleep(throttle)
 		}
 
-		key := sequencefile.BytesWritable(reader.Key())
+		key, value, err := store.unwrapKeyValue(reader)
+		if err != nil {
+			return err
+		}
+
 		partition, alternatePartition := KeyPartition(string(key), store.numPartitions)
 
 		// If we see the same partition for the first 5000 keys, it's safe to assume
@@ -146,7 +151,6 @@ func (store *BlockStore) AddFile(reader *sequencefile.Reader, throttle time.Dura
 
 		// Grab the open block for this partition.
 		block, ok := store.newBlocks[partition]
-		var err error
 		if !ok {
 			block, err = newBlock(store.path, partition, store.compression, store.blockSize)
 			if err != nil {
@@ -158,7 +162,7 @@ func (store *BlockStore) AddFile(reader *sequencefile.Reader, throttle time.Dura
 
 		// Write the key/value pair. If the block is full, save it
 		// and start a new one.
-		err = block.add(key, sequencefile.BytesWritable(reader.Value()))
+		err = block.add(key, value)
 		if err != nil {
 			return err
 		}
@@ -169,6 +173,38 @@ func (store *BlockStore) AddFile(reader *sequencefile.Reader, throttle time.Dura
 	}
 
 	return nil
+}
+
+// unwrapKeyValue correctly prepares a key and value for storage, depending on
+// how they are serialized in the original file; namely, BytesWritable and Text keys and
+// values are unwrapped.
+func (store *BlockStore) unwrapKeyValue(reader *sequencefile.Reader) (key []byte, value []byte, err error) {
+	// sequencefile.Text or sequencefile.BytesWritable can panic if the data is corrupted.
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("sequencefile: record deserialization failed: %s", r)
+		}
+	}()
+
+	switch reader.Header.KeyClassName {
+	case sequencefile.BytesWritableClassName:
+		key = sequencefile.BytesWritable(reader.Key())
+	case sequencefile.TextClassName:
+		key = []byte(sequencefile.Text(reader.Key()))
+	default:
+		key = reader.Key()
+	}
+
+	switch reader.Header.ValueClassName {
+	case sequencefile.BytesWritableClassName:
+		value = sequencefile.BytesWritable(reader.Value())
+	case sequencefile.TextClassName:
+		value = []byte(sequencefile.Text(reader.Value()))
+	default:
+		value = reader.Value()
+	}
+
+	return
 }
 
 func (store *BlockStore) Save() error {

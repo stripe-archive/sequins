@@ -6,6 +6,13 @@ import (
 	"fmt"
 )
 
+const (
+	BytesWritableClassName = "org.apache.hadoop.io.BytesWritable"
+	TextClassName          = "org.apache.hadoop.io.Text"
+	IntWritableClassName   = "org.apache.hadoop.io.IntWritable"
+	LongWritableClassName  = "org.apache.hadoop.io.LongWritable"
+)
+
 // BytesWritable unwraps a hadoop BytesWritable and returns the actual bytes.
 func BytesWritable(b []byte) []byte {
 	return b[4:]

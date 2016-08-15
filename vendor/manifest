@@ -133,7 +133,8 @@
 		{
 			"importpath": "github.com/tylerb/graceful",
 			"repository": "https://github.com/tylerb/graceful",
-			"revision": "7116c7a8115899e80197cd9e0b97998c0f97ed8e",
+			"vcs": "git",
+			"revision": "842f31108f8d3512ce3176d00bf1a32db1d5e3af",
 			"branch": "master"
 		},
 		{

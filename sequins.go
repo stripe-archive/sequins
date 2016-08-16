@@ -276,7 +276,16 @@ func (s *sequins) refresh(db *db) {
 }
 
 func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
+	if r.Method == "POST" {
+		// TODO: delurkify
+		if r.URL.Path == "/multiget" {
+			s.serveMultiget(w, r)
+			return
+		} else {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+	} else if r.Method != "GET" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}

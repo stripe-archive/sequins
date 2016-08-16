@@ -299,6 +299,14 @@ func (db *db) serveKey(w http.ResponseWriter, r *http.Request, key string) {
 	db.mux.serveKey(w, r, key)
 }
 
+func (db *db) serveMultiget(w http.ResponseWriter, r *http.Request, keys []string) {
+	version := db.mux.getCurrent()
+	for _, key := range keys {
+		value, _, _ := version.get(r, key)
+		w.Write(value)
+	}
+}
+
 func (db *db) close() {
 	db.refreshLock.Lock()
 	defer db.refreshLock.Unlock()

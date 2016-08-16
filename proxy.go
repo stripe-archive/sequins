@@ -13,6 +13,7 @@ const proxyHeader = "X-Sequins-Proxied-To"
 
 type proxyResponse struct {
 	resp *http.Response
+	host string
 	err  error
 }
 
@@ -33,7 +34,7 @@ var errProxyTimeout = errors.New("all peers timed out")
 //     case the code just waits for one to finish. If the total 'proxy_timeout'
 //     is hit at any point, the method returns immediately with an error and
 //     cancels any running requests.
-func (vs *version) proxy(w http.ResponseWriter, r *http.Request, peers []string) ([]byte, error) {
+func (vs *version) proxy(r *http.Request, peers []string) ([]byte, string, error) {
 	responses := make(chan proxyResponse, len(peers))
 	cancel := make(chan struct{})
 	defer close(cancel)
@@ -45,14 +46,12 @@ func (vs *version) proxy(w http.ResponseWriter, r *http.Request, peers []string)
 		stageTimeout := time.NewTimer(vs.sequins.config.Sharding.ProxyStageTimeout.Duration)
 		if peerIndex < len(peers) {
 			host := peers[peerIndex]
-			// Adding a header to the response to track proxied requests.
-			w.Header().Add(proxyHeader, host)
 			url := fmt.Sprintf("http://%s%s?proxy=%s", host, r.URL.Path, vs.name)
-			go vs.proxyAttempt(url, responses, cancel)
+			go vs.proxyAttempt(host, url, responses, cancel)
 			peerIndex += 1
 			outstanding += 1
 		} else if outstanding == 0 {
-			return nil, errNoAvailablePeers
+			return nil, "", errNoAvailablePeers
 		}
 
 		select {
@@ -62,40 +61,41 @@ func (vs *version) proxy(w http.ResponseWriter, r *http.Request, peers []string)
 				outstanding -= 1
 				continue
 			} else {
-				return readResponse(res)
+				b, err := readResponse(res)
+				return b, res.host, err
 			}
 		case <-totalTimeout.C:
-			return nil, errProxyTimeout
+			return nil, "", errProxyTimeout
 		case <-stageTimeout.C:
 		}
 	}
 
-	return nil, errNoAvailablePeers
+	return nil, "", errNoAvailablePeers
 }
 
-func (vs *version) proxyAttempt(url string, res chan proxyResponse, cancel chan struct{}) {
+func (vs *version) proxyAttempt(host, url string, res chan proxyResponse, cancel chan struct{}) {
 	// Create a fresh request, so we don't pass on any baggage like
 	// 'Connection: close' headers.
 	proxyRequest, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		res <- proxyResponse{nil, err}
+		res <- proxyResponse{nil, host, err}
 		return
 	}
 
 	proxyRequest.Cancel = cancel
 	resp, err := http.DefaultClient.Do(proxyRequest)
 	if err != nil {
-		res <- proxyResponse{nil, err}
+		res <- proxyResponse{nil, host, err}
 		return
 	}
 
 	if resp.StatusCode != 200 && resp.StatusCode != 404 {
 		resp.Body.Close()
-		res <- proxyResponse{nil, fmt.Errorf("got %d", resp.StatusCode)}
+		res <- proxyResponse{nil, host, fmt.Errorf("got %d", resp.StatusCode)}
 		return
 	}
 
-	res <- proxyResponse{resp, nil}
+	res <- proxyResponse{resp, host, nil}
 }
 
 func readResponse(res proxyResponse) ([]byte, error) {

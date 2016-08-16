@@ -102,7 +102,10 @@ func (vs *version) advertiseAndWait() bool {
 
 // serveKey is the entrypoint for incoming HTTP requests.
 func (vs *version) serveKey(w http.ResponseWriter, r *http.Request, key string) {
-	res, err := vs.get(w, r, key)
+	res, proxiedTo, err := vs.get(r, key)
+	if proxiedTo != "" {
+		w.Header().Add(proxyHeader, proxiedTo)
+	}
 
 	if err == errNoAvailablePeers {
 		// Either something is wrong with sharding, or all peers errored for some
@@ -133,34 +136,34 @@ func (vs *version) serveKey(w http.ResponseWriter, r *http.Request, key string) 
 
 // get looks up a value locally, or, failing that, asks a peer that has it.
 // If the request was proxied, it is not proxied further.
-func (vs *version) get(w http.ResponseWriter, r *http.Request, key string) ([]byte, error) {
+func (vs *version) get(r *http.Request, key string) ([]byte, string, error) {
 	if vs.numPartitions == 0 {
-		return nil, nil
+		return nil, "", nil
 	}
 
 	partition, alternatePartition := blocks.KeyPartition(key, vs.numPartitions)
 	bs := vs.getBlockStore()
 	if bs != nil && vs.hasPartition(partition) || vs.hasPartition(alternatePartition) {
 		res, err := bs.Get(key)
-		return res, err
+		return res, "", err
 	} else if r.URL.Query().Get("proxy") == "" {
-		res, err := vs.getPeers(w, r, partition)
+		res, proxiedTo, err := vs.getPeers(r, partition)
 		if res == nil && err == nil && alternatePartition != partition {
 			log.Println("Trying alternate partition for pathological key", key)
-			res, err = vs.getPeers(w, r, alternatePartition)
+			res, proxiedTo, err = vs.getPeers(r, alternatePartition)
 		}
 
-		return res, err
+		return res, proxiedTo, err
 	} else {
-		return nil, errProxiedIncorrectly
+		return nil, "", errProxiedIncorrectly
 	}
 
 }
 
-func (vs *version) getPeers(w http.ResponseWriter, r *http.Request, partition int) ([]byte, error) {
+func (vs *version) getPeers(r *http.Request, partition int) ([]byte, string, error) {
 	peers := vs.partitions.getPeers(partition)
 	if len(peers) == 0 {
-		return nil, errNoAvailablePeers
+		return nil, "", errNoAvailablePeers
 	}
 
 	// Shuffle the peers, so we try them in a random order.
@@ -171,7 +174,7 @@ func (vs *version) getPeers(w http.ResponseWriter, r *http.Request, partition in
 		shuffled[v] = peers[i]
 	}
 
-	return vs.proxy(w, r, peers)
+	return vs.proxy(r, peers)
 }
 
 // hasPartition returns true if we have the partition available locally.

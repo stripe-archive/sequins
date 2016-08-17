@@ -15,6 +15,15 @@ import (
 
 var commentedDefaultRegex = regexp.MustCompile(`# (\w+ = .+)\n(?:#.*\n)*\n*`)
 
+func loadAndValidateConfig(path string) (sequinsConfig, error) {
+	config, err := loadConfig(path)
+	if err != nil {
+		return config, err
+	}
+
+	return validateConfig(config)
+}
+
 func createTestConfig(t *testing.T, conf string) string {
 	tmpfile, err := ioutil.TempFile("", "sequins-conf-test")
 	if err != nil {
@@ -35,7 +44,7 @@ func createTestConfig(t *testing.T, conf string) string {
 }
 
 func TestExampleConfig(t *testing.T) {
-	config, err := loadConfig("sequins.conf.example")
+	config, err := loadAndValidateConfig("sequins.conf.example")
 	require.NoError(t, err, "sequins.conf.example should exist and be valid")
 
 	defaults := defaultConfig()
@@ -62,7 +71,7 @@ func TestExampleConfigDefaults(t *testing.T) {
 
 	t.Logf("---replaced config---\n%s\n---replaced config---", string(replaced))
 	path := createTestConfig(t, string(replaced))
-	config, err := loadConfig(path)
+	config, err := loadAndValidateConfig(path)
 	require.NoError(t, err, "the uncommented sequins.conf.example should exist and be valid")
 
 	defaults := defaultConfig()
@@ -82,7 +91,7 @@ func TestSimpleConfig(t *testing.T) {
 		servers = ["zk:2181"]
 	`)
 
-	config, err := loadConfig(path)
+	config, err := loadAndValidateConfig(path)
 	require.NoError(t, err, "loading a basic config should work")
 
 	assert.Equal(t, "s3://foo/bar", config.Source, "Source should be set")
@@ -101,20 +110,24 @@ func TestSimpleConfig(t *testing.T) {
 }
 
 func TestEmptyConfig(t *testing.T) {
-	path := createTestConfig(t, "")
+	path := createTestConfig(t, "source = \"/foo\"")
 
-	config, err := loadConfig(path)
+	config, err := loadAndValidateConfig(path)
 	require.NoError(t, err, "loading an empty config should work")
+
+	assert.Equal(t, "/foo", config.Source, "the root should be set")
+
+	config.Source = ""
 	assert.Equal(t, defaultConfig(), config, "an empty config should eval to the default config")
 }
 
 func TestConfigSearchPath(t *testing.T) {
-	path := createTestConfig(t, "")
+	path := createTestConfig(t, "source = \"/foo\"")
 
-	_, err := loadConfig(fmt.Sprintf("%s:/this/doesnt/exist.conf", path))
+	_, err := loadAndValidateConfig(fmt.Sprintf("%s:/this/doesnt/exist.conf", path))
 	assert.NoError(t, err, "it should find the config file on the search path")
 
-	_, err = loadConfig(fmt.Sprintf("/this/doesnt/exist.conf:%s", path))
+	_, err = loadAndValidateConfig(fmt.Sprintf("/this/doesnt/exist.conf:%s", path))
 	assert.NoError(t, err, "it should find the config file on the search path")
 
 	os.Remove(path)
@@ -132,7 +145,7 @@ func TestConfigExtraKeys(t *testing.T) {
 		foo = "bar" # not a real config property!
 	`)
 
-	_, err := loadConfig(path)
+	_, err := loadAndValidateConfig(path)
 	assert.Error(t, err, "it should throw an error if there are extra config properties")
 
 	os.Remove(path)
@@ -148,8 +161,48 @@ func TestConfigInvalidCompression(t *testing.T) {
     compression = "notacompression"
   `)
 
-	_, err := loadConfig(path)
+	_, err := loadAndValidateConfig(path)
 	assert.Error(t, err, "it should throw an error if an invalid compression is specified")
 
 	os.Remove(path)
+}
+
+func TestConfigRelativeSource(t *testing.T) {
+	path := createTestConfig(t, `
+    source = "foo/bar"
+    local_store = "/foo/bar/baz"
+  `)
+
+	_, err := loadAndValidateConfig(path)
+	assert.Error(t, err, "it should throw an error if the source root is a relative path")
+}
+
+func TestConfigRelativeSourceURL(t *testing.T) {
+	path := createTestConfig(t, `
+    source = "file://foo/bar"
+    local_store = "/foo/bar/baz"
+  `)
+
+	_, err := loadAndValidateConfig(path)
+	assert.Error(t, err, "it should throw an error if the source root is a relative path")
+}
+
+func TestConfigRelativeLocalStore(t *testing.T) {
+	path := createTestConfig(t, `
+    source = "/foo/bar"
+    local_store = "bar/baz"
+  `)
+
+	_, err := loadAndValidateConfig(path)
+	assert.Error(t, err, "it should throw an error if the local store is a relative path")
+}
+
+func TestConfigLocalStoreWithinRoot(t *testing.T) {
+	path := createTestConfig(t, `
+    source = "/foo/bar"
+    local_store = "/foo/bar/baz"
+  `)
+
+	_, err := loadAndValidateConfig(path)
+	assert.Error(t, err, "it should throw an error if the local store is within the source root")
 }

@@ -3,8 +3,10 @@ package main
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -144,21 +146,52 @@ func loadConfig(searchPath string) (sequinsConfig, error) {
 			return config, fmt.Errorf("found unrecognized properties: %v", md.Undecoded())
 		}
 
-		return validateConfig(config)
+		return config, nil
 	}
 
 	return config, errNoConfig
 }
 
 func validateConfig(config sequinsConfig) (sequinsConfig, error) {
+	if !filepath.IsAbs(config.LocalStore) {
+		return config, fmt.Errorf("local store path must be absolute: %s", config.LocalStore)
+	}
+
+	if config.Source == "" {
+		return config, errors.New("source must be set")
+	}
+
+	parsed, err := url.Parse(config.Source)
+	if err != nil {
+		return config, fmt.Errorf("parsing source: %s", err)
+	}
+
+	if parsed.Scheme == "" || parsed.Scheme == "file" {
+		if parsed.Host != "" {
+			return config, fmt.Errorf("local source path is invalid (likely missing a '/'): %s", config.Source)
+		}
+
+		if !filepath.IsAbs(parsed.Path) {
+			return config, fmt.Errorf("local source path must be absolute: %s", config.Source)
+		}
+
+		if strings.HasPrefix(filepath.Clean(config.LocalStore), filepath.Clean(parsed.Path)) {
+			return config, fmt.Errorf("local store can't be within source root: %s", config.LocalStore)
+		}
+
+		if config.Sharding.Enabled && !config.Test.AllowLocalCluster {
+			return config, errors.New("you can't run sequins with sharding enabled on local paths")
+		}
+	}
+
 	switch config.Storage.Compression {
 	case blocks.SnappyCompression, blocks.NoCompression:
 	default:
-		return config, fmt.Errorf("Unrecognized compression option: %s", config.Storage.Compression)
+		return config, fmt.Errorf("lnrecognized compression option: %s", config.Storage.Compression)
 	}
 
 	if config.Sharding.Replication <= 0 {
-		return config, fmt.Errorf("Invalid replication factor: %d", config.Sharding.Replication)
+		return config, fmt.Errorf("lnvalid replication factor: %d", config.Sharding.Replication)
 	}
 
 	return config, nil

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"net/url"
-	"path/filepath"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -63,6 +62,11 @@ func main() {
 		config.Debug.Bind = *debugBind
 	}
 
+	config, err = validateConfig(config)
+	if err != nil {
+		log.Fatalf("Configuration error: %s\n", err)
+	}
+
 	parsed, err := url.Parse(config.Source)
 	if err != nil {
 		log.Fatal(err)
@@ -71,14 +75,13 @@ func main() {
 	var s *sequins
 	switch parsed.Scheme {
 	case "", "file":
-		if config.Sharding.Enabled && !config.Test.AllowLocalCluster {
-			log.Fatal("You can't run sequins with sharding enabled on local paths.")
-		}
-		s = localSetup(config.Source, config)
+		s = localSetup(parsed.Path, config)
 	case "s3":
 		s = s3Setup(parsed.Host, parsed.Path, config)
 	case "hdfs":
 		s = hdfsSetup(parsed.Host, parsed.Path, config)
+	default:
+		log.Fatalf("Unrecognized scheme for path: %s://\n", parsed.Scheme)
 	}
 
 	// Do a basic test that the backend is valid.
@@ -102,12 +105,7 @@ func main() {
 }
 
 func localSetup(localPath string, config sequinsConfig) *sequins {
-	absPath, err := filepath.Abs(localPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	backend := backend.NewLocalBackend(absPath)
+	backend := backend.NewLocalBackend(localPath)
 	return newSequins(backend, config)
 }
 

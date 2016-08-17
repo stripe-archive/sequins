@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"path/filepath"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -43,7 +44,22 @@ func main() {
 	}
 
 	if *source != "" {
-		config.Source = *source
+		parsed, err := url.Parse(*source)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		switch parsed.Scheme {
+		case "":
+			absPath, err := filepath.Abs(parsed.Path)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			config.Source = absPath
+		default:
+			config.Source = *source
+		}
 	}
 
 	if config.Source == "" {
@@ -55,7 +71,12 @@ func main() {
 	}
 
 	if *localStore != "" {
-		config.LocalStore = *localStore
+		absPath, err := filepath.Abs(*localStore)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		config.LocalStore = absPath
 	}
 
 	if *debugBind != "" {

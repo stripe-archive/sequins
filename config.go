@@ -17,7 +17,7 @@ const defaultSearchPath = "sequins.conf:/etc/sequins.conf"
 var errNoConfig = errors.New("no config file found")
 
 type sequinsConfig struct {
-	Root               string   `toml:"root"`
+	Source             string   `toml:"source"`
 	Bind               string   `toml:"bind"`
 	MaxParallelLoads   int      `toml:"max_parallel_loads"`
 	ThrottleLoads      duration `toml:"throttle_loads"`
@@ -79,7 +79,7 @@ type testConfig struct {
 
 func defaultConfig() sequinsConfig {
 	return sequinsConfig{
-		Root:               "",
+		Source:             "",
 		Bind:               "0.0.0.0:9599",
 		LocalStore:         "/var/sequins/",
 		MaxParallelLoads:   0,

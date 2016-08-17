@@ -3,14 +3,14 @@
 
 # Unless specified otherwise, the below values are the defaults.
 
-root = "hdfs://namenode:8020/path/to/sequins"
+source = "hdfs://namenode:8020/path/to/sequins"
 # The url or directory where the sequencefiles are. This can be a local
 # directory, an HDFS url of the form hdfs://<namenode>:<port>/path/to/stuff,
 # or an S3 url of the form s3://<bucket>/path/to/stuff. This should be a
 # a directory of directories of directories; each first level represents a 'db',
 # and each subdirectory therein represents a 'version' of that db. See the
 # README for more information. This must be set, but can be overriden from the
-# command line with --root.
+# command line with --source.
 
 # bind = "0.0.0.0:9599"
 # The address to bind on. This can be overridden from the command line with

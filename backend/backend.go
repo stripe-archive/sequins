@@ -9,7 +9,7 @@ import (
 )
 
 type Backend interface {
-	// Lists all valid DBs (the first set of directories under the root).
+	// Lists all valid DBs (the first set of directories under the source root).
 	ListDBs() ([]string, error)
 
 	// ListVersions returns a sorted list of valid versions for the given db. If

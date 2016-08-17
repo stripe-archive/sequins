@@ -39,7 +39,7 @@ func TestExampleConfig(t *testing.T) {
 	require.NoError(t, err, "sequins.conf.example should exist and be valid")
 
 	defaults := defaultConfig()
-	defaults.Root = config.Root
+	defaults.Source = config.Source
 	assert.Equal(t, defaults, config, "sequins.conf.example should eval to the default config")
 }
 
@@ -66,7 +66,7 @@ func TestExampleConfigDefaults(t *testing.T) {
 	require.NoError(t, err, "the uncommented sequins.conf.example should exist and be valid")
 
 	defaults := defaultConfig()
-	defaults.Root = config.Root
+	defaults.Source = config.Source
 	assert.Equal(t, defaults, config, "the uncommented sequins.conf.example should eval to the default config")
 
 	os.Remove(path)
@@ -74,7 +74,7 @@ func TestExampleConfigDefaults(t *testing.T) {
 
 func TestSimpleConfig(t *testing.T) {
 	path := createTestConfig(t, `
-		root = "s3://foo/bar"
+		source = "s3://foo/bar"
 		require_success_file = true
 		refresh_period = "1h"
 
@@ -85,13 +85,13 @@ func TestSimpleConfig(t *testing.T) {
 	config, err := loadConfig(path)
 	require.NoError(t, err, "loading a basic config should work")
 
-	assert.Equal(t, "s3://foo/bar", config.Root, "Root should be set")
+	assert.Equal(t, "s3://foo/bar", config.Source, "Source should be set")
 	assert.Equal(t, true, config.RequireSuccessFile, "RequireSuccessFile should be set")
 	assert.Equal(t, time.Hour, config.RefreshPeriod.Duration, "RefreshPeriod (a duration) should be set")
 	assert.Equal(t, []string{"zk:2181"}, config.ZK.Servers, "ZK.Servers should be set")
 
 	defaults := defaultConfig()
-	defaults.Root = config.Root
+	defaults.Source = config.Source
 	defaults.RequireSuccessFile = config.RequireSuccessFile
 	defaults.RefreshPeriod = config.RefreshPeriod
 	defaults.ZK.Servers = config.ZK.Servers
@@ -122,7 +122,7 @@ func TestConfigSearchPath(t *testing.T) {
 
 func TestConfigExtraKeys(t *testing.T) {
 	path := createTestConfig(t, `
-		root = "s3://foo/bar"
+		source = "s3://foo/bar"
 		require_success_file = true
 		refresh_period = "1h"
 
@@ -140,7 +140,7 @@ func TestConfigExtraKeys(t *testing.T) {
 
 func TestConfigInvalidCompression(t *testing.T) {
 	path := createTestConfig(t, `
-    root = "s3://foo/bar"
+    source = "s3://foo/bar"
     require_success_file = true
     refresh_period = "1h"
 

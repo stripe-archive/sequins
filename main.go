@@ -21,7 +21,7 @@ var (
 	sequinsVersion string
 
 	bind       = kingpin.Flag("bind", "Address to bind to. Overrides the config option of the same name.").Short('b').PlaceHolder("ADDRESS").String()
-	root       = kingpin.Flag("root", "Where the sequencefiles are. Overrides the config option of the same name.").Short('r').PlaceHolder("URI").String()
+	source     = kingpin.Flag("source", "Where the sequencefiles are. Overrides the config option of the same name.").Short('r').PlaceHolder("URI").String()
 	localStore = kingpin.Flag("local-store", "Where to store local data. Overrides the config option of the same name.").Short('l').PlaceHolder("PATH").String()
 	configPath = kingpin.Flag("config", "The config file to use. By default, either sequins.conf in the local directory or /etc/sequins.conf will be used.").PlaceHolder("PATH").String()
 	debugBind  = kingpin.Flag("debug-bind", "Address to bind to for pprof and expvars. Overrides the config option of the same name.").PlaceHolder("ADDRESS").String()
@@ -33,8 +33,8 @@ func main() {
 
 	config, err := loadConfig(*configPath)
 	if err == errNoConfig {
-		// If --root was specified, we can just use that and the default config.
-		if *root != "" {
+		// If --source was specified, we can just use that and the default config.
+		if *source != "" {
 			config = defaultConfig()
 		} else {
 			log.Fatal("No config file found! Please see the README for instructions.")
@@ -43,12 +43,12 @@ func main() {
 		log.Fatal("Error loading config: ", err)
 	}
 
-	if *root != "" {
-		config.Root = *root
+	if *source != "" {
+		config.Source = *source
 	}
 
-	if config.Root == "" {
-		log.Fatal("Root must be defined, either in the config file or with --root. Please see the README for instructions.")
+	if config.Source == "" {
+		log.Fatal("The source root must be defined, either in the config file or with --source. Please see the README for instructions.")
 	}
 
 	if *bind != "" {
@@ -63,7 +63,7 @@ func main() {
 		config.Debug.Bind = *debugBind
 	}
 
-	parsed, err := url.Parse(config.Root)
+	parsed, err := url.Parse(config.Source)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func main() {
 		if config.Sharding.Enabled && !config.Test.AllowLocalCluster {
 			log.Fatal("You can't run sequins with sharding enabled on local paths.")
 		}
-		s = localSetup(config.Root, config)
+		s = localSetup(config.Source, config)
 	case "s3":
 		s = s3Setup(parsed.Host, parsed.Path, config)
 	case "hdfs":

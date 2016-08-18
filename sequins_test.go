@@ -170,7 +170,7 @@ func TestSequinsThreadsafe(t *testing.T) {
 	createTestIndex(t, scratch, 0)
 
 	config := defaultConfig()
-	config.Root = scratch
+	config.Source = scratch
 	config.LocalStore = filepath.Join(scratch, "blocks")
 	config.RequireSuccessFile = true
 	ts := newSequins(backend.NewLocalBackend(filepath.Join(scratch, "data")), config)

@@ -30,12 +30,12 @@ func setupS3(t *testing.T) *backend.S3Backend {
 	testBackend := backend.NewS3Backend(bucket, "test", svc)
 
 	infos, _ := ioutil.ReadDir("test/baby-names/1")
-	rootDest := path.Join("test", "baby-names")
+	sourceDest := path.Join("test", "baby-names")
 	for _, info := range infos {
-		err := putS3(svc, bucket, path.Join(rootDest, "0", info.Name()), filepath.Join("test/baby-names/1", info.Name()))
-		require.NoError(t, err, "setup: putting %s", path.Join(rootDest, "0", info.Name()))
-		err = putS3(svc, bucket, path.Join(rootDest, "1", info.Name()), filepath.Join("test/baby-names/1", info.Name()))
-		require.NoError(t, err, "setup: putting %s", path.Join(rootDest, "1", info.Name()))
+		err := putS3(svc, bucket, path.Join(sourceDest, "0", info.Name()), filepath.Join("test/baby-names/1", info.Name()))
+		require.NoError(t, err, "setup: putting %s", path.Join(sourceDest, "0", info.Name()))
+		err = putS3(svc, bucket, path.Join(sourceDest, "1", info.Name()), filepath.Join("test/baby-names/1", info.Name()))
+		require.NoError(t, err, "setup: putting %s", path.Join(sourceDest, "1", info.Name()))
 	}
 
 	putS3Blob(svc, bucket, "test/baby-names/0/_SUCCESS", nil)

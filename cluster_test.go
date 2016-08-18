@@ -37,7 +37,7 @@ const (
 type testCluster struct {
 	*testing.T
 	binary     string
-	root       string
+	source     string
 	sequinses  []*testSequins
 	zk         *testZK
 	testClient *http.Client
@@ -65,7 +65,7 @@ func newTestCluster(t *testing.T) *testCluster {
 		t.Skip("Skipping functional cluster tests because no binary is available. Please run the tests with 'make test'.")
 	}
 
-	root, err := ioutil.TempDir("", "sequins-cluster-")
+	source, err := ioutil.TempDir("", "sequins-cluster-")
 	require.NoError(t, err)
 
 	zk := createTestZk(t)
@@ -83,7 +83,7 @@ func newTestCluster(t *testing.T) *testCluster {
 	return &testCluster{
 		T:          t,
 		binary:     binary,
-		root:       root,
+		source:     source,
 		sequinses:  make([]*testSequins, 0),
 		zk:         zk,
 		testClient: testClient,
@@ -92,7 +92,7 @@ func newTestCluster(t *testing.T) *testCluster {
 
 func (tc *testCluster) addSequins() *testSequins {
 	port := randomPort()
-	path := filepath.Join(tc.root, fmt.Sprintf("node-%d", port))
+	path := filepath.Join(tc.source, fmt.Sprintf("node-%d", port))
 
 	storePath := filepath.Join(path, "store")
 	err := os.MkdirAll(storePath, 0755|os.ModeDir)
@@ -107,7 +107,7 @@ func (tc *testCluster) addSequins() *testSequins {
 	config := defaultConfig()
 	name := fmt.Sprintf("localhost:%d", port)
 	config.Bind = name
-	config.Root = backendPath
+	config.Source = backendPath
 	config.LocalStore = path
 	config.RequireSuccessFile = true
 	config.Sharding.Enabled = true
@@ -192,7 +192,7 @@ func (tc *testCluster) tearDown() {
 	}
 
 	tc.zk.close()
-	os.RemoveAll(tc.root)
+	os.RemoveAll(tc.source)
 }
 
 func (ts *testSequins) expectProgression(versions ...testVersion) {

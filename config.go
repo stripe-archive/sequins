@@ -187,11 +187,11 @@ func validateConfig(config sequinsConfig) (sequinsConfig, error) {
 	switch config.Storage.Compression {
 	case blocks.SnappyCompression, blocks.NoCompression:
 	default:
-		return config, fmt.Errorf("lnrecognized compression option: %s", config.Storage.Compression)
+		return config, fmt.Errorf("unrecognized compression option: %s", config.Storage.Compression)
 	}
 
 	if config.Sharding.Replication <= 0 {
-		return config, fmt.Errorf("lnvalid replication factor: %d", config.Sharding.Replication)
+		return config, fmt.Errorf("invalid replication factor: %d", config.Sharding.Replication)
 	}
 
 	return config, nil

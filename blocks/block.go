@@ -22,12 +22,11 @@ type Block struct {
 	Partition int
 	Count     int
 
-	sparkeyReader *sparkey.HashReader
-	sparkeyIter   *sparkey.HashIter
 	minKey        []byte
 	maxKey        []byte
-
-	readLock sync.Mutex
+	sparkeyReader *sparkey.HashReader
+	iterPool      iterPool
+	sync.RWMutex
 }
 
 func loadBlock(storePath string, manifest blockManifest) (*Block, error) {
@@ -43,22 +42,17 @@ func loadBlock(storePath string, manifest blockManifest) (*Block, error) {
 
 	reader, err := sparkey.Open(filepath.Join(storePath, b.Name))
 	if err != nil {
-		return nil, fmt.Errorf("opening the block: %s", err)
-	}
-
-	iter, err := reader.Iterator()
-	if err != nil {
-		return nil, fmt.Errorf("opening the block: %s", err)
+		return nil, fmt.Errorf("opening block: %s", err)
 	}
 
 	b.sparkeyReader = reader
-	b.sparkeyIter = iter
+	b.iterPool = newIterPool(reader)
 	return b, nil
 }
 
-func (b *Block) Get(key []byte) ([]byte, error) {
-	b.readLock.Lock()
-	defer b.readLock.Unlock()
+func (b *Block) Get(key []byte) (*Record, error) {
+	b.RLock()
+	defer b.RUnlock()
 
 	if b.minKey != nil && bytes.Compare(key, b.minKey) < 0 {
 		return nil, nil
@@ -66,11 +60,13 @@ func (b *Block) Get(key []byte) ([]byte, error) {
 		return nil, nil
 	}
 
-	return b.sparkeyIter.Get(key)
+	return b.get(key)
 }
 
 func (b *Block) Close() {
-	b.sparkeyIter.Close()
+	b.Lock()
+	defer b.Unlock()
+
 	b.sparkeyReader.Close()
 }
 

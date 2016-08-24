@@ -27,11 +27,11 @@ func testBlockStoreCompression(t *testing.T, compression Compression) {
 
 	res, err := bs.Get("Alice")
 	require.NoError(t, err, "fetching value for 'Alice'")
-	assert.Equal(t, "Practice", string(res), "fetching value for 'Alice'")
+	assert.Equal(t, "Practice", readAll(t, res), "fetching value for 'Alice'")
 
 	res, err = bs.Get("Bob")
 	require.NoError(t, err, "fetching value for 'Bob'")
-	assert.Equal(t, "Hope", string(res), "fetching value for 'Bob'")
+	assert.Equal(t, "Hope", readAll(t, res), "fetching value for 'Bob'")
 
 	// Close the index, then load it from the manifest.
 	bs.Close()
@@ -43,11 +43,11 @@ func testBlockStoreCompression(t *testing.T, compression Compression) {
 
 	res, err = bs.Get("Alice")
 	require.NoError(t, err, "fetching value for 'Alice'")
-	assert.Equal(t, "Practice", string(res), "fetching value for 'Alice'")
+	assert.Equal(t, "Practice", readAll(t, res), "fetching value for 'Alice'")
 
 	res, err = bs.Get("Bob")
 	require.NoError(t, err, "fetching value for 'Bob'")
-	assert.Equal(t, "Hope", string(res), "fetching value for 'Bob'")
+	assert.Equal(t, "Hope", readAll(t, res), "fetching value for 'Bob'")
 }
 
 func TestBlockStoreSnappy(t *testing.T) {

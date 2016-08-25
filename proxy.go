@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -35,12 +36,11 @@ var errProxyTimeout = errors.New("all peers timed out")
 //     cancels any running requests.
 func (vs *version) proxy(w http.ResponseWriter, r *http.Request, peers []string) ([]byte, error) {
 	responses := make(chan proxyResponse, len(peers))
-	cancel := make(chan struct{})
-	defer close(cancel)
+	ctx, cancel := context.WithDeadline(r.Context(), time.Now().Add(vs.sequins.config.Sharding.ProxyTimeout.Duration))
+	defer cancel()
 
 	peerIndex := 0
 	outstanding := 0
-	totalTimeout := time.NewTimer(vs.sequins.config.Sharding.ProxyTimeout.Duration)
 	for {
 		stageTimeout := time.NewTimer(vs.sequins.config.Sharding.ProxyStageTimeout.Duration)
 		if peerIndex < len(peers) {
@@ -48,7 +48,7 @@ func (vs *version) proxy(w http.ResponseWriter, r *http.Request, peers []string)
 			// Adding a header to the response to track proxied requests.
 			w.Header().Add(proxyHeader, host)
 			url := fmt.Sprintf("http://%s%s?proxy=%s", host, r.URL.Path, vs.name)
-			go vs.proxyAttempt(url, responses, cancel)
+			go vs.proxyAttempt(ctx, url, responses)
 			peerIndex += 1
 			outstanding += 1
 		} else if outstanding == 0 {
@@ -64,7 +64,7 @@ func (vs *version) proxy(w http.ResponseWriter, r *http.Request, peers []string)
 			} else {
 				return readResponse(res)
 			}
-		case <-totalTimeout.C:
+		case <-ctx.Done():
 			return nil, errProxyTimeout
 		case <-stageTimeout.C:
 		}
@@ -73,7 +73,7 @@ func (vs *version) proxy(w http.ResponseWriter, r *http.Request, peers []string)
 	return nil, errNoAvailablePeers
 }
 
-func (vs *version) proxyAttempt(url string, res chan proxyResponse, cancel chan struct{}) {
+func (vs *version) proxyAttempt(ctx context.Context, url string, res chan proxyResponse) {
 	// Create a fresh request, so we don't pass on any baggage like
 	// 'Connection: close' headers.
 	proxyRequest, err := http.NewRequest("GET", url, nil)
@@ -82,8 +82,7 @@ func (vs *version) proxyAttempt(url string, res chan proxyResponse, cancel chan 
 		return
 	}
 
-	proxyRequest.Cancel = cancel
-	resp, err := http.DefaultClient.Do(proxyRequest)
+	resp, err := http.DefaultClient.Do(proxyRequest.WithContext(ctx))
 	if err != nil {
 		res <- proxyResponse{nil, err}
 		return

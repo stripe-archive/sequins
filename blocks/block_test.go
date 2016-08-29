@@ -15,8 +15,8 @@ import (
 
 var letters = []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
-func randBytes() []byte {
-	n := rand.Intn(32) + 1
+func randBytes(min, max int) []byte {
+	n := rand.Intn(max) + 1
 	b := make([]byte, n)
 	for i := range b {
 		b[i] = letters[rand.Intn(len(letters))]
@@ -103,8 +103,8 @@ func TestBlockParallelReads(t *testing.T) {
 
 	expected := make([][][]byte, 0, 100)
 	for i := 0; i < cap(expected); i++ {
-		key := randBytes()
-		value := randBytes()
+		key := randBytes(1, 32)
+		value := randBytes(0, 1024*1024)
 		err := bw.add(key, value)
 		require.NoError(t, err)
 
@@ -115,12 +115,12 @@ func TestBlockParallelReads(t *testing.T) {
 	require.NoError(t, err, "saving the block")
 
 	var wg sync.WaitGroup
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
-			shuffled := make([][][]byte, len(expected))
-			for i, v := range rand.Perm(len(expected)) {
-				shuffled[v] = expected[i]
+			shuffled := make([][][]byte, len(expected)*5)
+			for i, v := range rand.Perm(len(expected) * 5) {
+				shuffled[v] = expected[i%len(expected)]
 			}
 
 			for _, record := range shuffled {

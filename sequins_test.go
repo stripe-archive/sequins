@@ -116,9 +116,13 @@ func testBasicSequins(t *testing.T, ts *sequins, expectedDBPath string) {
 	assert.Equal(t, "", w.Body.String(), "fetching from a nonexistent db should return no body")
 	assert.Equal(t, "", w.HeaderMap.Get(versionHeader), "when fetching from a nonexistent db, the sequins version header shouldn't be set")
 
-	req, _ = http.NewRequest("GET", "/", nil)
+	testBasicStatus(t, ts, expectedDBPath)
+}
+
+func testBasicStatus(t *testing.T, ts *sequins, expectedDBPath string) {
+	req, _ := http.NewRequest("GET", "/", nil)
 	req.Header.Set("Accept", "application/json")
-	w = httptest.NewRecorder()
+	w := httptest.NewRecorder()
 	ts.ServeHTTP(w, req)
 
 	status := status{}
@@ -161,6 +165,26 @@ func TestSequins(t *testing.T) {
 	backend := backend.NewLocalBackend(scratch)
 	ts := getSequins(t, backend, "")
 	testBasicSequins(t, ts, filepath.Join(scratch, "baby-names/1"))
+}
+
+func TestEmptySequins(t *testing.T) {
+	scratch, err := ioutil.TempDir("", "sequins-")
+	require.NoError(t, err, "setup")
+
+	dst := filepath.Join(scratch, "baby-names", "1")
+	require.NoError(t, os.MkdirAll(dst, os.ModeDir|0777), "setup: mkdir")
+
+	backend := backend.NewLocalBackend(scratch)
+	ts := getSequins(t, backend, "")
+	testBasicStatus(t, ts, filepath.Join(scratch, "baby-names/1"))
+
+	req, _ := http.NewRequest("GET", "/baby-names/foo", nil)
+	w := httptest.NewRecorder()
+	ts.ServeHTTP(w, req)
+
+	assert.Equal(t, 404, w.Code, "fetching a nonexistent key should 404")
+	assert.Equal(t, "", w.Body.String(), "fetching a nonexistent key should return no body")
+	assert.Equal(t, "1", w.HeaderMap.Get(versionHeader), "when fetchin a nonexistent key, the sequins version header should still be set")
 }
 
 // TestSequinsThreadsafe makes sure that reads that occur during an update DTRT

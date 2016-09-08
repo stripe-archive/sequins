@@ -72,8 +72,7 @@ func (s *sequins) serveStatus(w http.ResponseWriter, r *http.Request) {
 
 	status := status{DBs: make(map[string]dbStatus)}
 	for name, db := range s.dbs {
-		fresh := dbStatus{Versions: make(map[string]versionStatus)}
-		status.DBs[name] = mergePeerDBStatus(fresh, db.status())
+		status.DBs[name] = copyDBStatus(db.status())
 	}
 
 	s.dbsLock.RUnlock()
@@ -91,7 +90,7 @@ func (s *sequins) serveStatus(w http.ResponseWriter, r *http.Request) {
 			merged := peerStatus
 			for db := range status.DBs {
 				if _, ok := merged.DBs[db]; ok {
-					merged.DBs[db] = mergePeerDBStatus(merged.DBs[db], status.DBs[db])
+					merged.DBs[db] = mergeDBStatus(merged.DBs[db], status.DBs[db])
 				} else {
 					merged.DBs[db] = status.DBs[db]
 				}
@@ -139,7 +138,7 @@ func (db *db) serveStatus(w http.ResponseWriter, r *http.Request) {
 			}
 
 			peerDBStatus := peerStatus.DBs[db.name]
-			s = mergePeerDBStatus(peerDBStatus, s)
+			s = mergeDBStatus(peerDBStatus, s)
 		}
 
 		for versionName, version := range s.Versions {
@@ -206,9 +205,9 @@ func (s *sequins) getPeerStatus(peer string, db string) (status, error) {
 	return status, err
 }
 
-// mergePeerDBStatus merges two dbStatus objects, mutating only the
+// mergeDBStatus merges two dbStatus objects, mutating only the
 // left one.
-func mergePeerDBStatus(left, right dbStatus) dbStatus {
+func mergeDBStatus(left, right dbStatus) dbStatus {
 	for v, vst := range right.Versions {
 		if _, ok := left.Versions[v]; !ok {
 			left.Versions[v] = versionStatus{
@@ -225,6 +224,12 @@ func mergePeerDBStatus(left, right dbStatus) dbStatus {
 	}
 
 	return left
+}
+
+// copyDBStatus does a deep copy of a dbStatus object and returns it.
+func copyDBStatus(status dbStatus) dbStatus {
+	fresh := dbStatus{Versions: make(map[string]versionStatus)}
+	return mergeDBStatus(fresh, status)
 }
 
 func calculateReplicationStats(vst versionStatus) versionStatus {
@@ -273,12 +278,7 @@ func (db *db) status() dbStatus {
 	db.versionStatusLock.RLock()
 	defer db.versionStatusLock.RUnlock()
 
-	status := dbStatus{Versions: make(map[string]versionStatus)}
-	for name, versionStatus := range db.versionStatus {
-		status.Versions[name] = versionStatus
-	}
-
-	return status
+	return copyDBStatus(dbStatus{Versions: db.versionStatus})
 }
 
 func (db *db) trackVersion(version *version, state versionState) {

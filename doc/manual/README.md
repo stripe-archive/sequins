@@ -14,7 +14,7 @@ Unzip it wherever you like. Then you can run it to see the usage:
                                 --help-long and --help-man).
       -b, --bind=ADDRESS        Address to bind to. Overrides the config
                                 option of the same name.
-      -r, --root=URI            Where the sequencefiles are. Overrides the
+      -r, --source=URI            Where the sequencefiles are. Overrides the
                                 config option of the same name.
       -l, --local-store=PATH    Where to store local data. Overrides the
                                 config option of the same name.
@@ -62,12 +62,12 @@ First, start up sequins and tell it to load up your data. If you saved it to
 HDFS, then you can point it at the namenode:
 
     $ ./sequins --local-store /tmp/sequins --bind localhost:9599 \
-      --root hdfs://namenode:8020/path/to/data
+      --source hdfs://namenode:8020/path/to/data
 
 Or, if you put it in S3, use a S3 URI[^2]:
 
     $ ./sequins --local-store /tmp/sequins --bind localhost:9599 \
-      --root s3://my-bucket/path/to/data
+      --source s3://my-bucket/path/to/data
 
 Sequins should start downloading and mirroring your data. If it's a large
 dataset, this can take a while. (If it's a really big dataset, you'll want to

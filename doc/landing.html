@@ -68,7 +68,7 @@
       display: block;
       width: 100%;
       height: 8em;
-      margin: 2em 0 -3em;
+      margin: -1.5em 0;
     }
 
     @media only screen and (min-width: 1024px) {
@@ -96,8 +96,12 @@
       height: 1em;
     }
 
+    #calltoaction {
+      margin-top: 0;
+    }
+
     h1 {
-      margin-top: 2em;
+      margin: 2em 0;
       font-size: 1.5em;
       font-weight: normal;
     }
@@ -136,13 +140,14 @@
   </div>
   <div id="bottom">
     <div id="columns">
-      <h1><span class="s">S</span><span class="s">e</span><span class="s">q</span><span class="s">u</span><span class="s">i</span><span class="s">n</span><span class="s">s</span> is a static <span class="s">k</span><span class="s">e</span><span class="s">y</span><span class="s">/</span><span class="s">v</span><span class="s">a</span><span class="s">l</span><span class="s">u</span><span class="s">e</span> store for serving <span class="s">b</span><span class="s">a</span><span class="s">t</span><span class="s">c</span><span class="s">h</span> data.</h1>
+      <h1><span class="s">S</span><span class="s">e</span><span class="s">q</span><span class="s">u</span><span class="s">i</span><span class="s">n</span><span class="s">s</span> is a static <span class="s">k</span><span class="s">e</span><span class="s">y</span><span class="s">/</span><span class="s">v</span><span class="s">a</span><span class="s">l</span><span class="s">u</span><span class="s">e</span> store for serving <span class="s">b</span><span class="s">a</span><span class="s">t</span><span class="s">c</span><span class="s">h</span> data. It's designed to be:</h1>
       <ul>
         <li class="columnblock"><div class="feature"><div class="bullet"><img src="sequins_small.png"\></div><span class="s">Horizontally scalable:</span> replicate a hot dataset over a few nodes, or partition a large one over many.</div></li>
         <li class="columnblock"><div class="feature"><div class="bullet"><img src="sequins_small.png"\></div><span class="s">Reliable:</span> serve your data offline, far away from Hadoop. Sequins is built to stay up during multi-node failures.</div></li>
         <li class="columnblock"><div class="feature"><div class="bullet"><img src="sequins_small.png"\></div><span class="s">Interoperable:</span> load data from HDFS or S3 in Hadoop's SequenceFile format.</div></li>
         <li class="columnblock"><div class="feature"><div class="bullet"><img src="sequins_small.png"\></div><span class="s">Accessible:</span> fetch values with HTTP <tt>GET</tt>; no client library required.</div></li>
       </ul>
+      <h1 id="calltoaction">To get started, check out the <a href="manual"><span class="s">m</span><span class="s">a</span><span class="s">n</span><span class="s">u</span><span class="s">a</span><span class="s">l</span></a>.</h1>
     </div>
   </div>
 </body>

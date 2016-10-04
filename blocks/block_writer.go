@@ -79,12 +79,7 @@ func (bw *blockWriter) save() (*Block, error) {
 
 	reader, err := sparkey.Open(bw.path)
 	if err != nil {
-		return nil, fmt.Errorf("opening block for reads: err")
-	}
-
-	iter, err := reader.Iterator()
-	if err != nil {
-		return nil, fmt.Errorf("opening block for reads: err")
+		return nil, fmt.Errorf("opening block: %s", err)
 	}
 
 	b := &Block{
@@ -93,10 +88,10 @@ func (bw *blockWriter) save() (*Block, error) {
 		Partition: bw.partition,
 		Count:     bw.count,
 
-		sparkeyReader: reader,
-		sparkeyIter:   iter,
 		minKey:        bw.minKey,
 		maxKey:        bw.maxKey,
+		sparkeyReader: reader,
+		iterPool:      newIterPool(reader),
 	}
 
 	return b, nil

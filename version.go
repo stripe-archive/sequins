@@ -1,11 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"errors"
 	"log"
-	"math/rand"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -16,8 +13,10 @@ import (
 
 const versionHeader = "X-Sequins-Version"
 
-var errNoAvailablePeers = errors.New("no available peers")
-var errProxiedIncorrectly = errors.New("this server doesn't have the requested partition")
+var (
+	errNoAvailablePeers   = errors.New("no available peers")
+	errProxiedIncorrectly = errors.New("this server doesn't have the requested partition")
+)
 
 // A version represents a single version of a particular sequins db: in
 // other words, a collection of files. In the sharding-enabled case, it
@@ -98,80 +97,6 @@ func (vs *version) advertiseAndWait() bool {
 	}
 
 	return vs.partitions.advertiseAndWait()
-}
-
-// serveKey is the entrypoint for incoming HTTP requests.
-func (vs *version) serveKey(w http.ResponseWriter, r *http.Request, key string) {
-	res, err := vs.get(w, r, key)
-
-	if err == errNoAvailablePeers {
-		// Either something is wrong with sharding, or all peers errored for some
-		// other reason. 502
-		log.Printf("No peers available for /%s/%s (version %s)", vs.db, key, vs.name)
-		w.WriteHeader(http.StatusBadGateway)
-	} else if err == errProxyTimeout {
-		// All of our peers failed us. 504.
-		log.Printf("All peers timed out for /%s/%s (version %s)", vs.db, key, vs.name)
-		w.WriteHeader(http.StatusGatewayTimeout)
-	} else if err != nil {
-		// Some other error. 500.
-		log.Printf("Error fetching value for /%s/%s: %s\n", vs.db, key, err)
-		w.WriteHeader(http.StatusInternalServerError)
-	} else if res == nil {
-		// Either the key doesn't exist locally, or we got back the
-		// proxied response, and it didn't exist on the peer. 404.
-		w.Header().Add(versionHeader, vs.name)
-		w.WriteHeader(http.StatusNotFound)
-	} else {
-		// Explicitly unset Content-Type, so ServeContent doesn't try to do any
-		// sniffing.
-		w.Header()["Content-Type"] = nil
-		w.Header().Add(versionHeader, vs.name)
-		http.ServeContent(w, r, key, vs.created, bytes.NewReader(res))
-	}
-}
-
-// get looks up a value locally, or, failing that, asks a peer that has it.
-// If the request was proxied, it is not proxied further.
-func (vs *version) get(w http.ResponseWriter, r *http.Request, key string) ([]byte, error) {
-	if vs.numPartitions == 0 {
-		return nil, nil
-	}
-
-	partition, alternatePartition := blocks.KeyPartition(key, vs.numPartitions)
-	bs := vs.getBlockStore()
-	if bs != nil && vs.hasPartition(partition) || vs.hasPartition(alternatePartition) {
-		res, err := bs.Get(key)
-		return res, err
-	} else if r.URL.Query().Get("proxy") == "" {
-		res, err := vs.getPeers(w, r, partition)
-		if res == nil && err == nil && alternatePartition != partition {
-			log.Println("Trying alternate partition for pathological key", key)
-			res, err = vs.getPeers(w, r, alternatePartition)
-		}
-
-		return res, err
-	} else {
-		return nil, errProxiedIncorrectly
-	}
-
-}
-
-func (vs *version) getPeers(w http.ResponseWriter, r *http.Request, partition int) ([]byte, error) {
-	peers := vs.partitions.getPeers(partition)
-	if len(peers) == 0 {
-		return nil, errNoAvailablePeers
-	}
-
-	// Shuffle the peers, so we try them in a random order.
-	// TODO: don't blacklist nodes, but we can weight them lower
-	shuffled := make([]string, len(peers))
-	perm := rand.Perm(len(peers))
-	for i, v := range perm {
-		shuffled[v] = peers[i]
-	}
-
-	return vs.proxy(w, r, peers)
 }
 
 // hasPartition returns true if we have the partition available locally.

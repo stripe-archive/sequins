@@ -251,7 +251,7 @@ func (store *BlockStore) Save() error {
 
 // Get returns the value for a given key. It returns ErrPartitionNotFound if
 // the partition requested is not available locally.
-func (store *BlockStore) Get(key string) ([]byte, error) {
+func (store *BlockStore) Get(key string) (*Record, error) {
 	store.blockMapLock.RLock()
 	defer store.blockMapLock.RUnlock()
 

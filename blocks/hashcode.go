@@ -61,14 +61,13 @@ func KeyPartition(key string, totalPartitions int) (int, int) {
 // the first part, right? Wrong. It's almost identical. It's exactly 31
 // higher, because h starts at 1 instead of 0.
 //
-// For the vast majority of values, using the string hashCode intsead of the
+// For the vast majority of values, using the string hashCode instead of the
 // Tuple hashCode works fine; the partition numbers are different, but
 // consistently so. But this breaks down when the hashCode of the string is
 // within 31 of the max int32 value, or within 31 of 0, because we wrap before
 // doing the mod. One inconsistent partition number could cause us to assume a
 // whole file isn't actually partitioned, or, worse, ignore a key that's
-// actually in the dataset but that we skipped over while building a sparse
-// index.
+// actually in the dataset but that we skipped over heuristically.
 //
 // Fortunately, we can handle this case correctly. If the hashcode looks like
 // it would be pathological, then we can figure out what the cascading hashcode

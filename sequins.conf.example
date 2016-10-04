@@ -7,10 +7,10 @@ source = "hdfs://namenode:8020/path/to/sequins"
 # The url or directory where the sequencefiles are. This can be a local
 # directory, an HDFS url of the form hdfs://<namenode>:<port>/path/to/stuff,
 # or an S3 url of the form s3://<bucket>/path/to/stuff. This should be a
-# a directory of directories of directories; each first level represents a 'db',
-# and each subdirectory therein represents a 'version' of that db. See the
-# README for more information. This must be set, but can be overriden from the
-# command line with --source.
+# a directory of directories of directories; each first level represents a
+# 'database', and each subdirectory therein represents a 'version' of that
+# database. See the README for more information. This must be set, but can be
+# overriden from the command line with --source.
 
 # bind = "0.0.0.0:9599"
 # The address to bind on. This can be overridden from the command line with
@@ -21,9 +21,9 @@ source = "hdfs://namenode:8020/path/to/sequins"
 # This can be overriden from the command line with --local-store.
 
 # max_parallel_loads = 4
-# Unset by default. If this flag is set, sequins will only update this many dbs
-# at a time, minimizing disk usage while new data is being loaded. If you set
-# this to 1, then loads will be completely serialized.
+# Unset by default. If this flag is set, sequins will only update this many
+# databases at a time, minimizing disk usage while new data is being loaded. If
+# you set this to 1, then loads will be completely serialized.
 
 # throttle_loads = "800μs"
 # Unset by default. If this flag is set, sequins will sleep this long between

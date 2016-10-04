@@ -1,5 +1,7 @@
 /sequins
 /build
+/doc/manual/_book
+/doc/manual/node_modules
 testdata
 .index
 .manifest

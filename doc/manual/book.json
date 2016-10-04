@@ -1,0 +1,15 @@
+{
+  "plugins": ["-sharing", "github", "anchorjs"],
+  "pluginsConfig": {
+    "fontsettings": {
+      "theme": "night"
+    },
+    "github": {
+        "url": "https://github.com/stripe/sequins"
+    },
+    "anchorjs": {
+      "icon": "",
+      "class": "fa fa-link anchor-link"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+<img style="margin: -100px auto; display: block; width: 640px;" src="sequins.svg">
+
+Sequins is read-only key/value store designed for serving precomputed datasets
+quickly and quietly. It emphasizes operational simplicity and robustness, and
+offers easy horizontal scaling with sharding and replication.
+
+We use sequins at [Stripe](https://stripe.com) for a couple different use
+cases. On SSDs, it works very well for serving tiny, hot aggregates very
+quickly and reliably. We also use it to shard large, cold, immutable archived
+data in situations where we know our access patterns ahead of time.
+
+[Read on](./1-1-getting-started/README.md) to get started, or head to [Github][github] to see the source.
+
+[next]: 1-getting-started/README.md
+[github]: https://github.com/stripe/sequins

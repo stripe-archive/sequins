@@ -15,20 +15,20 @@ before_script:
 - make
 script: make test test_functional
 before_deploy: make release
+cache:
+  directories:
+  - "$ZOOKEEPER_HOME"
+  - "$HADOOP_HOME"
 deploy:
   provider: releases
   api_key:
-    secure: mA5a0ALLaHxlfSDfqOmr+7fpcUv5/nThZVTyFTiXGRRvfUCUMdJzmQp5d74fLfa5ExQz8cXqswIYQT0ScBEBIiu48p8v4qLLYGonorNVam51m93/m9k9PAHZFIaaqW3QJAr9kZdS+Z+epf3U7dcpRfHWwkeLxHW+X2EErJpNAtw=
+    secure: bNI1zixTuod6PBhCQzeGvZYOODqlEq0iRepcV5M6avVRbYMhW5zX4zxCfP155LXB9rA+xPpP0DEMVTAw9Q0MMSvdKPaBjQNlMPn87vZw6N09UajPYX8YZoUvxZD5XMBVFLsswC4oDaCptD/g6ilMQBT8hySHO8SFYjNWAGq04xM=
   file: sequins-*.tar.gz
   file_glob: true
   on:
     repo: stripe/sequins
     tags: true
     all_branches: true
-cache:
-  directories:
-    - $ZOOKEEPER_HOME
-    - $HADOOP_HOME
 env:
   global:
   - secure: d4y27NWdKd13Nj0y9aBJBiJaQLSCw+FHI5W2UXaXPkgi7NCr/dsNYhFfkNSNDR7NVLjeNoG0Ga/488DNeetm/InXvb4iST+sjpBgHhFot97ytqCkQ64bU7QoGG0cu4bI4mgMVPwkVE71NY0bx3mzj+CTZgK/PtBvpB0f8rrXZbc=

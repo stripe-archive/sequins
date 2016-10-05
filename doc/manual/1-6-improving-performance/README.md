@@ -33,7 +33,7 @@ If you're constantly loading new data to a cluster, you may see that adversely
 impact latency. On small instances, data loads can thrash the disk or network,
 causing requests to drop or get timed out.
 
-Sequins has a couple configuration settings designed to mitigate this. Firsts,
+Sequins has a couple configuration settings designed to mitigate this. First,
 setting [max_parallel_loads](../x-1-configuration-reference#maxparallelloads) to
 a low number will effectively queue loads for different databases.
 
@@ -49,6 +49,6 @@ cost over the period until your next write is ready.
 you tweak the "backup request" strategy for proxied requests in a distributed
 cluster.
 
-The defaults, however, are intentionally set high by default. If you know that
+The defaults, however, are intentionally set high. If you know that
 your p99 is consistently under 10ms, for example, then you can adjust the latter
 property down, which should reduce variability in latency significantly.

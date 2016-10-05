@@ -38,9 +38,8 @@ var errProxyTimeout = errors.New("all peers timed out")
 //     cancels any running requests.
 func (vs *version) proxy(r *http.Request, peers []string) (*http.Response, string, error) {
 	responses := make(chan proxyResponse, len(peers))
-	ctx, cancel := context.WithDeadline(r.Context(),
+	ctx, _ := context.WithDeadline(r.Context(),
 		time.Now().Add(vs.sequins.config.Sharding.ProxyTimeout.Duration))
-	defer cancel()
 
 	peerIndex := 0
 	outstanding := 0

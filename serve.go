@@ -107,7 +107,7 @@ func (vs *version) serveProxied(w http.ResponseWriter, r *http.Request,
 	_, err = io.Copy(w, resp.Body)
 	if err != nil {
 		// We already wrote a 200 OK, so not much we can do here except log.
-		log.Printf("Error copying response from peer for /%s/%s (version %s): %s", vs.db, key, vs.name)
+		log.Printf("Error copying response from peer for /%s/%s (version %s): %s", vs.db, key, vs.name, err)
 	}
 }
 

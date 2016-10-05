@@ -20,20 +20,16 @@ is available in your language.
 Sequins supports a couple advanced HTTP features and customizations:
 
  - `Last-Modified` is set to the time that the database was last updated or
-   created. Sequins will correctly handle `If-Modified-Since`
-   [requests][ifmodifiedsince] in this way.
+   created.
 
- - `Content-Length` is set on responses. Additionaly, you can query byte ranges
-   with [range requests][ranges].
+ - `Content-Length` is set on responses, and you should ensure that your HTTP
+   client verifies that the response body is the correct length.
 
  - `X-Sequins-Version` is set on responses, and holds the current version of the
    database.
 
  - If the request was proxied to a peer in a distributed cluster,
    'X-Sequins-Proxied-to' will hold the hostname of the peer.
-
-[ifmodifiedsince]: https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.25
-[ranges]: https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35
 
 ### Response Codes
 

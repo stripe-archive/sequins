@@ -9,8 +9,8 @@ It's designed to be:
 
  - Horizontally scalable: replicate a hot dataset over a few nodes, or partition
    a large one over many.
- - Reliable: serve your data offline, far away from Hadoop. Sequins is built to
-   stay up during multi-node failures.
+ - Reliable: serve your data without an online dependency on Hadoop or HDFS.
+   Sequins is built to be resilient to multi-node failures.
  - Interoperable: load data from HDFS or S3 in Hadoop's SequenceFile format.
  - Accessible: fetch values with HTTP GET; no client library required.
 

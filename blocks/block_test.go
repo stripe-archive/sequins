@@ -95,6 +95,10 @@ func TestBlock(t *testing.T) {
 }
 
 func TestBlockParallelReads(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping block reads test in short mode.")
+	}
+
 	tmpDir, err := ioutil.TempDir("", "sequins-test-")
 	require.NoError(t, err, "creating a test tmpdir")
 

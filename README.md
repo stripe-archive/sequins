@@ -12,6 +12,7 @@ It's designed to be:
  - Reliable: serve your data without an online dependency on Hadoop or HDFS.
    Sequins is built to be resilient to multi-node failures.
  - Interoperable: load data from HDFS or S3 in Hadoop's SequenceFile format.
+   Tools like Spark or Impala can also be used to generate data.
  - Accessible: fetch values with HTTP GET; no client library required.
 
 See [the manual](https://stripe.github.io/sequins/manual) to get started.

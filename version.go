@@ -27,12 +27,16 @@ type version struct {
 	path                    string
 	db                      string
 	name                    string
-	created                 time.Time
 	blockStore              *blocks.BlockStore
 	blockStoreLock          sync.RWMutex
 	partitions              *partitions
 	numPartitions           int
 	selectedLocalPartitions map[int]bool
+
+	state     versionState
+	created   time.Time
+	available time.Time
+	stateLock sync.RWMutex
 }
 
 func newVersion(sequins *sequins, path, db, name string, numPartitions int) *version {
@@ -41,8 +45,10 @@ func newVersion(sequins *sequins, path, db, name string, numPartitions int) *ver
 		path:          path,
 		db:            db,
 		name:          name,
-		created:       time.Now(),
 		numPartitions: numPartitions,
+
+		created: time.Now(),
+		state:   versionBuilding,
 	}
 
 	var local map[int]bool

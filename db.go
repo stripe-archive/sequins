@@ -21,19 +21,15 @@ type db struct {
 	refreshLock sync.Mutex
 	newVersions chan *version
 
-	versionStatus     map[string]versionStatus
-	versionStatusLock sync.RWMutex
-
 	cleanupLock sync.Mutex
 }
 
 func newDB(sequins *sequins, name string) *db {
 	db := &db{
-		sequins:       sequins,
-		name:          name,
-		mux:           newVersionMux(sequins.config.Test.VersionRemoveTimeout.Duration),
-		versionStatus: make(map[string]versionStatus),
-		newVersions:   make(chan *version),
+		sequins:     sequins,
+		name:        name,
+		mux:         newVersionMux(sequins.config.Test.VersionRemoveTimeout.Duration),
+		newVersions: make(chan *version),
 	}
 
 	go db.takeNewVersions()
@@ -86,16 +82,15 @@ func (db *db) backfillVersions() error {
 
 			db.mux.prepare(version)
 			db.upgrade(version)
-			db.trackVersion(version, versionBuilding)
 			go func() {
 				err := version.build(files)
 				if err != nil {
 					log.Println("Error building version %s of %s: %s", v, db.name, err)
-					db.trackVersion(version, versionError)
+					version.setState(versionError)
 				}
 
 				log.Println("Finished building version", v, "of", db.name)
-				db.trackVersion(version, versionAvailable)
+				version.setState(versionAvailable)
 				version.advertiseAndWait()
 			}()
 
@@ -150,10 +145,9 @@ func (db *db) refresh() error {
 	}
 
 	vs := newVersion(db.sequins, db.localPath(latestVersion), db.name, latestVersion, len(files))
-	db.trackVersion(vs, versionBuilding)
 	err = vs.build(files)
 	if err != nil {
-		db.trackVersion(vs, versionError)
+		vs.setState(versionError)
 		return err
 	}
 
@@ -167,7 +161,7 @@ func (db *db) switchVersion(version *version) {
 	// Prepare the version, so that during the switching period we can respond
 	// to requests for it.
 	db.mux.prepare(version)
-	db.trackVersion(version, versionAvailable)
+	version.setState(versionAvailable)
 
 	if version.ready() {
 		version.advertiseAndWait()
@@ -217,7 +211,7 @@ func (db *db) upgrade(version *version) {
 
 	log.Printf("Switching to version %s of %s!", version.name, db.name)
 	db.mux.upgrade(version)
-	db.trackVersion(version, versionAvailable)
+	version.setState(versionAvailable)
 
 	// Close the current version, and any older versions that were
 	// also being prepared (effectively preempting them).
@@ -236,7 +230,7 @@ func (db *db) removeVersion(old *version, shouldWait bool) {
 	db.cleanupLock.Lock()
 	defer db.cleanupLock.Unlock()
 
-	db.trackVersion(old, versionRemoving)
+	old.setState(versionRemoving)
 
 	// If we don't have any peers, we never need to wait until the versions
 	// aren't being used.
@@ -253,8 +247,6 @@ func (db *db) removeVersion(old *version, shouldWait bool) {
 			log.Printf("Error cleaning up version %s of %s: %s", removed.name, db.name, err)
 		}
 	}
-
-	db.untrackVersion(old)
 }
 
 func (db *db) cleanupStore() {

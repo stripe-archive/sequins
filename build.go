@@ -138,7 +138,7 @@ func (vs *version) addFile(bs *blocks.BlockStore, file string) error {
 		return fmt.Errorf("reading %s: %s", disp, err)
 	}
 	defer stream.Close()
-	
+
 	sf := sequencefile.NewReader(bufio.NewReader(stream))
 	err = sf.ReadHeader()
 	if err != nil {

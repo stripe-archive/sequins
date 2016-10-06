@@ -4,7 +4,6 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"github.com/colinmarc/sequencefile"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,11 +14,11 @@ func testBlockStoreCompression(t *testing.T, compression Compression) {
 
 	bs := New(tmpDir, 2, nil, compression, 8192)
 
-	sf, err := sequencefile.Open("../test/test.sequencefile")
-	require.NoError(t, err, "opening a test file")
+	err = bs.Add([]byte("Alice"), []byte("Practice"))
+	require.NoError(t, err, "adding keys to the block store")
 
-	err = bs.AddFile(sf, 0)
-	require.NoError(t, err, "adding the file to the block store")
+	err = bs.Add([]byte("Bob"), []byte("Hope"))
+	require.NoError(t, err, "adding keys to the block store")
 
 	err = bs.Save()
 	require.NoError(t, err, "saving the manifest")

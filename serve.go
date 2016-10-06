@@ -20,7 +20,7 @@ func (vs *version) serveKey(w http.ResponseWriter, r *http.Request, key string) 
 		return
 	}
 
-	partition, alternatePartition := blocks.KeyPartition(key, vs.numPartitions)
+	partition, alternatePartition := blocks.KeyPartition([]byte(key), vs.numPartitions)
 	bs := vs.getBlockStore()
 	if bs != nil && (vs.hasPartition(partition) || vs.hasPartition(alternatePartition)) {
 		record, err := bs.Get(key)

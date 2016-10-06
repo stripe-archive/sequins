@@ -2,19 +2,14 @@ package blocks
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
-
-	"github.com/colinmarc/sequencefile"
 )
 
 var ErrNoManifest = errors.New("no manifest file found")
 var ErrPartitionNotFound = errors.New("the block store doesn't have the correct partition for the key")
 var ErrMissingPartitions = errors.New("existing block store missing partitions")
-var ErrWrongPartition = errors.New("the file is cleanly partitioned, but doesn't contain a partition we want")
 
 type Compression string
 
@@ -105,106 +100,26 @@ func NewFromManifest(path string, selectedPartitions map[int]bool) (*BlockStore,
 // AddFile ingests the key/value pairs from the given sequencefile, writing
 // them out to at least one block. If the data is not partitioned cleanly, it
 // will sort it into blocks as it reads.
-func (store *BlockStore) AddFile(reader *sequencefile.Reader, throttle time.Duration) error {
-	canAssumePartition := true
-	assumedPartition := -1
-	assumedFor := 0
+func (store *BlockStore) Add(key, value []byte) error {
+	partition, _ := KeyPartition(key, store.numPartitions)
 
-	for reader.Scan() {
-		if throttle != 0 {
-			time.Sleep(throttle)
-		}
-
-		key, value, err := store.unwrapKeyValue(reader)
+	block, ok := store.newBlocks[partition]
+	var err error
+	if !ok {
+		block, err = newBlock(store.path, partition, store.compression, store.blockSize)
 		if err != nil {
 			return err
 		}
 
-		partition, alternatePartition := KeyPartition(string(key), store.numPartitions)
-
-		// If we see the same partition for the first 5000 keys, it's safe to assume
-		// that this file only contains that partition. This is often the case if
-		// the data has been shuffled by the output key in a way that aligns with
-		// our own partitioning scheme.
-		if canAssumePartition {
-			if assumedPartition == -1 {
-				assumedPartition = partition
-			} else if partition != assumedPartition {
-				if alternatePartition == assumedPartition {
-					partition = alternatePartition
-				} else {
-					canAssumePartition = false
-				}
-			} else {
-				assumedFor += 1
-			}
-		}
-
-		// Once we see 5000 keys from the same partition, it's safe to assume
-		// the whole file is like that, and we can skip the rest.
-		if store.selectedPartitions != nil && !store.selectedPartitions[partition] {
-			if canAssumePartition && assumedFor > 5000 {
-				return ErrWrongPartition
-			}
-			continue
-		}
-
-		// Grab the open block for this partition.
-		block, ok := store.newBlocks[partition]
-		if !ok {
-			block, err = newBlock(store.path, partition, store.compression, store.blockSize)
-			if err != nil {
-				return err
-			}
-
-			store.newBlocks[partition] = block
-		}
-
-		// Write the key/value pair. If the block is full, save it
-		// and start a new one.
-		err = block.add(key, value)
-		if err != nil {
-			return err
-		}
+		store.newBlocks[partition] = block
 	}
 
-	if reader.Err() != nil {
-		return reader.Err()
+	err = block.add(key, value)
+	if err != nil {
+		return err
 	}
 
 	return nil
-}
-
-// unwrapKeyValue correctly prepares a key and value for storage, depending on
-// how they are serialized in the original file; namely, BytesWritable and Text keys and
-// values are unwrapped.
-func (store *BlockStore) unwrapKeyValue(reader *sequencefile.Reader) (key []byte, value []byte, err error) {
-	// sequencefile.Text or sequencefile.BytesWritable can panic if the data is corrupted.
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("sequencefile: record deserialization failed: %s", r)
-		}
-	}()
-
-	switch reader.Header.KeyClassName {
-	case sequencefile.BytesWritableClassName:
-		key = sequencefile.BytesWritable(reader.Key())
-	case sequencefile.TextClassName:
-		key = []byte(sequencefile.Text(reader.Key()))
-	default:
-		key = reader.Key()
-	}
-
-	switch reader.Header.ValueClassName {
-	case sequencefile.BytesWritableClassName:
-		value = sequencefile.BytesWritable(reader.Value())
-	case sequencefile.TextClassName:
-		value = []byte(sequencefile.Text(reader.Value()))
-	default:
-		value = reader.Value()
-	}
-
-	return
 }
 
 func (store *BlockStore) Save() error {
@@ -255,7 +170,7 @@ func (store *BlockStore) Get(key string) (*Record, error) {
 	store.blockMapLock.RLock()
 	defer store.blockMapLock.RUnlock()
 
-	partition, alternatePartition := KeyPartition(key, store.numPartitions)
+	partition, alternatePartition := KeyPartition([]byte(key), store.numPartitions)
 	if !store.hasPartition(partition) && !store.hasPartition(alternatePartition) {
 		return nil, ErrPartitionNotFound
 	}

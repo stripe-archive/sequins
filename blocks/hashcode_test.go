@@ -53,15 +53,15 @@ func TestJavaHashCode(t *testing.T) {
 // under normal partitioning, but "fol" and the pathological key would be sorted
 // together under cascading partitioning.
 func TestKeyPartition(t *testing.T) {
-	partition, alternate := KeyPartition("bar", 20)
+	partition, alternate := KeyPartition([]byte("bar"), 20)
 	assert.Equal(t, 19, partition)
 	assert.Equal(t, 19, alternate)
 
-	partition, alternate = KeyPartition("fol", 20)
+	partition, alternate = KeyPartition([]byte("fol"), 20)
 	assert.Equal(t, 11, partition)
 	assert.Equal(t, 11, alternate)
 
-	partition, alternate = KeyPartition("\x70\x17\xad\x78\x8c\x5e\x85\xf1\x43\x27\xf8\x67", 20)
+	partition, alternate = KeyPartition([]byte{0x70, 0x17, 0xad, 0x78, 0x8c, 0x5e, 0x85, 0xf1, 0x43, 0x27, 0xf8, 0x67}, 20)
 	assert.Equal(t, 19, partition)
 	assert.Equal(t, 11, alternate)
 }

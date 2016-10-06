@@ -107,7 +107,7 @@ func (vs *version) advertiseAndWait() bool {
 
 // hasPartition returns true if we have the partition available locally.
 func (vs *version) hasPartition(partition int) bool {
-	return vs.getBlockStore() != nil && (vs.partitions == nil || vs.partitions.local[partition])
+	return vs.getBlockStore() != nil && (vs.selectedLocalPartitions == nil || vs.selectedLocalPartitions[partition])
 }
 
 func (vs *version) close() {

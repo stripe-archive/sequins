@@ -1,6 +1,6 @@
 # Getting Started
 
-### Installing Sequins
+### Installing and Running Sequins
 
 You can download a recent release from the [github releases page][releases].
 
@@ -14,7 +14,7 @@ Unzip it wherever you like. Then you can run it to see the usage:
                                 --help-long and --help-man).
       -b, --bind=ADDRESS        Address to bind to. Overrides the config
                                 option of the same name.
-      -r, --source=URI            Where the sequencefiles are. Overrides the
+      -r, --source=URI          Where the sequencefiles are. Overrides the
                                 config option of the same name.
       -l, --local-store=PATH    Where to store local data. Overrides the
                                 config option of the same name.
@@ -25,9 +25,41 @@ Unzip it wherever you like. Then you can run it to see the usage:
                                 Overrides the config option of the same name.
           --version             Show application version.
 
-To use it, however, we need to have some data prepared.
+First, start up sequins and point it to wherever you intend to keep your data.
+This can be in HDFS:
 
-### Preparing some data
+    $ hadoop fs -mkdir /sequins
+    $ ./sequins --local-store /tmp/sequins --bind localhost:9599 \
+      --source hdfs://namenode:8020/sequins
+
+Or, if you put it in S3, use a S3 URI[^1]:
+
+    $ ./sequins --local-store /tmp/sequins --bind localhost:9599 \
+      --source s3://my-bucket/sequins
+
+If you're just playing around and don't have HDFS or S3 available, you can give
+sequins a local path:
+
+    $ mkdir /tmp/foobar
+    $ ./sequins --local-store /tmp/sequins --bind localhost:9599 \
+      --source /tmp/foobar
+
+Now you can query it (I'm using [httpie][httpie] here, but
+curl works just as well):
+
+    $ http localhost:9590/foo/bar
+    HTTP/1.1 404 Not Found
+    Content-Length: 0
+    Content-Type: text/plain; charset=utf-8
+    Date: Mon, 01 Aug 2016 11:57:53 GMT
+
+However, you'll only get 404s, since sequins hasn't loaded any data yet. We need
+to give it some.
+
+[releases]: https://github.com/stripe/sequins/releases
+[httpie]: http://httpie.org
+
+### Writing some data
 
 Sequins works by asynchronously mirroring data at rest in HDFS, S3, or another
 filesystem. It's particularly suited for ingesting data written from
@@ -40,7 +72,7 @@ write it out of the box. More info on the supported formats can be found in the
 [Data Requirements](1-2-data-requirements/README.md) section.
 
 Once you have your data ready, you need to arrange it in a particular way in
-S3, HDFS, or on local disk[^1]:
+S3, HDFS, or on local disk[^2]:
 
     /path/to/data
     └── mydata
@@ -51,48 +83,37 @@ S3, HDFS, or on local disk[^1]:
             └── ...
 
 `mydata` is a name for your dataset, which we'll henceforth call a **database**.
-`version0` is the **version** of the database; that comes into play when we want to
-update it. Both are arbitrary strings.
+`version0` is the **version** of the database; that comes into play when we want
+to update it. Both are arbitrary strings.
 
-[^1]: Yes, S3 doesn't have directories. We do our best to pretend that it does, though. More information can be found in the [next section](1-1-basic-concepts/README.md#the-source-root).
+Once your data is written, tell sequins to reload the data by HUPing it:
+
+    $ pkill -HUP -f sequins
+
+Sequins should start automatically  downloading and mirroring your data. If it's
+a large dataset, this can take a while. (If it's a really big dataset, you'll
+want to read about [sharding over multiple
+machines](1-4-running-a-distributed-cluster/README.md).)
+
+You can check the progress by opening http://localhost:9599 in a browser, or
+simply watching the logs.
+
+[hadoop]: http://hadoop.apache.org
+[sequencefile]: http://hadoop.apache.org/docs/current/api/org/apache/hadoop/io/SequenceFile.html
 
 ### Querying it
 
-First, start up sequins and tell it to load up your data. If you saved it to
-HDFS, then you can point it at the namenode:
+Once your data is finished loading, you can query it by issuing an HTTP GET to
+`/<database>/<key>`:
 
-    $ ./sequins --local-store /tmp/sequins --bind localhost:9599 \
-      --source hdfs://namenode:8020/path/to/data
-
-Or, if you put it in S3, use a S3 URI[^2]:
-
-    $ ./sequins --local-store /tmp/sequins --bind localhost:9599 \
-      --source s3://my-bucket/path/to/data
-
-Sequins should start downloading and mirroring your data. If it's a large
-dataset, this can take a while. (If it's a really big dataset, you'll want to
-read about [sharding over multiple
-machines](1-4-running-a-distributed-cluster/README.md)).
-
-Finally, you can fetch keys over HTTP (I'm using [httpie][httpie] here, but
-curl works just as well):
-
-    $ http localhost:9599/mydata/<key>
+    $ http localhost:9599/<database>/<key>
     HTTP/1.1 200 OK
-    Accept-Ranges: bytes
     Content-Length: 7
     Date: Mon, 01 Aug 2016 11:57:53 GMT
     Last-Modified: Mon, 01 Aug 2016 11:56:27 GMT
     X-Sequins-Version: version0
 
     <value>
-
-[releases]: https://github.com/stripe/sequins/releases
-[hadoop]: http://hadoop.apache.org
-[sequencefile]: http://hadoop.apache.org/docs/current/api/org/apache/hadoop/io/SequenceFile.html
-[httpie]: http://httpie.org
-
-[^2]: You may need S3 credentials in your environment or in a config file. See the [Configuration Reference](x-1-configuration-reference).
 
 ### Further Configuration
 
@@ -102,3 +123,6 @@ Sequins usually reads its config from a configuration file called
 The release tarballs contain a `sequins.conf.example`, which you can copy and
 modify as you please; you can also check out the [Configuration
 Reference](x-1-configuration-reference/README.md) for more details.
+
+[^1]: You may need S3 credentials in your environment or in a config file. See the [Configuration Reference](x-1-configuration-reference#s3).
+[^2]: Yes, S3 doesn't have directories. We do our best to pretend that it does, though. More information can be found in the [next section](1-1-basic-concepts/README.md#the-source-root).

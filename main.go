@@ -106,11 +106,9 @@ func main() {
 	}
 
 	// Do a basic test that the backend is valid.
-	dbs, err := s.backend.ListDBs()
+	_, err = s.backend.ListDBs()
 	if err != nil {
 		log.Fatalf("Error listing DBs from %s: %s", s.backend.DisplayPath(""), err)
-	} else if len(dbs) == 0 {
-		log.Fatal("No data found at ", s.backend.DisplayPath(""))
 	}
 
 	err = s.init()

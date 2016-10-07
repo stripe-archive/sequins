@@ -37,6 +37,9 @@ type version struct {
 	created   time.Time
 	available time.Time
 	stateLock sync.RWMutex
+
+	ready  chan bool
+	closed chan bool
 }
 
 func newVersion(sequins *sequins, path, db, name string, numPartitions int) *version {
@@ -49,6 +52,9 @@ func newVersion(sequins *sequins, path, db, name string, numPartitions int) *ver
 
 		created: time.Now(),
 		state:   versionBuilding,
+
+		ready:  make(chan bool),
+		closed: make(chan bool),
 	}
 
 	var local map[int]bool
@@ -76,6 +82,18 @@ func newVersion(sequins *sequins, path, db, name string, numPartitions int) *ver
 		}
 	}
 
+	if vs.partitions != nil {
+		select {
+		case <-vs.partitions.ready:
+			close(vs.ready)
+		default:
+			go func() {
+				<-vs.partitions.ready
+				close(vs.ready)
+			}()
+		}
+	}
+
 	return vs
 }
 
@@ -86,31 +104,14 @@ func (vs *version) getBlockStore() *blocks.BlockStore {
 	return vs.blockStore
 }
 
-func (vs *version) ready() bool {
-
-	if vs.numPartitions == 0 {
-		return true
-	} else if vs.sequins.peers == nil {
-		return vs.getBlockStore() != nil
-	}
-
-	return vs.partitions.ready()
-}
-
-func (vs *version) advertiseAndWait() bool {
-	if vs.sequins.peers == nil || vs.numPartitions == 0 {
-		return true
-	}
-
-	return vs.partitions.advertiseAndWait()
-}
-
 // hasPartition returns true if we have the partition available locally.
 func (vs *version) hasPartition(partition int) bool {
 	return vs.getBlockStore() != nil && (vs.selectedLocalPartitions == nil || vs.selectedLocalPartitions[partition])
 }
 
 func (vs *version) close() {
+	close(vs.closed)
+
 	if vs.partitions != nil {
 		vs.partitions.close()
 	}

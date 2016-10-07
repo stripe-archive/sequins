@@ -2,15 +2,11 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"path"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
-
-// TODO testable
 
 // partitions represents a list of partitions for a single version and their
 // mapping to nodes, synced from zookeeper. It's also responsible for
@@ -26,12 +22,13 @@ type partitions struct {
 	numPartitions int
 	replication   int
 
-	missing int
-	local   map[int]bool
-	remote  map[int][]string
+	local       map[int]bool
+	remote      map[int][]string
+	numMissing  int
+	ready       chan bool
+	readyClosed bool
 
-	lock        sync.RWMutex
-	noneMissing chan bool
+	lock sync.RWMutex
 }
 
 func watchPartitions(zkWatcher *zkWatcher, peers *peers, db, version string, numPartitions, replication int) *partitions {
@@ -45,7 +42,7 @@ func watchPartitions(zkWatcher *zkWatcher, peers *peers, db, version string, num
 		replication:   replication,
 		local:         make(map[int]bool),
 		remote:        make(map[int][]string),
-		noneMissing:   make(chan bool),
+		ready:         make(chan bool),
 	}
 
 	updates, _ := zkWatcher.watchChildren(p.zkPath)
@@ -81,7 +78,6 @@ func (p *partitions) sync(updates chan []string) {
 	for {
 		nodes, ok := <-updates
 		if !ok {
-			close(p.noneMissing)
 			break
 		}
 
@@ -131,51 +127,18 @@ func (p *partitions) updateMissing() {
 		missing += 1
 	}
 
-	p.missing = missing
-	if missing == 0 {
-		select {
-		case p.noneMissing <- true:
-		default:
-		}
+	p.numMissing = missing
+	if missing == 0 && !p.readyClosed {
+		close(p.ready)
+		p.readyClosed = true
 	}
 }
 
-func (p *partitions) ready() bool {
-	p.lock.RLock()
-	defer p.lock.RUnlock()
+func (p *partitions) missing() int {
+	p.lock.Lock()
+	defer p.lock.Unlock()
 
-	return p.missing == 0
-}
-
-// advertiseAndWait advertises the partitions we have locally, and waits until
-// it sees at least one peer for every remote partition. It returns false only
-// if it was closed before that happens.
-func (p *partitions) advertiseAndWait() bool {
-	// Advertise that our local partitions are ready.
-	p.advertisePartitions()
-
-	for {
-		p.lock.RLock()
-		missing := p.missing
-		p.lock.RUnlock()
-		if missing == 0 {
-			break
-		}
-
-		log.Printf("Waiting for all partitions of %s version %s to be available (missing %d)",
-			p.db, p.version, missing)
-
-		t := time.NewTimer(10 * time.Second)
-		select {
-		case <-t.C:
-		case success := <-p.noneMissing:
-			// If success is false, it's because the close() was called before we
-			// finished waiting on peers.
-			return success
-		}
-	}
-
-	return true
+	return p.numMissing
 }
 
 // advertisePartitions creates an ephemeral node for each partition this local

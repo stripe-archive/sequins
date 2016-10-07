@@ -30,6 +30,10 @@ func (vs *version) build(files []string) error {
 
 	if len(files) == 0 {
 		log.Println("Version", vs.name, "of", vs.db, "has no data. Loading it anyway.")
+		if vs.partitions == nil {
+			close(vs.ready)
+		}
+
 		return nil
 	} else if len(files) != vs.numPartitions {
 		log.Printf("Number of files under %s changed (%d vs %d)",
@@ -63,6 +67,8 @@ func (vs *version) build(files []string) error {
 	vs.blockStore = blockStore
 	if vs.partitions != nil {
 		vs.partitions.updateLocalPartitions(vs.selectedLocalPartitions)
+	} else {
+		close(vs.ready)
 	}
 
 	return nil

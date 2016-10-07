@@ -72,7 +72,15 @@ func (db *db) backfillVersions() error {
 		}
 
 		version := newVersion(db.sequins, db.localPath(v), db.name, v, len(files))
-		if version.ready() {
+		var ready bool
+		select {
+		case <-version.ready:
+			ready = true
+		default:
+			ready = false
+		}
+
+		if ready {
 			// The version is complete, most likely because our peers have it. We
 			// can switch to it right away, and build any (possibly underreplicated)
 			// partitions in the background.
@@ -91,7 +99,9 @@ func (db *db) backfillVersions() error {
 
 				log.Println("Finished building version", v, "of", db.name)
 				version.setState(versionAvailable)
-				version.advertiseAndWait()
+				if version.partitions != nil {
+					version.partitions.advertisePartitions()
+				}
 			}()
 
 			break
@@ -163,21 +173,34 @@ func (db *db) switchVersion(version *version) {
 	db.mux.prepare(version)
 	version.setState(versionAvailable)
 
-	if version.ready() {
-		version.advertiseAndWait()
-		db.newVersions <- version
-	} else {
+	if version.partitions != nil {
+		// Advertise to peers that we have our partitions ready.
+		version.partitions.advertisePartitions()
+
+		// Wait for all our peers to be ready. All peers should all see that
+		// everything is ready at roughly the same time. If they switch before us,
+		// that's fine; the new version has been 'prepared' and we can serve it to
+		// peers (but not clients). If they switch after us, that's also fine,
+		// since we'll keep the old version around for a bit before deleting it.
 		go func() {
-			// Wait for all our peers to be ready. All peers should all see that
-			// everything is ready at roughly the same time. If they switch before us,
-			// that's fine; the new version has been 'prepared' and we can serve it to
-			// peers (but not clients). If they switch after us, that's also fine,
-			// since we'll keep the old version around for a bit before deleting it.
-			success := version.advertiseAndWait()
-			if success {
-				db.newVersions <- version
+			t := time.NewTicker(10 * time.Second)
+
+			for {
+				select {
+				case <-version.closed:
+					return
+				case <-version.ready:
+					db.newVersions <- version
+					return
+				case <-t.C:
+				}
+
+				log.Printf("Waiting for all partitions of %s version %s to be available (missing %d)",
+					db.name, version.name, version.partitions.missing())
 			}
 		}()
+	} else {
+		db.newVersions <- version
 	}
 }
 

@@ -175,7 +175,7 @@ func validateConfig(config sequinsConfig) (sequinsConfig, error) {
 			return config, fmt.Errorf("local source path must be absolute: %s", config.Source)
 		}
 
-		if strings.HasPrefix(filepath.Clean(config.LocalStore), filepath.Clean(parsed.Path)) {
+		if strings.HasPrefix(filepath.Dir(config.LocalStore), filepath.Clean(parsed.Path)) {
 			return config, fmt.Errorf("local store can't be within source root: %s", config.LocalStore)
 		}
 

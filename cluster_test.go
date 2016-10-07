@@ -346,10 +346,10 @@ Progression:
 // TestClusterEmptySingleNode tests that a node with no preexisting state can start up
 // and serve requests.
 func TestClusterEmptySingleNode(t *testing.T) {
-	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping cluster test in short mode.")
 	}
+	t.Parallel()
 
 	tc := newTestCluster(t)
 	defer tc.tearDown()
@@ -366,10 +366,10 @@ func TestClusterEmptySingleNode(t *testing.T) {
 // TestClusterUpgradingSingleNode tests that a node can upgrade to one version, and
 // then upgrade a second and third time.
 func TestClusterUpgradingSingleNode(t *testing.T) {
-	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping cluster test in short mode.")
 	}
+	t.Parallel()
 
 	tc := newTestCluster(t)
 	defer tc.tearDown()
@@ -395,10 +395,10 @@ func TestClusterUpgradingSingleNode(t *testing.T) {
 // TestClusterEmpty tests that a cluster with no preexisting state can start up
 // and serve requests.
 func TestClusterEmpty(t *testing.T) {
-	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping cluster test in short mode.")
 	}
+	t.Parallel()
 
 	tc := newTestCluster(t)
 	defer tc.tearDown()
@@ -415,10 +415,10 @@ func TestClusterEmpty(t *testing.T) {
 // TestClusterEmpty tests that a cluster with many nodes and no preexisting
 // state can start up and serve requests.
 func TestLargeClusterEmpty(t *testing.T) {
-	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping cluster test in short mode.")
 	}
+	t.Parallel()
 
 	tc := newTestCluster(t)
 	defer tc.tearDown()
@@ -432,13 +432,13 @@ func TestLargeClusterEmpty(t *testing.T) {
 	tc.assertProgression()
 }
 
-// TestClusterUpgrading tests that a node can upgrade to one version, and
+// TestClusterUpgrading tests that a cluster can upgrade to one version, and
 // then upgrade a second and third time.
 func TestClusterUpgrading(t *testing.T) {
-	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping cluster test in short mode.")
 	}
+	t.Parallel()
 
 	tc := newTestCluster(t)
 	defer tc.tearDown()
@@ -464,10 +464,10 @@ func TestClusterUpgrading(t *testing.T) {
 // TestClusterDelayedUpgrade tests that one node can upgrade several seconds earlier
 // that the rest of the cluster without losing any reads.
 func TestClusterDelayedUpgrade(t *testing.T) {
-	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping cluster test in short mode.")
 	}
+	t.Parallel()
 
 	tc := newTestCluster(t)
 	defer tc.tearDown()
@@ -492,10 +492,10 @@ func TestClusterDelayedUpgrade(t *testing.T) {
 // TestClusterNoDowngrade tests that a cluster will never downgrade to an older
 // version, even if the newer one is available.
 func TestClusterNoDowngrade(t *testing.T) {
-	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping cluster test in short mode.")
 	}
+	t.Parallel()
 
 	tc := newTestCluster(t)
 	defer tc.tearDown()
@@ -518,10 +518,10 @@ func TestClusterNoDowngrade(t *testing.T) {
 // TestClusterLateJoin tests if a node can join an existing cluster and
 // immediately start serving the version that the rest of the cluster has.
 func TestClusterLateJoin(t *testing.T) {
-	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping cluster test in short mode.")
 	}
+	t.Parallel()
 
 	tc := newTestCluster(t)
 	defer tc.tearDown()
@@ -546,10 +546,10 @@ func TestClusterLateJoin(t *testing.T) {
 // TestClusterNodeWithoutData tests if a node can safely stay behind while
 // the rest of the cluster upgrades.
 func TestClusterNodeWithoutData(t *testing.T) {
-	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping cluster test in short mode.")
 	}
+	t.Parallel()
 
 	tc := newTestCluster(t)
 	defer tc.tearDown()
@@ -587,10 +587,10 @@ func TestClusterNodeWithoutData(t *testing.T) {
 // TestClusterRollingRestart tests that a cluster can be restarted a node at a
 // time and stay on the same version continually.
 func TestClusterRollingRestart(t *testing.T) {
-	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping cluster test in short mode.")
 	}
+	t.Parallel()
 
 	tc := newTestCluster(t)
 	defer tc.tearDown()
@@ -616,10 +616,10 @@ func TestClusterRollingRestart(t *testing.T) {
 // TestClusterNodeVacation tests that if a node is down while the rest of a
 // cluster upgrades without it, it can rejoin without issue.
 func TestClusterNodeVacation(t *testing.T) {
-	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping cluster test in short mode.")
 	}
+	t.Parallel()
 
 	tc := newTestCluster(t)
 	defer tc.tearDown()

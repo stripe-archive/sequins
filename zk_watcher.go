@@ -182,15 +182,15 @@ Reconnect:
 				log.Println("Error reconnecting to zookeeper:", err)
 				continue Reconnect
 			}
+
+			// Every time we connect, reset watches and recreate ephemeral nodes.
+			err = w.runHooks()
+			if err != nil {
+				log.Println("Error running zookeeper hooks:", err)
+				continue Reconnect
+			}
 		} else {
 			first = false
-		}
-
-		// Every time we connect, reset watches and recreate ephemeral nodes.
-		err := w.runHooks()
-		if err != nil {
-			log.Println("Error running zookeeper hooks:", err)
-			continue Reconnect
 		}
 
 		select {

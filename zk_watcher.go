@@ -16,6 +16,7 @@ const (
 	coordinationVersion = "v1"
 	zkReconnectPeriod   = 1 * time.Second
 	defaultZKPort       = 2181
+	maxCreateRetries    = 5
 )
 
 var defaultZkACL = zk.WorldACL(zk.PERM_ALL)
@@ -234,9 +235,22 @@ func (w *zkWatcher) hookCreateEphemeral(node string) error {
 	w.RLock()
 	defer w.RUnlock()
 
-	_, err := w.conn.Create(node, "", zk.EPHEMERAL, defaultZkACL)
-	if err != nil {
-		return err
+	// Retry a few times, in case the node is removed in between the two following
+	// steps.
+	for i := 0; i < maxCreateRetries; i++ {
+		_, err := w.conn.Create(node, "", zk.EPHEMERAL, defaultZkACL)
+		if err == nil {
+			break
+		} else if err != nil && !isNoNode(err) {
+			return err
+		}
+
+		// Create the parent nodes.
+		parent, _ := path.Split(node)
+		err = w.createAll(parent)
+		if err != nil {
+			return fmt.Errorf("create %s: %s", node, err)
+		}
 	}
 
 	return nil
@@ -279,7 +293,7 @@ func (w *zkWatcher) hookWatchChildren(node string, wn watchedNode) error {
 	w.RLock()
 	defer w.RUnlock()
 
-	children, _, events, err := w.conn.ChildrenW(node)
+	children, _, events, err := w.childrenW(node)
 	if err != nil {
 		return err
 	}
@@ -317,7 +331,7 @@ func (w *zkWatcher) hookWatchChildren(node string, wn watchedNode) error {
 			}
 
 			w.RLock()
-			children, _, events, err = w.conn.ChildrenW(node)
+			children, _, events, err = w.childrenW(node)
 			w.RUnlock()
 
 			if err != nil {
@@ -331,22 +345,28 @@ func (w *zkWatcher) hookWatchChildren(node string, wn watchedNode) error {
 	return nil
 }
 
-// createPath creates a node and all its parents permanently.
-func (w *zkWatcher) createPath(node string) error {
-	w.RLock()
-	defer w.RUnlock()
+func (w *zkWatcher) childrenW(node string) (children []string, stat *zk.Stat, events <-chan zk.Event, err error) {
+	// Retry a few times, in case the node is removed in between the two following
+	// steps.
+	for i := 0; i < maxCreateRetries; i++ {
+		children, stat, events, err = w.conn.ChildrenW(node)
+		if !isNoNode(err) {
+			return
+		}
 
-	node = path.Join(w.prefix, node)
-	err := w.createAll(node)
-	if err != nil {
-		return fmt.Errorf("create %s: %s", node, err)
-	} else {
-		return err
+		// Create the node so we can watch it.
+		err = w.createAll(node)
+		if err != nil {
+			err = fmt.Errorf("create %s: %s", node, err)
+			return
+		}
 	}
+
+	return
 }
 
-func (w *zkWatcher) createAll(fullNode string) error {
-	base, _ := path.Split(path.Clean(fullNode))
+func (w *zkWatcher) createAll(node string) error {
+	base, _ := path.Split(path.Clean(node))
 	if base != "" && base != "/" {
 		err := w.createAll(base)
 		if err != nil {
@@ -354,7 +374,7 @@ func (w *zkWatcher) createAll(fullNode string) error {
 		}
 	}
 
-	_, err := w.conn.Create(path.Clean(fullNode), "", 0, defaultZkACL)
+	_, err := w.conn.Create(path.Clean(node), "", 0, defaultZkACL)
 	if err != nil && !isNodeExists(err) {
 		return err
 	}
@@ -382,6 +402,14 @@ func sendErr(errs chan error, err error) {
 
 func isNodeExists(err error) bool {
 	if zkErr, ok := err.(*zk.Error); ok && zkErr.Code == zk.ZNODEEXISTS {
+		return true
+	}
+
+	return false
+}
+
+func isNoNode(err error) bool {
+	if zkErr, ok := err.(*zk.Error); ok && zkErr.Code == zk.ZNONODE {
 		return true
 	}
 

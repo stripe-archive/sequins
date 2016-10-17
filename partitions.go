@@ -48,11 +48,6 @@ func watchPartitions(zkWatcher *zkWatcher, peers *peers, db, version string, num
 		noneMissing:   make(chan bool),
 	}
 
-	// Create the partitions path we're going to watch, in case no one has done
-	// that yet.
-	p.zkPath = path.Join("partitions", db, version)
-	zkWatcher.createPath(p.zkPath)
-
 	updates, _ := zkWatcher.watchChildren(p.zkPath)
 	p.updateRemotePartitions(<-updates)
 	go p.sync(updates)

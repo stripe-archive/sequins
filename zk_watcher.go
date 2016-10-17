@@ -256,6 +256,9 @@ func (w *zkWatcher) watchChildren(node string) (chan []string, chan bool) {
 	err := w.hookWatchChildren(node, wn)
 	if err != nil {
 		sendErr(w.errs, err)
+		go func() {
+			<-cancel
+		}()
 	}
 
 	return updates, disconnected

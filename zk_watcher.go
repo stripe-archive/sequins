@@ -382,6 +382,30 @@ func (w *zkWatcher) createAll(node string) error {
 	return nil
 }
 
+// triggerCleanup walks the prefix and deletes any non-ephemeral, empty
+// znodes under it. It ignores any errors encountered.
+func (w *zkWatcher) triggerCleanup() {
+	w.RLock()
+	defer w.RUnlock()
+
+	w.cleanupTree(w.prefix)
+}
+
+func (w *zkWatcher) cleanupTree(node string) {
+	children, stat, err := w.conn.Children(node)
+	if err != nil {
+		return
+	} else if stat.EphemeralOwner() != 0 {
+		return
+	}
+
+	for _, child := range children {
+		w.cleanupTree(path.Join(node, child))
+	}
+
+	w.conn.Delete(node, -1)
+}
+
 func (w *zkWatcher) close() {
 	w.Lock()
 	defer w.Unlock()

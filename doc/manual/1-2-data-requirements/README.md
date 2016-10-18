@@ -37,14 +37,7 @@ int32[^1], so you'd need to query it as such:
     $ curl localhost:9599/mydata/%00%00%00%2A | hexdump
     0000000 00 00 00 64
 
-If you're writing a new Hadoop job and have the choice of how to serialize the
-keys and values, the simplest way is use the
-[SequenceFileAsBinaryOutputFormat][outputformat] output format, which doesn't
-do any key or value serialization. This also saves 8 bytes per record, compared
-to BytesWritable.
-
 [byteswritable]: https://hadoop.apache.org/docs/current/api/org/apache/hadoop/io/BytesWritable.html
 [text]: https://hadoop.apache.org/docs/current/api/org/apache/hadoop/io/Text.html
-[outputformat]: https://hadoop.apache.org/docs/current/api/org/apache/hadoop/mapreduce/lib/output/SequenceFileAsBinaryOutputFormat.html
 
 [^1]: IntWritable represents a signed int, but it's cast first; so -42 would be `%FF%FF%FF%D6`.

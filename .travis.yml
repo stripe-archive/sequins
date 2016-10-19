@@ -3,9 +3,8 @@ go: 1.7
 sudo: false
 before_install:
 - export ZOOKEEPER_HOME="$HOME/zookeeper-3.4.8"
-- test -d $ZOOKEEPER_HOME || (cd $HOME &&
-    wget http://apache.mirror.iphh.net/zookeeper/zookeeper-3.4.8/zookeeper-3.4.8.tar.gz &&
-    tar -zxvf zookeeper-3.4.8.tar.gz)
+- test -d $ZOOKEEPER_HOME || (cd $HOME && wget http://apache.mirror.iphh.net/zookeeper/zookeeper-3.4.8/zookeeper-3.4.8.tar.gz
+  && tar -zxvf zookeeper-3.4.8.tar.gz)
 - export NN_PORT=9000
 - export HADOOP_NAMENODE="localhost:$NN_PORT"
 - export HADOOP_DISTRO=cdh
@@ -31,7 +30,6 @@ deploy:
     all_branches: true
 env:
   global:
-  - secure: d4y27NWdKd13Nj0y9aBJBiJaQLSCw+FHI5W2UXaXPkgi7NCr/dsNYhFfkNSNDR7NVLjeNoG0Ga/488DNeetm/InXvb4iST+sjpBgHhFot97ytqCkQ64bU7QoGG0cu4bI4mgMVPwkVE71NY0bx3mzj+CTZgK/PtBvpB0f8rrXZbc=
-  - secure: wz8uS6uPznAOojsOX7a7RCaae/KDV9r/2N2lLVWxUdLZ6OZ2ZL2Sh8e6aN73JrWc3h/C2/Km7DZysKmVXtnbdZqkZbEP3KjWu9e2t3rC7DZaJxG/8Xr/2PqwU1NBfEzhSS8AMsI8BCNHFcFsYWwJek/+JWXk5+MWhNTwbd3EMcc=
-  - secure: lngtapRncQZGX5D5X5B7TheLjrTW5gmdPwBSD3z/z7R/q7Q8JaWITXk2N4eRkSvrU6J9n/vm9VIFIq95Pm/MraM4X73q72EMXAH55TmVUzWXTjLVPVRnkH4FwB4QFbir/JYD5nNzWZZ6dzl4mv07AsSA8OoExubDfF1Y8/MPdoA=
-  - secure: jkhnGrRC14xbeEYL2twJaTBHaPCxewl97rgs+yS83KtvMXyODtpL6GRsfJNW01+by+gqcY/MeW0z8BjU4D1ul0Jf/Wa/I5YIfvaVQf/eZuSb43akAfr5I53pnC+HyRwcIsDmnQXbCfDWXo7+SVDeM5ZGq8H1HOV6ENfh6+020IY=
+  - secure: INFoLu2JnDmONLHbG6RrM19AZby1UDtC1XzJ4QzA0CiDhsd0bFKKDgYF+GVIi3ibLfwEnkk8sPA7q+Mj6/b8hlIy2gyHmCSVDMOkUlWZU37RehpIFAQU/PlIhYi6yYRCXJKsGRuxe+vE/F1kM/zdEzBvecmSPMAsZNxaW1jULUI=
+  - secure: AvFzMf2bVwpU2KYH811CeD419pX9h3fc/gc/C8fvQ5tzRE1mEFJuFALnDx3WvI4WO9RctEt/Pr71RbecdBVMmYZOuFF9PvEFRegGpOj1+uIbdbe7PAtr3gsmlHYxlXFCQ5KTYPYTy4YK5DfRGaK1ZKSBgmYQc1ZLWFJHOYY7324=
+  - secure: Cg7Tg8kTVHhAZmHI+sAIuQNP6vHp5RU/U+M8INN13b+5DrIA56bxYoYkOgSAexv6v2gWPmjPmFxopfKMWbgdsRQ0OOmCqMOceAUTLHSodPOvg7lW156/fBNIE9X+pKqCaQphAYztbvQyhVuqsXKyMGOKo2eBbGZ0YQgXDBCSLos=

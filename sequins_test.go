@@ -187,6 +187,21 @@ func TestEmptySequins(t *testing.T) {
 	assert.Equal(t, "1", w.HeaderMap.Get(versionHeader), "when fetchin a nonexistent key, the sequins version header should still be set")
 }
 
+func TestVeryEmptySequins(t *testing.T) {
+	scratch, err := ioutil.TempDir("", "sequins-")
+	require.NoError(t, err, "setup")
+
+	backend := backend.NewLocalBackend(scratch)
+	ts := getSequins(t, backend, "")
+
+	req, _ := http.NewRequest("GET", "/baby-names/foo", nil)
+	w := httptest.NewRecorder()
+	ts.ServeHTTP(w, req)
+
+	assert.Equal(t, 404, w.Code, "fetching a nonexistent key should 404")
+	assert.Equal(t, "", w.Body.String(), "fetching a nonexistent key should return no body")
+}
+
 // TestSequinsThreadsafe makes sure that reads that occur during an update DTRT
 func TestSequinsThreadsafe(t *testing.T) {
 	scratch, err := ioutil.TempDir("", "sequins-")

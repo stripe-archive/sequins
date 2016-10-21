@@ -11,6 +11,7 @@ gitbook install doc/manual
 gitbook build doc/manual $TMP_OUT/manual
 cp doc/landing.html $TMP_OUT/index.html
 cp doc/sequins.svg doc/sequins_small.png doc/font-awesome.min.css doc/flexblocks-responsive.css $TMP_OUT/
+echo sequins.io > $TMP_OUT/CNAME
 
 cd $TMP_OUT
 git init

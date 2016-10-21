@@ -57,41 +57,32 @@ func newVersion(sequins *sequins, path, db, name string, numPartitions int) *ver
 		closed: make(chan bool),
 	}
 
-	var local map[int]bool
-	if sequins.peers != nil {
-		vs.partitions = watchPartitions(sequins.zkWatcher, sequins.peers,
-			db, name, numPartitions, sequins.config.Sharding.Replication)
-
-		local = vs.partitions.pickLocalPartitions()
-		vs.selectedLocalPartitions = local
-	}
+	vs.partitions = watchPartitions(sequins.zkWatcher, sequins.peers,
+		db, name, numPartitions, sequins.config.Sharding.Replication)
+	vs.selectedLocalPartitions = vs.partitions.pickLocalPartitions()
 
 	// Try loading anything we have locally. If it doesn't work out, that's ok.
 	_, err := os.Stat(filepath.Join(path, ".manifest"))
 	if err == nil {
 		log.Println("Loading version from manifest at", path)
 
-		blockStore, err := blocks.NewFromManifest(path, local)
+		blockStore, err := blocks.NewFromManifest(path, vs.selectedLocalPartitions)
 		if err != nil {
 			log.Println("Error loading", vs.db, "version", vs.name, "from manifest:", err)
 		}
 
 		vs.blockStore = blockStore
-		if vs.partitions != nil {
-			vs.partitions.updateLocalPartitions(local)
-		}
+		vs.partitions.updateLocalPartitions(vs.selectedLocalPartitions)
 	}
 
-	if vs.partitions != nil {
-		select {
-		case <-vs.partitions.ready:
+	select {
+	case <-vs.partitions.ready:
+		close(vs.ready)
+	default:
+		go func() {
+			<-vs.partitions.ready
 			close(vs.ready)
-		default:
-			go func() {
-				<-vs.partitions.ready
-				close(vs.ready)
-			}()
-		}
+		}()
 	}
 
 	return vs
@@ -106,15 +97,12 @@ func (vs *version) getBlockStore() *blocks.BlockStore {
 
 // hasPartition returns true if we have the partition available locally.
 func (vs *version) hasPartition(partition int) bool {
-	return vs.getBlockStore() != nil && (vs.selectedLocalPartitions == nil || vs.selectedLocalPartitions[partition])
+	return vs.getBlockStore() != nil && vs.selectedLocalPartitions[partition]
 }
 
 func (vs *version) close() {
 	close(vs.closed)
-
-	if vs.partitions != nil {
-		vs.partitions.close()
-	}
+	vs.partitions.close()
 
 	bs := vs.getBlockStore()
 	if bs != nil {

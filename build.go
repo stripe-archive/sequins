@@ -24,16 +24,13 @@ var (
 func (vs *version) build(files []string) error {
 	if vs.blockStore != nil {
 		return nil
-	} else if vs.selectedLocalPartitions != nil && len(vs.selectedLocalPartitions) == 0 {
+	} else if len(vs.selectedLocalPartitions) == 0 {
+		vs.partitions.updateLocalPartitions(nil)
 		return nil
 	}
 
 	if len(files) == 0 {
 		log.Println("Version", vs.name, "of", vs.db, "has no data. Loading it anyway.")
-		if vs.partitions == nil {
-			close(vs.ready)
-		}
-
 		return nil
 	} else if len(files) != vs.numPartitions {
 		log.Printf("Number of files under %s changed (%d vs %d)",
@@ -65,12 +62,7 @@ func (vs *version) build(files []string) error {
 	vs.blockStoreLock.Lock()
 	defer vs.blockStoreLock.Unlock()
 	vs.blockStore = blockStore
-	if vs.partitions != nil {
-		vs.partitions.updateLocalPartitions(vs.selectedLocalPartitions)
-	} else {
-		close(vs.ready)
-	}
-
+	vs.partitions.updateLocalPartitions(vs.selectedLocalPartitions)
 	return nil
 }
 

@@ -45,9 +45,12 @@ func watchPartitions(zkWatcher *zkWatcher, peers *peers, db, version string, num
 		ready:         make(chan bool),
 	}
 
-	updates, _ := zkWatcher.watchChildren(p.zkPath)
-	p.updateRemotePartitions(<-updates)
-	go p.sync(updates)
+	if peers != nil {
+		updates, _ := zkWatcher.watchChildren(p.zkPath)
+		p.updateRemotePartitions(<-updates)
+		go p.sync(updates)
+	}
+
 	return p
 }
 
@@ -56,17 +59,19 @@ func watchPartitions(zkWatcher *zkWatcher, peers *peers, db, version string, num
 // replicas.
 func (p *partitions) pickLocalPartitions() map[int]bool {
 	partitions := make(map[int]bool)
-	disp := make([]int, 0)
 
 	for i := 0; i < p.numPartitions; i++ {
-		partitionId := p.partitionId(i)
+		if p.peers != nil {
+			partitionId := p.partitionId(i)
 
-		replicas := p.peers.pick(partitionId, p.replication)
-		for _, replica := range replicas {
-			if replica == peerSelf {
-				partitions[i] = true
-				disp = append(disp, i)
+			replicas := p.peers.pick(partitionId, p.replication)
+			for _, replica := range replicas {
+				if replica == peerSelf {
+					partitions[i] = true
+				}
 			}
+		} else {
+			partitions[i] = true
 		}
 	}
 
@@ -94,6 +99,10 @@ func (p *partitions) updateLocalPartitions(local map[int]bool) {
 }
 
 func (p *partitions) updateRemotePartitions(nodes []string) {
+	if p.peers == nil {
+		return
+	}
+
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
@@ -145,12 +154,20 @@ func (p *partitions) missing() int {
 // peer is responsible for.
 // TODO: this should maybe be a zk multi op?
 func (p *partitions) advertisePartitions() {
+	if p.peers == nil {
+		return
+	}
+
 	for partition := range p.local {
 		p.zkWatcher.createEphemeral(p.partitionZKNode(partition))
 	}
 }
 
 func (p *partitions) unadvertisePartitions() {
+	if p.peers == nil {
+		return
+	}
+
 	for partition := range p.local {
 		p.zkWatcher.removeEphemeral(p.partitionZKNode(partition))
 	}
@@ -162,6 +179,10 @@ func (p *partitions) partitionZKNode(partition int) string {
 
 // getPeers returns the list of peers who have the given partition available.
 func (p *partitions) getPeers(partition int) []string {
+	if p.peers == nil {
+		return nil
+	}
+
 	p.lock.RLock()
 	defer p.lock.RUnlock()
 
@@ -180,8 +201,10 @@ func (p *partitions) partitionId(partition int) string {
 
 func (p *partitions) close() {
 	p.lock.Lock()
-	p.lock.Unlock()
+	defer p.lock.Unlock()
 
-	p.zkWatcher.removeWatch(p.zkPath)
-	p.unadvertisePartitions()
+	if p.peers != nil {
+		p.zkWatcher.removeWatch(p.zkPath)
+		p.unadvertisePartitions()
+	}
 }

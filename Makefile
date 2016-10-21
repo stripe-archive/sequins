@@ -63,7 +63,7 @@ release: sequins
 	tar -cvzf $(RELEASE_NAME).tar.gz $(RELEASE_NAME)
 
 test: $(TEST_SOURCES)
-	$(CGO_PREAMBLE) go test -short -race -timeout 30s $(shell go list ./... | grep -v vendor)
+	$(CGO_PREAMBLE) go test -short -race -timeout 2m $(shell go list ./... | grep -v vendor)
 	# This test exercises some sync.Pool code, so it should be run without -race
 	# as well (sync.Pool doesn't ever share objects under -race).
 	$(CGO_PREAMBLE) go test -timeout 30s ./blocks -run TestBlockParallelReads

@@ -10,7 +10,7 @@ echo "Building gh-pages in $TMP_OUT"
 gitbook install doc/manual
 gitbook build doc/manual $TMP_OUT/manual
 cp doc/landing.html $TMP_OUT/index.html
-cp doc/sequins.svg doc/sequins_small.png doc/font-awesome.min.css $TMP_OUT/
+cp doc/sequins.svg doc/sequins_small.png doc/font-awesome.min.css doc/flexblocks-responsive.css $TMP_OUT/
 
 cd $TMP_OUT
 git init

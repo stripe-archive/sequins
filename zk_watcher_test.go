@@ -103,9 +103,6 @@ func TestZKWatcher(t *testing.T) {
 	defer w.close()
 	defer tzk.close()
 
-	err := w.createPath("/foo")
-	require.NoError(t, err, "createPath should work")
-
 	updates, _ := w.watchChildren("/foo")
 	go func() {
 		w.createEphemeral("/foo/bar")
@@ -122,9 +119,6 @@ func TestZKWatcherReconnect(t *testing.T) {
 	w, tzk := connectZookeeperTest(t)
 	defer w.close()
 	defer tzk.close()
-
-	err := w.createPath("/foo")
-	require.NoError(t, err, "createPath should work")
 
 	updates, _ := w.watchChildren("/foo")
 	go func() {
@@ -144,9 +138,6 @@ func TestZKWatchesCanceled(t *testing.T) {
 	defer w.close()
 	defer tzk.close()
 
-	err := w.createPath("/foo")
-	require.NoError(t, err, "createPath should work")
-
 	w.watchChildren("/foo")
 
 	for i := 0; i < 3; i++ {
@@ -160,9 +151,6 @@ func TestZKRemoveWatch(t *testing.T) {
 	w, tzk := connectZookeeperTest(t)
 	defer w.close()
 	defer tzk.close()
-
-	err := w.createPath("/foo")
-	require.NoError(t, err, "createPath should work")
 
 	updates, disconnected := w.watchChildren("/foo")
 

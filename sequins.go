@@ -119,6 +119,8 @@ func (s *sequins) initCluster() error {
 		return err
 	}
 
+	go zkWatcher.triggerCleanup()
+
 	hostname := s.config.Sharding.AdvertisedHostname
 	if hostname == "" {
 		hostname, err = os.Hostname()
@@ -259,6 +261,11 @@ func (s *sequins) refreshAll() {
 	}
 
 	s.dbsLock.RUnlock()
+
+	// Cleanup any zkNodes for deleted versions and dbs.
+	if s.zkWatcher != nil {
+		s.zkWatcher.triggerCleanup()
+	}
 }
 
 func (s *sequins) refresh(db *db) {

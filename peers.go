@@ -42,7 +42,6 @@ func watchPeers(zkWatcher *zkWatcher, shardID, address string) *peers {
 		resetConvergenceTimer: make(chan bool),
 	}
 
-	zkWatcher.createPath("nodes")
 	node := path.Join("nodes", fmt.Sprintf("%s@%s", p.shardID, p.address))
 	zkWatcher.createEphemeral(node)
 

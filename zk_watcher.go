@@ -16,6 +16,7 @@ const (
 	coordinationVersion = "v1"
 	zkReconnectPeriod   = 1 * time.Second
 	defaultZKPort       = 2181
+	maxCreateRetries    = 5
 )
 
 var defaultZkACL = zk.WorldACL(zk.PERM_ALL)
@@ -182,15 +183,15 @@ Reconnect:
 				log.Println("Error reconnecting to zookeeper:", err)
 				continue Reconnect
 			}
+
+			// Every time we connect, reset watches and recreate ephemeral nodes.
+			err = w.runHooks()
+			if err != nil {
+				log.Println("Error running zookeeper hooks:", err)
+				continue Reconnect
+			}
 		} else {
 			first = false
-		}
-
-		// Every time we connect, reset watches and recreate ephemeral nodes.
-		err := w.runHooks()
-		if err != nil {
-			log.Println("Error running zookeeper hooks:", err)
-			continue Reconnect
 		}
 
 		select {
@@ -234,9 +235,22 @@ func (w *zkWatcher) hookCreateEphemeral(node string) error {
 	w.RLock()
 	defer w.RUnlock()
 
-	_, err := w.conn.Create(node, "", zk.EPHEMERAL, defaultZkACL)
-	if err != nil {
-		return err
+	// Retry a few times, in case the node is removed in between the two following
+	// steps.
+	for i := 0; i < maxCreateRetries; i++ {
+		_, err := w.conn.Create(node, "", zk.EPHEMERAL, defaultZkACL)
+		if err == nil {
+			break
+		} else if err != nil && !isNoNode(err) {
+			return err
+		}
+
+		// Create the parent nodes.
+		parent, _ := path.Split(node)
+		err = w.createAll(parent)
+		if err != nil {
+			return fmt.Errorf("create %s: %s", node, err)
+		}
 	}
 
 	return nil
@@ -256,6 +270,9 @@ func (w *zkWatcher) watchChildren(node string) (chan []string, chan bool) {
 	err := w.hookWatchChildren(node, wn)
 	if err != nil {
 		sendErr(w.errs, err)
+		go func() {
+			<-cancel
+		}()
 	}
 
 	return updates, disconnected
@@ -276,7 +293,7 @@ func (w *zkWatcher) hookWatchChildren(node string, wn watchedNode) error {
 	w.RLock()
 	defer w.RUnlock()
 
-	children, _, events, err := w.conn.ChildrenW(node)
+	children, _, events, err := w.childrenW(node)
 	if err != nil {
 		return err
 	}
@@ -314,7 +331,7 @@ func (w *zkWatcher) hookWatchChildren(node string, wn watchedNode) error {
 			}
 
 			w.RLock()
-			children, _, events, err = w.conn.ChildrenW(node)
+			children, _, events, err = w.childrenW(node)
 			w.RUnlock()
 
 			if err != nil {
@@ -328,22 +345,28 @@ func (w *zkWatcher) hookWatchChildren(node string, wn watchedNode) error {
 	return nil
 }
 
-// createPath creates a node and all its parents permanently.
-func (w *zkWatcher) createPath(node string) error {
-	w.RLock()
-	defer w.RUnlock()
+func (w *zkWatcher) childrenW(node string) (children []string, stat *zk.Stat, events <-chan zk.Event, err error) {
+	// Retry a few times, in case the node is removed in between the two following
+	// steps.
+	for i := 0; i < maxCreateRetries; i++ {
+		children, stat, events, err = w.conn.ChildrenW(node)
+		if !isNoNode(err) {
+			return
+		}
 
-	node = path.Join(w.prefix, node)
-	err := w.createAll(node)
-	if err != nil {
-		return fmt.Errorf("create %s: %s", node, err)
-	} else {
-		return err
+		// Create the node so we can watch it.
+		err = w.createAll(node)
+		if err != nil {
+			err = fmt.Errorf("create %s: %s", node, err)
+			return
+		}
 	}
+
+	return
 }
 
-func (w *zkWatcher) createAll(fullNode string) error {
-	base, _ := path.Split(path.Clean(fullNode))
+func (w *zkWatcher) createAll(node string) error {
+	base, _ := path.Split(path.Clean(node))
 	if base != "" && base != "/" {
 		err := w.createAll(base)
 		if err != nil {
@@ -351,12 +374,36 @@ func (w *zkWatcher) createAll(fullNode string) error {
 		}
 	}
 
-	_, err := w.conn.Create(path.Clean(fullNode), "", 0, defaultZkACL)
+	_, err := w.conn.Create(path.Clean(node), "", 0, defaultZkACL)
 	if err != nil && !isNodeExists(err) {
 		return err
 	}
 
 	return nil
+}
+
+// triggerCleanup walks the prefix and deletes any non-ephemeral, empty
+// znodes under it. It ignores any errors encountered.
+func (w *zkWatcher) triggerCleanup() {
+	w.RLock()
+	defer w.RUnlock()
+
+	w.cleanupTree(w.prefix)
+}
+
+func (w *zkWatcher) cleanupTree(node string) {
+	children, stat, err := w.conn.Children(node)
+	if err != nil {
+		return
+	} else if stat.EphemeralOwner() != 0 {
+		return
+	}
+
+	for _, child := range children {
+		w.cleanupTree(path.Join(node, child))
+	}
+
+	w.conn.Delete(node, -1)
 }
 
 func (w *zkWatcher) close() {
@@ -379,6 +426,14 @@ func sendErr(errs chan error, err error) {
 
 func isNodeExists(err error) bool {
 	if zkErr, ok := err.(*zk.Error); ok && zkErr.Code == zk.ZNODEEXISTS {
+		return true
+	}
+
+	return false
+}
+
+func isNoNode(err error) bool {
+	if zkErr, ok := err.(*zk.Error); ok && zkErr.Code == zk.ZNONODE {
 		return true
 	}
 

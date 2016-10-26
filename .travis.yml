@@ -22,6 +22,7 @@ cache:
   - "$ZOOKEEPER_HOME"
   - "$HADOOP_HOME"
 deploy:
+  skip_cleanup: true
   provider: releases
   api_key:
     secure: bNI1zixTuod6PBhCQzeGvZYOODqlEq0iRepcV5M6avVRbYMhW5zX4zxCfP155LXB9rA+xPpP0DEMVTAw9Q0MMSvdKPaBjQNlMPn87vZw6N09UajPYX8YZoUvxZD5XMBVFLsswC4oDaCptD/g6ilMQBT8hySHO8SFYjNWAGq04xM=

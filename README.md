@@ -17,4 +17,4 @@ It's designed to be:
 
 See [the manual](https://stripe.github.io/sequins/manual) to get started.
 
-[![build](https://travis-ci.org/stripe/sequins.svg?branch=master)](https://travis-ci.org/stripe/sequins)
+[![build](https://travis-ci.org/stripe/sequins.svg?branch=master)](https://travis-ci.org/stripe/sequins) [![Gitter](https://badges.gitter.im/gitterHQ/gitter.svg)](https://gitter.im/sequins/Lobby)

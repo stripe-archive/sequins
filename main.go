@@ -37,7 +37,7 @@ func main() {
 		if *source != "" {
 			config = defaultConfig()
 		} else {
-			log.Fatal("No config file found! Please see the README for instructions.")
+			log.Fatal("No config file found! Please see the \"Getting Started\" guide for instructions: http://sequins.io/manual.")
 		}
 	} else if err != nil {
 		log.Fatal("Error loading config: ", err)

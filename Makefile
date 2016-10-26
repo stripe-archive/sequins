@@ -59,7 +59,7 @@ sequins: $(SOURCES) status.tmpl.go $(BUILD)/lib/libsparkey.a $(BUILD)/lib/libsna
 release: sequins
 	./sequins --version
 	mkdir -p $(RELEASE_NAME)
-	cp sequins README.md LICENSE.txt $(RELEASE_NAME)/
+	cp sequins sequins.conf.example README.md LICENSE.txt $(RELEASE_NAME)/
 	tar -cvzf $(RELEASE_NAME).tar.gz $(RELEASE_NAME)
 
 test: $(TEST_SOURCES)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 
 	"github.com/bsm/go-sparkey"
@@ -35,7 +36,7 @@ func newBlock(storePath string, partition int, compression Compression, blockSiz
 	options := &sparkey.Options{Compression: c, CompressionBlockSize: blockSize}
 	sparkeyWriter, err := sparkey.CreateLogWriter(path, options)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("initializing block %s: %s", path, err)
 	}
 
 	bw := &blockWriter{
@@ -99,4 +100,8 @@ func (bw *blockWriter) save() (*Block, error) {
 
 func (bw *blockWriter) close() {
 	bw.sparkeyWriter.Close()
+}
+
+func (bw *blockWriter) delete() {
+	os.Remove(bw.path)
 }

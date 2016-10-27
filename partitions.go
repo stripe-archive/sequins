@@ -22,11 +22,13 @@ type partitions struct {
 	numPartitions int
 	replication   int
 
-	local       map[int]bool
-	remote      map[int][]string
-	numMissing  int
-	ready       chan bool
-	readyClosed bool
+	selected        map[int]bool
+	local           map[int]bool
+	remote          map[int][]string
+	numMissing      int
+	ready           chan bool
+	readyClosed     bool
+	shouldAdvertise bool
 
 	lock sync.RWMutex
 }
@@ -45,20 +47,23 @@ func watchPartitions(zkWatcher *zkWatcher, peers *peers, db, version string, num
 		ready:         make(chan bool),
 	}
 
+	p.pickLocalPartitions()
+
 	if peers != nil {
 		updates, _ := zkWatcher.watchChildren(p.zkPath)
 		p.updateRemotePartitions(<-updates)
 		go p.sync(updates)
 	}
 
+	p.updateMissing()
 	return p
 }
 
 // pickLocalPartitions selects which partitions are local by iterating through
 // them all, and checking the hashring to see if this peer is one of the
 // replicas.
-func (p *partitions) pickLocalPartitions() map[int]bool {
-	partitions := make(map[int]bool)
+func (p *partitions) pickLocalPartitions() {
+	selected := make(map[int]bool)
 
 	for i := 0; i < p.numPartitions; i++ {
 		if p.peers != nil {
@@ -67,15 +72,15 @@ func (p *partitions) pickLocalPartitions() map[int]bool {
 			replicas := p.peers.pick(partitionId, p.replication)
 			for _, replica := range replicas {
 				if replica == peerSelf {
-					partitions[i] = true
+					selected[i] = true
 				}
 			}
 		} else {
-			partitions[i] = true
+			selected[i] = true
 		}
 	}
 
-	return partitions
+	p.selected = selected
 }
 
 // sync syncs the remote partitions from zoolander whenever they change.
@@ -94,8 +99,16 @@ func (p *partitions) updateLocalPartitions(local map[int]bool) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
-	p.local = local
+	for partition := range local {
+		p.local[partition] = true
+	}
 	p.updateMissing()
+
+	if p.shouldAdvertise {
+		for partition := range p.local {
+			p.zkWatcher.createEphemeral(p.partitionZKNode(partition))
+		}
+	}
 }
 
 func (p *partitions) updateRemotePartitions(nodes []string) {
@@ -150,14 +163,40 @@ func (p *partitions) missing() int {
 	return p.numMissing
 }
 
+func (p *partitions) needed() map[int]bool {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	needed := make(map[int]bool)
+	for partition := range p.selected {
+		if !p.local[partition] {
+			needed[partition] = true
+		}
+	}
+
+	return needed
+}
+
+func (p *partitions) have(partition int) bool {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	return p.local[partition]
+}
+
 // advertisePartitions creates an ephemeral node for each partition this local
-// peer is responsible for.
-// TODO: this should maybe be a zk multi op?
+// peer is responsible for. It will continue to do so whenever
+// updateLocalPartitions is called, until unadvertisePartitions is called to
+// disable this behavior.
 func (p *partitions) advertisePartitions() {
 	if p.peers == nil {
 		return
 	}
 
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	p.shouldAdvertise = true
 	for partition := range p.local {
 		p.zkWatcher.createEphemeral(p.partitionZKNode(partition))
 	}
@@ -168,6 +207,10 @@ func (p *partitions) unadvertisePartitions() {
 		return
 	}
 
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	p.shouldAdvertise = false
 	for partition := range p.local {
 		p.zkWatcher.removeEphemeral(p.partitionZKNode(partition))
 	}

@@ -12,7 +12,7 @@ func testBlockStoreCompression(t *testing.T, compression Compression) {
 	tmpDir, err := ioutil.TempDir("", "sequins-test-")
 	require.NoError(t, err, "creating a test tmpdir")
 
-	bs := New(tmpDir, 2, nil, compression, 8192)
+	bs := New(tmpDir, 2, compression, 8192)
 
 	err = bs.Add([]byte("Alice"), []byte("Practice"))
 	require.NoError(t, err, "adding keys to the block store")
@@ -20,7 +20,7 @@ func testBlockStoreCompression(t *testing.T, compression Compression) {
 	err = bs.Add([]byte("Bob"), []byte("Hope"))
 	require.NoError(t, err, "adding keys to the block store")
 
-	err = bs.Save()
+	err = bs.Save(nil)
 	require.NoError(t, err, "saving the manifest")
 	assert.Equal(t, 2, len(bs.Blocks), "should have the correct number of blocks")
 
@@ -35,7 +35,7 @@ func testBlockStoreCompression(t *testing.T, compression Compression) {
 	// Close the index, then load it from the manifest.
 	bs.Close()
 
-	bs, err = NewFromManifest(tmpDir, nil)
+	bs, _, err = NewFromManifest(tmpDir)
 	require.NoError(t, err, "loading from manifest")
 
 	assert.Equal(t, 2, len(bs.Blocks), "should have the correct number of blocks")

@@ -11,16 +11,16 @@ const manifestVersion = 3
 
 var ErrWrongVersion = errors.New("wrong manifest version")
 
-type manifest struct {
+type Manifest struct {
 	Version            int             `json:"version"`
-	Blocks             []blockManifest `json:"blocks"`
+	Blocks             []BlockManifest `json:"blocks"`
 	NumPartitions      int             `json:"num_partitions"`
-	SelectedPartitions []int           `json:"selected_partitions,omitempty"`
+	SelectedPartitions []int           `json:"selected_partitions"`
 	Compression        Compression     `json:"compression"`
 	BlockSize          int             `json:"block_size"`
 }
 
-type blockManifest struct {
+type BlockManifest struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
 	Partition int    `json:"partition"`
@@ -29,8 +29,8 @@ type blockManifest struct {
 	MaxKey    []byte `json:"max_key"`
 }
 
-func readManifest(path string) (manifest, error) {
-	m := manifest{}
+func readManifest(path string) (Manifest, error) {
+	m := Manifest{}
 
 	reader, err := os.Open(path)
 	if err != nil {
@@ -57,10 +57,18 @@ func readManifest(path string) (manifest, error) {
 		m.Compression = SnappyCompression
 	}
 
+	// TODO: this too
+	if m.SelectedPartitions == nil {
+		m.SelectedPartitions = make([]int, m.NumPartitions)
+		for i := range m.SelectedPartitions {
+			m.SelectedPartitions[i] = i
+		}
+	}
+
 	return m, nil
 }
 
-func writeManifest(path string, m manifest) error {
+func writeManifest(path string, m Manifest) error {
 	bytes, err := json.Marshal(m)
 	if err != nil {
 		return err

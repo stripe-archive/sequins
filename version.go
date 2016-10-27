@@ -3,8 +3,6 @@ package main
 import (
 	"errors"
 	"log"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -23,98 +21,109 @@ var (
 // understands distribution of partitions and can route requests.
 type version struct {
 	sequins *sequins
+	db      *db
 
-	path                    string
-	db                      string
-	name                    string
-	blockStore              *blocks.BlockStore
-	blockStoreLock          sync.RWMutex
-	partitions              *partitions
-	numPartitions           int
-	selectedLocalPartitions map[int]bool
+	path          string
+	name          string
+	blockStore    *blocks.BlockStore
+	partitions    *partitions
+	numPartitions int
+	files         []string
 
 	state     versionState
 	created   time.Time
 	available time.Time
 	stateLock sync.RWMutex
 
-	ready  chan bool
-	closed chan bool
+	ready     chan bool
+	cancel    chan bool
+	built     bool
+	buildLock sync.Mutex
 }
 
-func newVersion(sequins *sequins, path, db, name string, numPartitions int) *version {
+func newVersion(sequins *sequins, db *db, path, name string) (*version, error) {
+	files, err := sequins.backend.ListFiles(db.name, name)
+	if err != nil {
+		return nil, err
+	}
+
 	vs := &version{
 		sequins:       sequins,
-		path:          path,
 		db:            db,
+		path:          path,
 		name:          name,
-		numPartitions: numPartitions,
+		files:         files,
+		numPartitions: len(files),
 
 		created: time.Now(),
 		state:   versionBuilding,
 
 		ready:  make(chan bool),
-		closed: make(chan bool),
+		cancel: make(chan bool),
 	}
 
 	vs.partitions = watchPartitions(sequins.zkWatcher, sequins.peers,
-		db, name, numPartitions, sequins.config.Sharding.Replication)
-	vs.selectedLocalPartitions = vs.partitions.pickLocalPartitions()
+		db.name, name, len(files), sequins.config.Sharding.Replication)
 
+	err = vs.initBlockStore(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// If we're running in non-distributed mode, ready gets closed once the block
+	// store is built.
+	if vs.partitions != nil {
+		select {
+		case <-vs.partitions.ready:
+			close(vs.ready)
+		default:
+			go func() {
+				select {
+				case <-vs.cancel:
+				case <-vs.partitions.ready:
+				}
+
+				close(vs.ready)
+			}()
+		}
+	}
+
+	return vs, nil
+}
+
+func (vs *version) initBlockStore(path string) error {
 	// Try loading anything we have locally. If it doesn't work out, that's ok.
-	_, err := os.Stat(filepath.Join(path, ".manifest"))
-	if err == nil {
-		log.Println("Loading version from manifest at", path)
+	blockStore, manifest, err := blocks.NewFromManifest(path)
+	if err != nil && err != blocks.ErrNoManifest {
+		log.Println("Error loading", vs.db.name, "version", vs.name, "from manifest:", err)
+	}
 
-		blockStore, err := blocks.NewFromManifest(path, vs.selectedLocalPartitions)
-		if err != nil {
-			log.Println("Error loading", vs.db, "version", vs.name, "from manifest:", err)
+	if blockStore == nil {
+		blockStore = blocks.New(vs.path, vs.numPartitions,
+			vs.sequins.config.Storage.Compression, vs.sequins.config.Storage.BlockSize)
+	} else {
+		have := make(map[int]bool)
+		for _, partition := range manifest.SelectedPartitions {
+			have[partition] = true
 		}
 
-		vs.blockStore = blockStore
-		vs.partitions.updateLocalPartitions(vs.selectedLocalPartitions)
+		vs.partitions.updateLocalPartitions(have)
 	}
 
-	select {
-	case <-vs.partitions.ready:
-		close(vs.ready)
-	default:
-		go func() {
-			<-vs.partitions.ready
-			close(vs.ready)
-		}()
-	}
-
-	return vs
-}
-
-func (vs *version) getBlockStore() *blocks.BlockStore {
-	vs.blockStoreLock.RLock()
-	defer vs.blockStoreLock.RUnlock()
-
-	return vs.blockStore
-}
-
-// hasPartition returns true if we have the partition available locally.
-func (vs *version) hasPartition(partition int) bool {
-	return vs.getBlockStore() != nil && vs.selectedLocalPartitions[partition]
+	vs.blockStore = blockStore
+	return nil
 }
 
 func (vs *version) close() {
-	close(vs.closed)
-	vs.partitions.close()
+	close(vs.cancel)
 
-	bs := vs.getBlockStore()
-	if bs != nil {
-		bs.Close()
-	}
+	vs.buildLock.Lock()
+	defer vs.buildLock.Unlock()
+
+	vs.partitions.close()
+	vs.blockStore.Close()
 }
 
 func (vs *version) delete() error {
-	bs := vs.getBlockStore()
-	if bs != nil {
-		return bs.Delete()
-	}
-
-	return nil
+	return vs.blockStore.Delete()
 }

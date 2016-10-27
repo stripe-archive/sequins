@@ -302,13 +302,13 @@ func (vs *version) status() versionStatus {
 	defer vs.stateLock.Unlock()
 
 	st := versionStatus{
-		Path:          vs.sequins.backend.DisplayPath(vs.db, vs.name),
+		Path:          vs.sequins.backend.DisplayPath(vs.db.name, vs.name),
 		NumPartitions: vs.numPartitions,
 		Nodes:         make(map[string]nodeVersionStatus),
 	}
 
-	partitions := make([]int, 0, len(vs.selectedLocalPartitions))
-	for p := range vs.selectedLocalPartitions {
+	partitions := make([]int, 0, len(vs.partitions.selected))
+	for p := range vs.partitions.selected {
 		partitions = append(partitions, p)
 	}
 
@@ -336,8 +336,10 @@ func (vs *version) setState(state versionState) {
 	vs.stateLock.Lock()
 	defer vs.stateLock.Unlock()
 
-	vs.state = state
-	if state == versionAvailable {
-		vs.available = time.Now()
+	if vs.state != versionError {
+		vs.state = state
+		if state == versionAvailable {
+			vs.available = time.Now()
+		}
 	}
 }

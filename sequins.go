@@ -19,6 +19,7 @@ import (
 	"github.com/tylerb/graceful"
 
 	"github.com/stripe/sequins/backend"
+	"github.com/stripe/sequins/multilock"
 )
 
 var errDirLocked = errors.New("failed to acquire lock")
@@ -34,10 +35,10 @@ type sequins struct {
 	peers     *peers
 	zkWatcher *zkWatcher
 
-	refreshLock    sync.Mutex
-	refreshWorkers chan bool
-	refreshTicker  *time.Ticker
-	sighups        chan os.Signal
+	refreshLock   sync.Mutex
+	buildLock     *multilock.Multilock
+	refreshTicker *time.Ticker
+	sighups       chan os.Signal
 
 	storeLock lockfile.Lockfile
 }
@@ -64,15 +65,10 @@ func (s *sequins) init() error {
 		return fmt.Errorf("error initializing local store: %s", err)
 	}
 
-	// To limit the number of parallel loads, create a full buffered channel.
-	// Workers grab one from the channel when they trigger a load, and put it
-	// back when they're done.
+	// This lock limits load parallelism across all dbs.
 	maxLoads := s.config.MaxParallelLoads
 	if maxLoads != 0 {
-		s.refreshWorkers = make(chan bool, maxLoads)
-		for i := 0; i < maxLoads; i++ {
-			s.refreshWorkers <- true
-		}
+		s.buildLock = multilock.New(maxLoads)
 	}
 
 	// Trigger loads before we start up.
@@ -227,10 +223,18 @@ func (s *sequins) refreshAll() {
 		db := s.dbs[name]
 		if db == nil {
 			db = newDB(s, name)
+
 			backfills.Add(1)
 			go func() {
 				db.backfillVersions()
 				backfills.Done()
+			}()
+		} else {
+			go func() {
+				err := db.refresh()
+				if err != nil {
+					log.Printf("Error refreshing %s: %s", db.name, err)
+				}
 			}()
 		}
 
@@ -238,9 +242,6 @@ func (s *sequins) refreshAll() {
 	}
 
 	backfills.Wait()
-	for _, db := range newDBs {
-		go s.refresh(db)
-	}
 
 	// Now, grab the full lock to switch the new map in.
 	s.dbsLock.RUnlock()
@@ -265,20 +266,6 @@ func (s *sequins) refreshAll() {
 	// Cleanup any zkNodes for deleted versions and dbs.
 	if s.zkWatcher != nil {
 		s.zkWatcher.triggerCleanup()
-	}
-}
-
-func (s *sequins) refresh(db *db) {
-	if s.refreshWorkers != nil {
-		<-s.refreshWorkers
-		defer func() {
-			s.refreshWorkers <- true
-		}()
-	}
-
-	err := db.refresh()
-	if err != nil {
-		log.Printf("Error refreshing %s: %s", db.name, err)
 	}
 }
 

@@ -29,7 +29,7 @@ type Block struct {
 	sync.RWMutex
 }
 
-func loadBlock(storePath string, manifest blockManifest) (*Block, error) {
+func loadBlock(storePath string, manifest BlockManifest) (*Block, error) {
 	b := &Block{
 		ID:        manifest.ID,
 		Name:      manifest.Name,
@@ -70,8 +70,8 @@ func (b *Block) Close() {
 	b.sparkeyReader.Close()
 }
 
-func (b *Block) manifest() blockManifest {
-	return blockManifest{
+func (b *Block) manifest() BlockManifest {
+	return BlockManifest{
 		ID:        b.ID,
 		Name:      b.Name,
 		Partition: b.Partition,

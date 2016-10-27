@@ -68,6 +68,12 @@ func getSequins(t *testing.T, backend backend.Backend, localStore string) *sequi
 	require.NoError(t, err)
 	for _, dbName := range dbs {
 		for {
+			versions, err := backend.ListVersions(dbName, "", false)
+			require.NoError(t, err)
+			if len(versions) == 0 {
+				break
+			}
+
 			s.dbsLock.RLock()
 			db := s.dbs[dbName]
 			s.dbsLock.RUnlock()
@@ -167,7 +173,7 @@ func TestSequins(t *testing.T) {
 	testBasicSequins(t, ts, filepath.Join(scratch, "baby-names/1"))
 }
 
-func TestEmptySequins(t *testing.T) {
+func TestEmptyVersionSequins(t *testing.T) {
 	scratch, err := ioutil.TempDir("", "sequins-")
 	require.NoError(t, err, "setup")
 
@@ -187,7 +193,25 @@ func TestEmptySequins(t *testing.T) {
 	assert.Equal(t, "1", w.HeaderMap.Get(versionHeader), "when fetchin a nonexistent key, the sequins version header should still be set")
 }
 
-func TestVeryEmptySequins(t *testing.T) {
+func TestNoVersionsSequins(t *testing.T) {
+	scratch, err := ioutil.TempDir("", "sequins-")
+	require.NoError(t, err, "setup")
+
+	dst := filepath.Join(scratch, "baby-names")
+	require.NoError(t, os.MkdirAll(dst, os.ModeDir|0777), "setup: mkdir")
+
+	backend := backend.NewLocalBackend(scratch)
+	ts := getSequins(t, backend, "")
+
+	req, _ := http.NewRequest("GET", "/baby-names/foo", nil)
+	w := httptest.NewRecorder()
+	ts.ServeHTTP(w, req)
+
+	assert.Equal(t, 404, w.Code, "fetching a nonexistent key should 404")
+	assert.Equal(t, "", w.Body.String(), "fetching a nonexistent key should return no body")
+}
+
+func TestNoDBsSequins(t *testing.T) {
 	scratch, err := ioutil.TempDir("", "sequins-")
 	require.NoError(t, err, "setup")
 

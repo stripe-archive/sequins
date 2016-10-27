@@ -29,11 +29,6 @@ type testZK struct {
 	zk   *zk.Server
 }
 
-func (tzk testZK) printLogs() {
-	log, _ := ioutil.ReadFile(filepath.Join(tzk.dir, "log.txt"))
-	tzk.T.Logf("===== ZOOKEEPER LOGS:\n%s", log)
-}
-
 func (tzk *testZK) start() {
 	err := tzk.zk.Start()
 	require.NoError(tzk.T, err, "zk start")
@@ -41,7 +36,14 @@ func (tzk *testZK) start() {
 }
 
 func (tzk *testZK) close() {
-	tzk.printLogs()
+	log, err := ioutil.TempFile("", "sequins-test-zookeeper-")
+	require.NoError(tzk.T, err, "setup: copying log")
+	log.Close()
+
+	err = os.Rename(filepath.Join(tzk.dir, "log.txt"), log.Name())
+	require.NoError(tzk.T, err, "setup: copying log")
+
+	tzk.T.Logf("Zookeeper output at %s", log.Name())
 	tzk.zk.Destroy()
 }
 

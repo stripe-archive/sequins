@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -54,9 +53,9 @@ type testSequins struct {
 	testClient          *http.Client
 	expectedProgression []testVersion
 
-	process        *exec.Cmd
-	bufferedOutput bytes.Buffer
-	progression    chan testVersion
+	process     *exec.Cmd
+	log         *os.File
+	progression chan testVersion
 }
 
 func newTestCluster(t *testing.T) *testCluster {
@@ -188,7 +187,7 @@ func (tc *testCluster) hup() {
 func (tc *testCluster) tearDown() {
 	for _, ts := range tc.sequinses {
 		ts.process.Process.Kill()
-		tc.T.Logf("===== OUTPUT FOR %s\n%s", ts.name, ts.bufferedOutput.String())
+		tc.T.Logf("Output for %s at %s", ts.name, ts.log.Name())
 	}
 
 	tc.zk.close()
@@ -290,9 +289,13 @@ func (ts *testSequins) startTest() {
 }
 
 func (ts *testSequins) start() {
+	log, err := ioutil.TempFile("", "sequins-test-cluster-")
+	require.NoError(ts.T, err, "setup: creating log")
+
+	ts.log = log
 	ts.process = exec.Command(ts.binary, "--config", ts.configPath)
-	ts.process.Stdout = &ts.bufferedOutput
-	ts.process.Stderr = &ts.bufferedOutput
+	ts.process.Stdout = log
+	ts.process.Stderr = log
 
 	ts.process.Start()
 }

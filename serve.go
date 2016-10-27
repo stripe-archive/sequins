@@ -50,7 +50,7 @@ func (vs *version) serveLocal(w http.ResponseWriter, key string, record *blocks.
 	_, err := io.Copy(w, record)
 	if err != nil {
 		// We already wrote a 200 OK, so not much we can do here except log.
-		log.Printf("Error streaming response for /%s/%s (version %s): %s", vs.db, key, vs.name)
+		log.Printf("Error streaming response for /%s/%s (version %s): %s", vs.db, key, vs.name, err)
 	}
 }
 

@@ -47,7 +47,7 @@ sequins a local path:
 Now you can query it (I'm using [httpie][httpie] here, but
 curl works just as well):
 
-    $ http localhost:9590/foo/bar
+    $ http localhost:9599/foo/bar
     HTTP/1.1 404 Not Found
     Content-Length: 0
     Content-Type: text/plain; charset=utf-8

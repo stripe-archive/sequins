@@ -243,11 +243,12 @@ func (p *partitions) partitionId(partition int) string {
 }
 
 func (p *partitions) close() {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-
 	if p.peers != nil {
-		p.zkWatcher.removeWatch(p.zkPath)
 		p.unadvertisePartitions()
+
+		p.lock.Lock()
+		defer p.lock.Unlock()
+
+		p.zkWatcher.removeWatch(p.zkPath)
 	}
 }

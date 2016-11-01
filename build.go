@@ -19,8 +19,9 @@ var (
 )
 
 func (vs *version) build() {
-	// Grab the lock for this version, and check that the previous holder didn't
-	// finish building.
+	// Welcome to the sequins museum of lock acquisition. First, we grab the lock
+	// for this version, and check that the previous holder didn't finish
+	// building.
 	vs.buildLock.Lock()
 	defer vs.buildLock.Unlock()
 	if vs.built {
@@ -30,16 +31,11 @@ func (vs *version) build() {
 	// Then the db-wide lock, and check that a newer version didn't obsolete us.
 	vs.db.buildLock.Lock()
 	defer vs.db.buildLock.Unlock()
-	select {
-	case <-vs.cancel:
-		return
-	default:
-	}
 
 	// Finally, grab one of the global build locks (if the lock exists).
 	if vs.sequins.buildLock != nil {
-		lock := vs.sequins.buildLock.Lock()
-		defer close(lock)
+		vs.sequins.buildLock.Lock()
+		defer vs.sequins.buildLock.Unlock()
 	}
 
 	partitions := vs.partitions.needed()

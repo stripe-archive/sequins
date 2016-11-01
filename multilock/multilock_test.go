@@ -19,8 +19,8 @@ func TestMultilock(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 
-			l := m.Lock()
-			defer close(l)
+			m.Lock()
+			defer m.Unlock()
 
 			// Check that only 5 goroutines hold the lock.
 			total := atomic.AddInt32(&v, 1)

@@ -117,11 +117,14 @@ func (vs *version) initBlockStore(path string) error {
 func (vs *version) close() {
 	close(vs.cancel)
 
-	vs.buildLock.Lock()
-	defer vs.buildLock.Unlock()
+	// This happens once the building goroutine gets the cancel and exits.
+	go func() {
+		vs.buildLock.Lock()
+		defer vs.buildLock.Unlock()
 
-	vs.partitions.close()
-	vs.blockStore.Close()
+		vs.partitions.close()
+		vs.blockStore.Close()
+	}()
 }
 
 func (vs *version) delete() error {

@@ -140,7 +140,7 @@ func (db *db) switchVersion(version *version) bool {
 	go version.build()
 
 	// Start advertising our partitions to peers.
-	version.partitions.advertisePartitions()
+	go version.partitions.Advertise()
 
 	// If the version is ready now, we can switch to it synchronously. This is
 	// important to do so that on startup, we fully initialize ready versions

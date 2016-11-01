@@ -80,7 +80,7 @@ func (s *sequins) serveStatus(w http.ResponseWriter, r *http.Request) {
 	// By default, serve our peers' statuses merged with ours. We take
 	// extra care not to mutate local status structs.
 	if r.URL.Query().Get("proxy") == "" && s.peers != nil {
-		for _, p := range s.peers.getAll() {
+		for _, p := range s.peers.Get() {
 			peerStatus, err := s.getPeerStatus(p, "")
 			if err != nil {
 				log.Printf("Error fetching status from peer %s: %s", p, err)
@@ -130,7 +130,7 @@ func (db *db) serveStatus(w http.ResponseWriter, r *http.Request) {
 
 	// By default, serve our peers' statuses merged with ours.
 	if r.URL.Query().Get("proxy") == "" && db.sequins.peers != nil {
-		for _, p := range db.sequins.peers.getAll() {
+		for _, p := range db.sequins.peers.Get() {
 			peerStatus, err := db.sequins.getPeerStatus(p, db.name)
 			if err != nil {
 				log.Printf("Error fetching status from peer %s: %s", p, err)
@@ -282,7 +282,7 @@ func (db *db) status() dbStatus {
 
 	hostname := "localhost"
 	if db.sequins.peers != nil {
-		hostname = db.sequins.peers.address
+		hostname = db.sequins.address
 	}
 
 	current := db.mux.getCurrent()
@@ -307,8 +307,8 @@ func (vs *version) status() versionStatus {
 		Nodes:         make(map[string]nodeVersionStatus),
 	}
 
-	partitions := make([]int, 0, len(vs.partitions.selected))
-	for p := range vs.partitions.selected {
+	partitions := make([]int, 0, len(vs.partitions.SelectedLocal()))
+	for p := range vs.partitions.SelectedLocal() {
 		partitions = append(partitions, p)
 	}
 
@@ -325,7 +325,7 @@ func (vs *version) status() versionStatus {
 
 	hostname := "localhost"
 	if vs.sequins.peers != nil {
-		hostname = vs.sequins.peers.address
+		hostname = vs.sequins.address
 	}
 
 	st.Nodes[hostname] = nodeStatus

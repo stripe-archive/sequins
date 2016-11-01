@@ -1,4 +1,4 @@
-package main
+package sharding
 
 import (
 	"fmt"
@@ -8,17 +8,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/stripe/sequins/zk"
 	"stathat.com/c/consistent"
-)
 
-// TODO testable
+	"github.com/stripe/sequins/zk"
+)
 
 const peerSelf = "(self)"
 
-// peers represents a remote list of peers, synced with zookeeper. It's also
+// Peers represents a remote list of peers, synced with zookeeper. It's also
 // responsible for advertising this particular node's existence.
-type peers struct {
+type Peers struct {
 	shardID string
 	address string
 
@@ -34,8 +33,8 @@ type peer struct {
 	address string
 }
 
-func watchPeers(zkWatcher *zk.Watcher, shardID, address string) *peers {
-	p := &peers{
+func WatchPeers(zkWatcher *zk.Watcher, shardID, address string) *Peers {
+	p := &Peers{
 		shardID: shardID,
 		address: address,
 		peers:   make(map[peer]bool),
@@ -52,7 +51,9 @@ func watchPeers(zkWatcher *zk.Watcher, shardID, address string) *peers {
 	return p
 }
 
-func (p *peers) sync(updates chan []string, disconnected chan bool) {
+// sync runs in the background, and syncs the list of peers from zookeeper
+// whenever they change.
+func (p *Peers) sync(updates chan []string, disconnected chan bool) {
 	for {
 		var nodes []string
 		select {
@@ -71,7 +72,7 @@ func (p *peers) sync(updates chan []string, disconnected chan bool) {
 	}
 }
 
-func (p *peers) updatePeers(addrs []string) {
+func (p *Peers) updatePeers(addrs []string) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
@@ -117,7 +118,23 @@ func (p *peers) updatePeers(addrs []string) {
 	p.peers = newPeers
 }
 
-func (p *peers) getAll() []string {
+// WaitToConverge blocks until the list of peers has stabilized for dur.
+func (p *Peers) WaitToConverge(dur time.Duration) {
+	log.Printf("Waiting for list of peers to stabilize for %v...", dur)
+	timer := time.NewTimer(dur)
+
+	for {
+		timer.Reset(dur)
+		select {
+		case <-p.resetConvergenceTimer:
+		case <-timer.C:
+			return
+		}
+	}
+}
+
+// Get returns the current list of peers.
+func (p *Peers) Get() []string {
 	p.lock.RLock()
 	defer p.lock.RUnlock()
 
@@ -129,7 +146,9 @@ func (p *peers) getAll() []string {
 	return addrs
 }
 
-func (p *peers) pick(partitionId string, n int) []string {
+// pick returns the list of peers who have a given partition. It returns at most
+// n entries.
+func (p *Peers) pick(partitionId string, n int) []string {
 	p.lock.RLock()
 	defer p.lock.RUnlock()
 
@@ -151,20 +170,6 @@ func (p *peers) pick(partitionId string, n int) []string {
 	}
 
 	return addrs
-}
-
-func (p *peers) waitToConverge(dur time.Duration) {
-	log.Printf("Waiting for list of peers to stabilize for %v...", dur)
-	timer := time.NewTimer(dur)
-
-	for {
-		timer.Reset(dur)
-		select {
-		case <-p.resetConvergenceTimer:
-		case <-timer.C:
-			return
-		}
-	}
 }
 
 func (p *peer) display() string {

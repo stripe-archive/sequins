@@ -20,6 +20,7 @@ import (
 
 	"github.com/stripe/sequins/backend"
 	"github.com/stripe/sequins/multilock"
+	"github.com/stripe/sequins/sharding"
 	"github.com/stripe/sequins/zk"
 )
 
@@ -33,7 +34,8 @@ type sequins struct {
 	dbs     map[string]*db
 	dbsLock sync.RWMutex
 
-	peers     *peers
+	address   string
+	peers     *sharding.Peers
 	zkWatcher *zk.Watcher
 
 	refreshLock   sync.Mutex
@@ -137,9 +139,10 @@ func (s *sequins) initCluster() error {
 		shardID = routableAddress
 	}
 
-	peers := watchPeers(zkWatcher, shardID, routableAddress)
-	peers.waitToConverge(s.config.Sharding.TimeToConverge.Duration)
+	peers := sharding.WatchPeers(zkWatcher, shardID, routableAddress)
+	peers.WaitToConverge(s.config.Sharding.TimeToConverge.Duration)
 
+	s.address = routableAddress
 	s.zkWatcher = zkWatcher
 	s.peers = peers
 	return nil

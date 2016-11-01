@@ -26,7 +26,7 @@ var defaultZkACL = zk.WorldACL(zk.PERM_ALL)
 // to zookeeper, and tries its best to be resilient to failures, but defaults to
 // silently not providing updates.
 type Watcher struct {
-	sync.RWMutex
+	lock           sync.RWMutex
 	zkServers      []string
 	connectTimeout time.Duration
 	sessionTimeout time.Duration
@@ -81,8 +81,8 @@ func (w *Watcher) reconnect() error {
 		}
 	}
 
-	w.Lock()
-	defer w.Unlock()
+	w.lock.Lock()
+	defer w.lock.Unlock()
 
 	servers := strings.Join(w.zkServers, ",")
 	log.Println("Connecting to zookeeper at", servers)
@@ -226,8 +226,8 @@ func (w *Watcher) CreateEphemeral(node string) {
 }
 
 func (w *Watcher) createEphemeral(node string) error {
-	w.RLock()
-	defer w.RUnlock()
+	w.lock.RLock()
+	defer w.lock.RUnlock()
 
 	// Retry a few times, in case the node is removed in between the two following
 	// steps.
@@ -256,8 +256,8 @@ func (w *Watcher) RemoveEphemeral(node string) {
 	w.hooksLock.Lock()
 	defer w.hooksLock.Unlock()
 
-	w.RLock()
-	defer w.RUnlock()
+	w.lock.RLock()
+	defer w.lock.RUnlock()
 
 	node = path.Join(w.prefix, node)
 	w.conn.Delete(node, -1)
@@ -292,8 +292,8 @@ func (w *Watcher) WatchChildren(node string) (chan []string, chan bool) {
 }
 
 func (w *Watcher) watchChildren(node string, wn watchedNode) error {
-	w.RLock()
-	defer w.RUnlock()
+	w.lock.RLock()
+	defer w.lock.RUnlock()
 
 	children, _, events, err := w.childrenW(node)
 	if err != nil {
@@ -332,9 +332,9 @@ func (w *Watcher) watchChildren(node string, wn watchedNode) error {
 				}
 			}
 
-			w.RLock()
+			w.lock.RLock()
 			children, _, events, err = w.childrenW(node)
-			w.RUnlock()
+			w.lock.RUnlock()
 
 			if err != nil {
 				sendErr(w.errs, err)
@@ -399,8 +399,8 @@ func (w *Watcher) createAll(node string) error {
 // TriggerCleanup walks the prefix and deletes any non-ephemeral, empty
 // nodes under it. It ignores any errors encountered.
 func (w *Watcher) TriggerCleanup() {
-	w.RLock()
-	defer w.RUnlock()
+	w.lock.RLock()
+	defer w.lock.RUnlock()
 
 	w.cleanupTree(w.prefix)
 }
@@ -421,8 +421,8 @@ func (w *Watcher) cleanupTree(node string) {
 }
 
 func (w *Watcher) Close() error {
-	w.Lock()
-	defer w.Unlock()
+	w.lock.Lock()
+	defer w.lock.Unlock()
 
 	w.shutdown <- true
 	return w.conn.Close()

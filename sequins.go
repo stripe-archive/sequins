@@ -20,6 +20,7 @@ import (
 
 	"github.com/stripe/sequins/backend"
 	"github.com/stripe/sequins/multilock"
+	"github.com/stripe/sequins/zk"
 )
 
 var errDirLocked = errors.New("failed to acquire lock")
@@ -33,7 +34,7 @@ type sequins struct {
 	dbsLock sync.RWMutex
 
 	peers     *peers
-	zkWatcher *zkWatcher
+	zkWatcher *zk.Watcher
 
 	refreshLock   sync.Mutex
 	buildLock     *multilock.Multilock
@@ -109,13 +110,13 @@ func (s *sequins) initCluster() error {
 	}
 
 	prefix := path.Join("/", s.config.Sharding.ClusterName)
-	zkWatcher, err := connectZookeeper(s.config.ZK.Servers, prefix,
+	zkWatcher, err := zk.Connect(s.config.ZK.Servers, prefix,
 		s.config.ZK.ConnectTimeout.Duration, s.config.ZK.SessionTimeout.Duration)
 	if err != nil {
 		return err
 	}
 
-	go zkWatcher.triggerCleanup()
+	go zkWatcher.TriggerCleanup()
 
 	hostname := s.config.Sharding.AdvertisedHostname
 	if hostname == "" {
@@ -188,7 +189,7 @@ func (s *sequins) shutdown() {
 
 	zk := s.zkWatcher
 	if zk != nil {
-		zk.close()
+		zk.Close()
 	}
 
 	// TODO: figure out how to cancel in-progress downloads
@@ -265,7 +266,7 @@ func (s *sequins) refreshAll() {
 
 	// Cleanup any zkNodes for deleted versions and dbs.
 	if s.zkWatcher != nil {
-		s.zkWatcher.triggerCleanup()
+		s.zkWatcher.TriggerCleanup()
 	}
 }
 

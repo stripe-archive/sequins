@@ -16,6 +16,8 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/stripe/sequins/zk/zktest"
 )
 
 const expectTimeout = 10 * time.Second
@@ -38,7 +40,7 @@ type testCluster struct {
 	binary     string
 	source     string
 	sequinses  []*testSequins
-	zk         *testZK
+	zk         *zktest.TestCluster
 	testClient *http.Client
 }
 
@@ -67,7 +69,7 @@ func newTestCluster(t *testing.T) *testCluster {
 	source, err := ioutil.TempDir("", "sequins-cluster-")
 	require.NoError(t, err)
 
-	zk := createTestZk(t)
+	zk := zktest.New(t)
 
 	// Give the zookeeper cluster a chance to start up.
 	time.Sleep(1 * time.Second)
@@ -90,7 +92,7 @@ func newTestCluster(t *testing.T) *testCluster {
 }
 
 func (tc *testCluster) addSequins() *testSequins {
-	port := randomPort()
+	port := zktest.RandomPort()
 	path := filepath.Join(tc.source, fmt.Sprintf("node-%d", port))
 
 	storePath := filepath.Join(path, "store")
@@ -113,7 +115,7 @@ func (tc *testCluster) addSequins() *testSequins {
 	config.Sharding.TimeToConverge = duration{100 * time.Millisecond}
 	config.Sharding.ProxyTimeout = duration{600 * time.Millisecond}
 	config.Sharding.AdvertisedHostname = "localhost"
-	config.ZK.Servers = []string{tc.zk.addr}
+	config.ZK.Servers = []string{tc.zk.Addr}
 	config.Test.AllowLocalCluster = true
 
 	// Slow everything down to an observable level.
@@ -190,7 +192,7 @@ func (tc *testCluster) tearDown() {
 		tc.T.Logf("Output for %s at %s", ts.name, ts.log.Name())
 	}
 
-	tc.zk.close()
+	tc.zk.Close()
 	os.RemoveAll(tc.source)
 }
 

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/stripe/sequins/zk"
 	"stathat.com/c/consistent"
 )
 
@@ -33,7 +34,7 @@ type peer struct {
 	address string
 }
 
-func watchPeers(zkWatcher *zkWatcher, shardID, address string) *peers {
+func watchPeers(zkWatcher *zk.Watcher, shardID, address string) *peers {
 	p := &peers{
 		shardID: shardID,
 		address: address,
@@ -43,9 +44,9 @@ func watchPeers(zkWatcher *zkWatcher, shardID, address string) *peers {
 	}
 
 	node := path.Join("nodes", fmt.Sprintf("%s@%s", p.shardID, p.address))
-	zkWatcher.createEphemeral(node)
+	zkWatcher.CreateEphemeral(node)
 
-	updates, disconnected := zkWatcher.watchChildren("nodes")
+	updates, disconnected := zkWatcher.WatchChildren("nodes")
 	go p.sync(updates, disconnected)
 
 	return p

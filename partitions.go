@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/stripe/sequins/zk"
 )
 
 // partitions represents a list of partitions for a single version and their
@@ -13,7 +15,7 @@ import (
 // advertising the partitions we have locally.
 type partitions struct {
 	peers     *peers
-	zkWatcher *zkWatcher
+	zkWatcher *zk.Watcher
 
 	db      string
 	version string
@@ -33,7 +35,7 @@ type partitions struct {
 	lock sync.RWMutex
 }
 
-func watchPartitions(zkWatcher *zkWatcher, peers *peers, db, version string, numPartitions, replication int) *partitions {
+func watchPartitions(zkWatcher *zk.Watcher, peers *peers, db, version string, numPartitions, replication int) *partitions {
 	p := &partitions{
 		peers:         peers,
 		zkWatcher:     zkWatcher,
@@ -50,7 +52,7 @@ func watchPartitions(zkWatcher *zkWatcher, peers *peers, db, version string, num
 	p.pickLocalPartitions()
 
 	if peers != nil {
-		updates, _ := zkWatcher.watchChildren(p.zkPath)
+		updates, _ := zkWatcher.WatchChildren(p.zkPath)
 		p.updateRemotePartitions(<-updates)
 		go p.sync(updates)
 	}
@@ -106,7 +108,7 @@ func (p *partitions) updateLocalPartitions(local map[int]bool) {
 
 	if p.shouldAdvertise {
 		for partition := range p.local {
-			p.zkWatcher.createEphemeral(p.partitionZKNode(partition))
+			p.zkWatcher.CreateEphemeral(p.partitionZKNode(partition))
 		}
 	}
 }
@@ -198,7 +200,7 @@ func (p *partitions) advertisePartitions() {
 
 	p.shouldAdvertise = true
 	for partition := range p.local {
-		p.zkWatcher.createEphemeral(p.partitionZKNode(partition))
+		p.zkWatcher.CreateEphemeral(p.partitionZKNode(partition))
 	}
 }
 
@@ -212,7 +214,7 @@ func (p *partitions) unadvertisePartitions() {
 
 	p.shouldAdvertise = false
 	for partition := range p.local {
-		p.zkWatcher.removeEphemeral(p.partitionZKNode(partition))
+		p.zkWatcher.RemoveEphemeral(p.partitionZKNode(partition))
 	}
 }
 
@@ -249,6 +251,6 @@ func (p *partitions) close() {
 		p.lock.Lock()
 		defer p.lock.Unlock()
 
-		p.zkWatcher.removeWatch(p.zkPath)
+		p.zkWatcher.RemoveWatch(p.zkPath)
 	}
 }

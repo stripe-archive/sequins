@@ -1,11 +1,6 @@
-package main
+package zk
 
 import (
-	"fmt"
-	"io/ioutil"
-	"math/rand"
-	"os"
-	"path/filepath"
 	"sort"
 	"testing"
 	"time"
@@ -13,76 +8,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	zk "launchpad.net/gozk/zookeeper"
+
+	"github.com/stripe/sequins/zk/zktest"
 )
 
-func randomPort() int {
-	rand.Seed(time.Now().UnixNano())
-	return int(rand.Int31n(6000) + 16000)
-}
+func connectTest(t *testing.T) (*Watcher, *zktest.TestCluster) {
+	tzk := zktest.New(t)
 
-type testZK struct {
-	*testing.T
-	home string
-	dir  string
-	port int
-	addr string
-	zk   *zk.Server
-}
-
-func (tzk *testZK) start() {
-	err := tzk.zk.Start()
-	require.NoError(tzk.T, err, "zk start")
-	time.Sleep(time.Second)
-}
-
-func (tzk *testZK) close() {
-	log, err := ioutil.TempFile("", "sequins-test-zookeeper-")
-	require.NoError(tzk.T, err, "setup: copying log")
-	log.Close()
-
-	err = os.Rename(filepath.Join(tzk.dir, "log.txt"), log.Name())
-	require.NoError(tzk.T, err, "setup: copying log")
-
-	tzk.T.Logf("Zookeeper output at %s", log.Name())
-	tzk.zk.Destroy()
-}
-
-func (tzk *testZK) restart() {
-	tzk.zk.Stop()
-	time.Sleep(time.Second)
-	tzk.start()
-}
-
-func createTestZk(t *testing.T) *testZK {
-	zkHome := os.Getenv("ZOOKEEPER_HOME")
-	if zkHome == "" {
-		t.Skip("Skipping zk tests because ZOOKEEPER_HOME isn't set")
-	}
-
-	dir, err := ioutil.TempDir("", "sequins-zk")
-	require.NoError(t, err, "zk setup")
-
-	port := randomPort()
-	zk, err := zk.CreateServer(port, dir, zkHome)
-	require.NoError(t, err, "zk setup")
-
-	tzk := testZK{
-		T:    t,
-		home: zkHome,
-		dir:  dir,
-		port: port,
-		addr: fmt.Sprintf("127.0.0.1:%d", port),
-		zk:   zk,
-	}
-
-	tzk.start()
-	return &tzk
-}
-
-func connectZookeeperTest(t *testing.T) (*zkWatcher, *testZK) {
-	tzk := createTestZk(t)
-
-	zkWatcher, err := connectZookeeper([]string{tzk.addr}, "/sequins-test", 5*time.Second, 5*time.Second)
+	zkWatcher, err := Connect([]string{tzk.Addr}, "/sequins-test", 5*time.Second, 5*time.Second)
 	require.NoError(t, err, "zkWatcher should connect")
 
 	return zkWatcher, tzk
@@ -101,15 +34,15 @@ func expectWatchUpdate(t *testing.T, expected []string, updates chan []string, m
 }
 
 func TestZKWatcher(t *testing.T) {
-	w, tzk := connectZookeeperTest(t)
-	defer w.close()
-	defer tzk.close()
+	w, tzk := connectTest(t)
+	defer w.Close()
+	defer tzk.Close()
 
-	updates, _ := w.watchChildren("/foo")
+	updates, _ := w.WatchChildren("/foo")
 	go func() {
-		w.createEphemeral("/foo/bar")
+		w.CreateEphemeral("/foo/bar")
 		time.Sleep(100 * time.Millisecond)
-		w.removeEphemeral("/foo/bar")
+		w.RemoveEphemeral("/foo/bar")
 	}()
 
 	expectWatchUpdate(t, nil, updates, "the list of children should be updated to be empty first")
@@ -118,16 +51,16 @@ func TestZKWatcher(t *testing.T) {
 }
 
 func TestZKWatcherReconnect(t *testing.T) {
-	w, tzk := connectZookeeperTest(t)
-	defer w.close()
-	defer tzk.close()
+	w, tzk := connectTest(t)
+	defer w.Close()
+	defer tzk.Close()
 
-	updates, _ := w.watchChildren("/foo")
+	updates, _ := w.WatchChildren("/foo")
 	go func() {
-		w.createEphemeral("/foo/bar")
+		w.CreateEphemeral("/foo/bar")
 		time.Sleep(100 * time.Millisecond)
-		tzk.restart()
-		w.createEphemeral("/foo/baz")
+		tzk.Restart()
+		w.CreateEphemeral("/foo/baz")
 	}()
 
 	expectWatchUpdate(t, nil, updates, "the list of children should be updated to be empty first")
@@ -136,31 +69,31 @@ func TestZKWatcherReconnect(t *testing.T) {
 }
 
 func TestZKWatchesCanceled(t *testing.T) {
-	w, tzk := connectZookeeperTest(t)
-	defer w.close()
-	defer tzk.close()
+	w, tzk := connectTest(t)
+	defer w.Close()
+	defer tzk.Close()
 
-	w.watchChildren("/foo")
+	w.WatchChildren("/foo")
 
 	for i := 0; i < 3; i++ {
-		tzk.restart()
+		tzk.Restart()
 	}
 
 	assert.Equal(t, 1, zk.CountPendingWatches(), "there should only be a single watch open")
 }
 
 func TestZKRemoveWatch(t *testing.T) {
-	w, tzk := connectZookeeperTest(t)
-	defer w.close()
-	defer tzk.close()
+	w, tzk := connectTest(t)
+	defer w.Close()
+	defer tzk.Close()
 
-	updates, disconnected := w.watchChildren("/foo")
+	updates, disconnected := w.WatchChildren("/foo")
 
-	w.createEphemeral("/foo/bar")
+	w.CreateEphemeral("/foo/bar")
 	expectWatchUpdate(t, nil, updates, "the list of children should be updated to be empty first")
 	expectWatchUpdate(t, []string{"bar"}, updates, "the list of children should be updated with the new node")
 
-	w.removeWatch("/foo")
+	w.RemoveWatch("/foo")
 
 	// This is a sketchy way to make sure the updates channel gets closed.
 	closed := make(chan bool)

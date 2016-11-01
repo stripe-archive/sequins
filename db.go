@@ -260,6 +260,8 @@ func (db *db) cleanupStore() {
 	}
 }
 
+// localPath returns the path where local data for the given version should be
+// stored.
 func (db *db) localPath(version string) string {
 	return filepath.Join(db.sequins.config.LocalStore, "data", db.name, version)
 }

@@ -40,6 +40,8 @@ type Partitions struct {
 	lock sync.RWMutex
 }
 
+// WatchPartitions creates a watch on the partitions prefix in zookeeper, and
+// returns a Partitions object for managing local and remote partitions.
 func WatchPartitions(zkWatcher *zk.Watcher, peers *Peers, db, version string, numPartitions, replication int) *Partitions {
 	p := &Partitions{
 		Ready: make(chan bool),
@@ -253,6 +255,8 @@ func (p *Partitions) updateMissing() {
 	}
 }
 
+// partitionZKNode returns the node to write out to advertize that we have the
+// given partition.
 func (p *Partitions) partitionZKNode(partition int) string {
 	return path.Join(p.zkPath, fmt.Sprintf("%05d@%s", partition, p.peers.address))
 }

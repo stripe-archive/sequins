@@ -2,19 +2,14 @@ package blocks
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
-
-	"github.com/colinmarc/sequencefile"
 )
 
 var ErrNoManifest = errors.New("no manifest file found")
 var ErrPartitionNotFound = errors.New("the block store doesn't have the correct partition for the key")
 var ErrMissingPartitions = errors.New("existing block store missing partitions")
-var ErrWrongPartition = errors.New("the file is cleanly partitioned, but doesn't contain a partition we want")
 
 type Compression string
 
@@ -25,12 +20,10 @@ const NoCompression Compression = "none"
 // as a separate CDB file. The blocks are arranged and sorted in a way that
 // takes advantage of the way that the output of hadoop jobs are laid out.
 type BlockStore struct {
-	path               string
-	compression        Compression
-	blockSize          int
-	numPartitions      int
-	selectedPartitions map[int]bool
-	count              int
+	path          string
+	compression   Compression
+	blockSize     int
+	numPartitions int
 
 	newBlocks map[int]*blockWriter
 	Blocks    []*Block
@@ -39,13 +32,12 @@ type BlockStore struct {
 	blockMapLock sync.RWMutex
 }
 
-func New(path string, numPartitions int, selectedPartitions map[int]bool, compression Compression, blockSize int) *BlockStore {
+func New(path string, numPartitions int, compression Compression, blockSize int) *BlockStore {
 	return &BlockStore{
-		path:               path,
-		compression:        compression,
-		blockSize:          blockSize,
-		numPartitions:      numPartitions,
-		selectedPartitions: selectedPartitions,
+		path:          path,
+		compression:   compression,
+		blockSize:     blockSize,
+		numPartitions: numPartitions,
 
 		newBlocks: make(map[int]*blockWriter),
 		Blocks:    make([]*Block, 0),
@@ -53,161 +45,58 @@ func New(path string, numPartitions int, selectedPartitions map[int]bool, compre
 	}
 }
 
-func NewFromManifest(path string, selectedPartitions map[int]bool) (*BlockStore, error) {
+// NewFromManifest loads a block store from a directory with a manifest, and
+// returns it, the parsed manifest, and any error encountered while loading.
+func NewFromManifest(path string) (*BlockStore, Manifest, error) {
 	manifestPath := filepath.Join(path, ".manifest")
 	manifest, err := readManifest(manifestPath)
 	if os.IsNotExist(err) {
-		return nil, ErrNoManifest
+		return nil, manifest, ErrNoManifest
 	} else if err != nil {
-		return nil, err
+		return nil, manifest, err
 	}
 
-	// TODO: don't throw away everything if we just need a few more partitions
-	// TODO: GC blocks that aren't relevant
-	if manifest.SelectedPartitions != nil {
-		if selectedPartitions == nil {
-			return nil, ErrMissingPartitions
-		}
-
-		// Validate that all the partitions we requested are there.
-		manifestPartitions := make(map[int]bool)
-		for _, partition := range manifest.SelectedPartitions {
-			manifestPartitions[partition] = true
-		}
-
-		for partition := range selectedPartitions {
-			if _, ok := manifestPartitions[partition]; !ok {
-				return nil, ErrMissingPartitions
-			}
-		}
-	}
-
-	store := New(path, manifest.NumPartitions, selectedPartitions,
-		manifest.Compression, manifest.BlockSize)
-	store.blockMapLock.Lock()
-	defer store.blockMapLock.Unlock()
-
+	store := New(path, manifest.NumPartitions, manifest.Compression, manifest.BlockSize)
 	for _, blockManifest := range manifest.Blocks {
 		block, err := loadBlock(path, blockManifest)
 		if err != nil {
-			return nil, err
+			return nil, Manifest{}, err
 		}
 
 		partition := blockManifest.Partition
 		store.Blocks = append(store.Blocks, block)
 		store.BlockMap[partition] = append(store.BlockMap[partition], block)
-		store.count += blockManifest.Count
 	}
 
-	return store, nil
+	return store, manifest, nil
 }
 
-// AddFile ingests the key/value pairs from the given sequencefile, writing
-// them out to at least one block. If the data is not partitioned cleanly, it
-// will sort it into blocks as it reads.
-func (store *BlockStore) AddFile(reader *sequencefile.Reader, throttle time.Duration) error {
-	canAssumePartition := true
-	assumedPartition := -1
-	assumedFor := 0
+// Add adds a single key/value pair to the block store.
+func (store *BlockStore) Add(key, value []byte) error {
+	partition, _ := KeyPartition(key, store.numPartitions)
 
-	for reader.Scan() {
-		if throttle != 0 {
-			time.Sleep(throttle)
-		}
-
-		key, value, err := store.unwrapKeyValue(reader)
+	block, ok := store.newBlocks[partition]
+	var err error
+	if !ok {
+		block, err = newBlock(store.path, partition, store.compression, store.blockSize)
 		if err != nil {
 			return err
 		}
 
-		partition, alternatePartition := KeyPartition(string(key), store.numPartitions)
-
-		// If we see the same partition for the first 5000 keys, it's safe to assume
-		// that this file only contains that partition. This is often the case if
-		// the data has been shuffled by the output key in a way that aligns with
-		// our own partitioning scheme.
-		if canAssumePartition {
-			if assumedPartition == -1 {
-				assumedPartition = partition
-			} else if partition != assumedPartition {
-				if alternatePartition == assumedPartition {
-					partition = alternatePartition
-				} else {
-					canAssumePartition = false
-				}
-			} else {
-				assumedFor += 1
-			}
-		}
-
-		// Once we see 5000 keys from the same partition, it's safe to assume
-		// the whole file is like that, and we can skip the rest.
-		if store.selectedPartitions != nil && !store.selectedPartitions[partition] {
-			if canAssumePartition && assumedFor > 5000 {
-				return ErrWrongPartition
-			}
-			continue
-		}
-
-		// Grab the open block for this partition.
-		block, ok := store.newBlocks[partition]
-		if !ok {
-			block, err = newBlock(store.path, partition, store.compression, store.blockSize)
-			if err != nil {
-				return err
-			}
-
-			store.newBlocks[partition] = block
-		}
-
-		// Write the key/value pair. If the block is full, save it
-		// and start a new one.
-		err = block.add(key, value)
-		if err != nil {
-			return err
-		}
+		store.newBlocks[partition] = block
 	}
 
-	if reader.Err() != nil {
-		return reader.Err()
+	err = block.add(key, value)
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 
-// unwrapKeyValue correctly prepares a key and value for storage, depending on
-// how they are serialized in the original file; namely, BytesWritable and Text keys and
-// values are unwrapped.
-func (store *BlockStore) unwrapKeyValue(reader *sequencefile.Reader) (key []byte, value []byte, err error) {
-	// sequencefile.Text or sequencefile.BytesWritable can panic if the data is corrupted.
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("sequencefile: record deserialization failed: %s", r)
-		}
-	}()
-
-	switch reader.Header.KeyClassName {
-	case sequencefile.BytesWritableClassName:
-		key = sequencefile.BytesWritable(reader.Key())
-	case sequencefile.TextClassName:
-		key = []byte(sequencefile.Text(reader.Key()))
-	default:
-		key = reader.Key()
-	}
-
-	switch reader.Header.ValueClassName {
-	case sequencefile.BytesWritableClassName:
-		value = sequencefile.BytesWritable(reader.Value())
-	case sequencefile.TextClassName:
-		value = []byte(sequencefile.Text(reader.Value()))
-	default:
-		value = reader.Value()
-	}
-
-	return
-}
-
-func (store *BlockStore) Save() error {
+// Save saves flushes any newly created blocks, and writes a manifest file to
+// the directory.
+func (store *BlockStore) Save(selectedPartitions map[int]bool) error {
 	store.blockMapLock.Lock()
 	defer store.blockMapLock.Unlock()
 
@@ -220,23 +109,20 @@ func (store *BlockStore) Save() error {
 
 		store.Blocks = append(store.Blocks, savedBlock)
 		store.BlockMap[partition] = append(store.BlockMap[partition], savedBlock)
-		store.count += savedBlock.Count
 	}
 
 	store.newBlocks = make(map[int]*blockWriter)
 
 	// Save the manifest.
 	var partitions []int
-	if store.selectedPartitions != nil {
-		partitions = make([]int, 0, len(store.selectedPartitions))
-		for partition := range store.selectedPartitions {
-			partitions = append(partitions, partition)
-		}
+	partitions = make([]int, 0, len(selectedPartitions))
+	for partition := range selectedPartitions {
+		partitions = append(partitions, partition)
 	}
 
-	manifest := manifest{
+	manifest := Manifest{
 		Version:            manifestVersion,
-		Blocks:             make([]blockManifest, len(store.Blocks)),
+		Blocks:             make([]BlockManifest, len(store.Blocks)),
 		NumPartitions:      store.numPartitions,
 		SelectedPartitions: partitions,
 	}
@@ -249,14 +135,30 @@ func (store *BlockStore) Save() error {
 	return writeManifest(filepath.Join(store.path, ".manifest"), manifest)
 }
 
+// Revert removes any unflushed blocks, and resets the state to when the
+// manifest was last saved. If the block store was never saved, then it reverts
+// to being empty.
+func (store *BlockStore) Revert() {
+	store.blockMapLock.Lock()
+	defer store.blockMapLock.Unlock()
+
+	for _, block := range store.newBlocks {
+		block.close()
+		block.delete()
+	}
+
+	store.newBlocks = make(map[int]*blockWriter)
+	return
+}
+
 // Get returns the value for a given key. It returns ErrPartitionNotFound if
 // the partition requested is not available locally.
 func (store *BlockStore) Get(key string) (*Record, error) {
 	store.blockMapLock.RLock()
 	defer store.blockMapLock.RUnlock()
 
-	partition, alternatePartition := KeyPartition(key, store.numPartitions)
-	if !store.hasPartition(partition) && !store.hasPartition(alternatePartition) {
+	partition, alternatePartition := KeyPartition([]byte(key), store.numPartitions)
+	if store.BlockMap[partition] == nil && store.BlockMap[alternatePartition] == nil {
 		return nil, ErrPartitionNotFound
 	}
 
@@ -284,18 +186,6 @@ func (store *BlockStore) Get(key string) (*Record, error) {
 	}
 
 	return nil, nil
-}
-
-func (store *BlockStore) hasPartition(partition int) bool {
-	return store.selectedPartitions == nil || store.selectedPartitions[partition]
-}
-
-// Count returns the total number of records stored.
-func (store *BlockStore) Count() int {
-	store.blockMapLock.RLock()
-	defer store.blockMapLock.RUnlock()
-
-	return store.count
 }
 
 // Close closes the BlockStore, and any files it has open.

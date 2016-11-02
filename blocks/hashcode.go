@@ -16,9 +16,9 @@ func hashCode(b []byte) int32 {
 // match the way hadoop shuffles keys to reducers. It sometimes returns a second
 // partition where the key may be; see the comment for
 // alternatePathologicalKeyPartition below.
-func KeyPartition(key string, totalPartitions int) (int, int) {
-	hc := hashCode([]byte(key))
-	normal := int(hashCode([]byte(key))&math.MaxInt32) % totalPartitions
+func KeyPartition(key []byte, totalPartitions int) (int, int) {
+	hc := hashCode(key)
+	normal := int(hashCode(key)&math.MaxInt32) % totalPartitions
 	alternate := alternatePathologicalKeyPartition(hc, totalPartitions)
 
 	if alternate == -1 {

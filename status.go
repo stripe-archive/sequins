@@ -275,75 +275,71 @@ func acceptsJSON(r *http.Request) bool {
 }
 
 func (db *db) status() dbStatus {
-	db.versionStatusLock.RLock()
-	defer db.versionStatusLock.RUnlock()
-
-	return copyDBStatus(dbStatus{Versions: db.versionStatus})
-}
-
-func (db *db) trackVersion(version *version, state versionState) {
-	db.versionStatusLock.Lock()
-	defer db.versionStatusLock.Unlock()
+	status := dbStatus{Versions: make(map[string]versionStatus)}
+	for _, vs := range db.mux.getAll() {
+		status.Versions[vs.name] = vs.status()
+	}
 
 	hostname := "localhost"
 	if db.sequins.peers != nil {
 		hostname = db.sequins.peers.address
 	}
 
-	st, ok := db.versionStatus[version.name]
-	if !ok {
-		st = versionStatus{
-			Path:          db.sequins.backend.DisplayPath(db.name, version.name),
-			NumPartitions: version.numPartitions,
-			Nodes:         make(map[string]nodeVersionStatus),
-		}
-
-		if version.partitions != nil {
-			st.TargetReplication = version.partitions.replication
-		}
-
-		partitions := make([]int, 0, len(version.selectedLocalPartitions))
-		for p := range version.selectedLocalPartitions {
-			partitions = append(partitions, p)
-		}
-
-		sort.Ints(partitions)
-		nodeStatus := nodeVersionStatus{
-			CreatedAt:  time.Now().UTC().Truncate(time.Second),
-			State:      state,
-			Partitions: partitions,
-		}
-
-		if state == versionAvailable {
-			nodeStatus.AvailableAt = time.Now().UTC().Truncate(time.Second)
-		}
-
-		st.Nodes[hostname] = nodeStatus
-	} else {
-		nodeStatus := st.Nodes[hostname]
-		nodeStatus.State = state
-		if state == versionAvailable {
-			nodeStatus.AvailableAt = time.Now().UTC().Truncate(time.Second)
-		}
-
-		st.Nodes[hostname] = nodeStatus
-	}
-
-	db.versionStatus[version.name] = st
-
 	current := db.mux.getCurrent()
 	db.mux.release(current)
-	for name := range db.versionStatus {
-		st := db.versionStatus[name].Nodes[hostname]
+	for name := range status.Versions {
+		st := status.Versions[name].Nodes[hostname]
 		st.Current = (current != nil && name == current.name)
 
-		db.versionStatus[name].Nodes[hostname] = st
+		status.Versions[name].Nodes[hostname] = st
 	}
+
+	return status
 }
 
-func (db *db) untrackVersion(version *version) {
-	db.versionStatusLock.Lock()
-	defer db.versionStatusLock.Unlock()
+func (vs *version) status() versionStatus {
+	vs.stateLock.Lock()
+	defer vs.stateLock.Unlock()
 
-	delete(db.versionStatus, version.name)
+	st := versionStatus{
+		Path:          vs.sequins.backend.DisplayPath(vs.db.name, vs.name),
+		NumPartitions: vs.numPartitions,
+		Nodes:         make(map[string]nodeVersionStatus),
+	}
+
+	partitions := make([]int, 0, len(vs.partitions.selected))
+	for p := range vs.partitions.selected {
+		partitions = append(partitions, p)
+	}
+
+	sort.Ints(partitions)
+	nodeStatus := nodeVersionStatus{
+		CreatedAt:  vs.created.UTC().Truncate(time.Second),
+		State:      vs.state,
+		Partitions: partitions,
+	}
+
+	if !vs.available.IsZero() {
+		nodeStatus.AvailableAt = vs.available.UTC().Truncate(time.Second)
+	}
+
+	hostname := "localhost"
+	if vs.sequins.peers != nil {
+		hostname = vs.sequins.peers.address
+	}
+
+	st.Nodes[hostname] = nodeStatus
+	return st
+}
+
+func (vs *version) setState(state versionState) {
+	vs.stateLock.Lock()
+	defer vs.stateLock.Unlock()
+
+	if vs.state != versionError {
+		vs.state = state
+		if state == versionAvailable {
+			vs.available = time.Now()
+		}
+	}
 }

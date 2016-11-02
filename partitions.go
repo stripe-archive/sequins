@@ -2,15 +2,11 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"path"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
-
-// TODO testable
 
 // partitions represents a list of partitions for a single version and their
 // mapping to nodes, synced from zookeeper. It's also responsible for
@@ -26,12 +22,15 @@ type partitions struct {
 	numPartitions int
 	replication   int
 
-	missing int
-	local   map[int]bool
-	remote  map[int][]string
+	selected        map[int]bool
+	local           map[int]bool
+	remote          map[int][]string
+	numMissing      int
+	ready           chan bool
+	readyClosed     bool
+	shouldAdvertise bool
 
-	lock        sync.RWMutex
-	noneMissing chan bool
+	lock sync.RWMutex
 }
 
 func watchPartitions(zkWatcher *zkWatcher, peers *peers, db, version string, numPartitions, replication int) *partitions {
@@ -45,35 +44,43 @@ func watchPartitions(zkWatcher *zkWatcher, peers *peers, db, version string, num
 		replication:   replication,
 		local:         make(map[int]bool),
 		remote:        make(map[int][]string),
-		noneMissing:   make(chan bool),
+		ready:         make(chan bool),
 	}
 
-	updates, _ := zkWatcher.watchChildren(p.zkPath)
-	p.updateRemotePartitions(<-updates)
-	go p.sync(updates)
+	p.pickLocalPartitions()
+
+	if peers != nil {
+		updates, _ := zkWatcher.watchChildren(p.zkPath)
+		p.updateRemotePartitions(<-updates)
+		go p.sync(updates)
+	}
+
+	p.updateMissing()
 	return p
 }
 
 // pickLocalPartitions selects which partitions are local by iterating through
 // them all, and checking the hashring to see if this peer is one of the
 // replicas.
-func (p *partitions) pickLocalPartitions() map[int]bool {
-	partitions := make(map[int]bool)
-	disp := make([]int, 0)
+func (p *partitions) pickLocalPartitions() {
+	selected := make(map[int]bool)
 
 	for i := 0; i < p.numPartitions; i++ {
-		partitionId := p.partitionId(i)
+		if p.peers != nil {
+			partitionId := p.partitionId(i)
 
-		replicas := p.peers.pick(partitionId, p.replication)
-		for _, replica := range replicas {
-			if replica == peerSelf {
-				partitions[i] = true
-				disp = append(disp, i)
+			replicas := p.peers.pick(partitionId, p.replication)
+			for _, replica := range replicas {
+				if replica == peerSelf {
+					selected[i] = true
+				}
 			}
+		} else {
+			selected[i] = true
 		}
 	}
 
-	return partitions
+	p.selected = selected
 }
 
 // sync syncs the remote partitions from zoolander whenever they change.
@@ -81,7 +88,6 @@ func (p *partitions) sync(updates chan []string) {
 	for {
 		nodes, ok := <-updates
 		if !ok {
-			close(p.noneMissing)
 			break
 		}
 
@@ -93,11 +99,23 @@ func (p *partitions) updateLocalPartitions(local map[int]bool) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
-	p.local = local
+	for partition := range local {
+		p.local[partition] = true
+	}
 	p.updateMissing()
+
+	if p.shouldAdvertise {
+		for partition := range p.local {
+			p.zkWatcher.createEphemeral(p.partitionZKNode(partition))
+		}
+	}
 }
 
 func (p *partitions) updateRemotePartitions(nodes []string) {
+	if p.peers == nil {
+		return
+	}
+
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
@@ -131,63 +149,68 @@ func (p *partitions) updateMissing() {
 		missing += 1
 	}
 
-	p.missing = missing
-	if missing == 0 {
-		select {
-		case p.noneMissing <- true:
-		default:
-		}
+	p.numMissing = missing
+	if missing == 0 && !p.readyClosed {
+		close(p.ready)
+		p.readyClosed = true
 	}
 }
 
-func (p *partitions) ready() bool {
-	p.lock.RLock()
-	defer p.lock.RUnlock()
+func (p *partitions) missing() int {
+	p.lock.Lock()
+	defer p.lock.Unlock()
 
-	return p.missing == 0
+	return p.numMissing
 }
 
-// advertiseAndWait advertises the partitions we have locally, and waits until
-// it sees at least one peer for every remote partition. It returns false only
-// if it was closed before that happens.
-func (p *partitions) advertiseAndWait() bool {
-	// Advertise that our local partitions are ready.
-	p.advertisePartitions()
+func (p *partitions) needed() map[int]bool {
+	p.lock.Lock()
+	defer p.lock.Unlock()
 
-	for {
-		p.lock.RLock()
-		missing := p.missing
-		p.lock.RUnlock()
-		if missing == 0 {
-			break
-		}
-
-		log.Printf("Waiting for all partitions of %s version %s to be available (missing %d)",
-			p.db, p.version, missing)
-
-		t := time.NewTimer(10 * time.Second)
-		select {
-		case <-t.C:
-		case success := <-p.noneMissing:
-			// If success is false, it's because the close() was called before we
-			// finished waiting on peers.
-			return success
+	needed := make(map[int]bool)
+	for partition := range p.selected {
+		if !p.local[partition] {
+			needed[partition] = true
 		}
 	}
 
-	return true
+	return needed
+}
+
+func (p *partitions) have(partition int) bool {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	return p.local[partition]
 }
 
 // advertisePartitions creates an ephemeral node for each partition this local
-// peer is responsible for.
-// TODO: this should maybe be a zk multi op?
+// peer is responsible for. It will continue to do so whenever
+// updateLocalPartitions is called, until unadvertisePartitions is called to
+// disable this behavior.
 func (p *partitions) advertisePartitions() {
+	if p.peers == nil {
+		return
+	}
+
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	p.shouldAdvertise = true
 	for partition := range p.local {
 		p.zkWatcher.createEphemeral(p.partitionZKNode(partition))
 	}
 }
 
 func (p *partitions) unadvertisePartitions() {
+	if p.peers == nil {
+		return
+	}
+
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	p.shouldAdvertise = false
 	for partition := range p.local {
 		p.zkWatcher.removeEphemeral(p.partitionZKNode(partition))
 	}
@@ -199,6 +222,10 @@ func (p *partitions) partitionZKNode(partition int) string {
 
 // getPeers returns the list of peers who have the given partition available.
 func (p *partitions) getPeers(partition int) []string {
+	if p.peers == nil {
+		return nil
+	}
+
 	p.lock.RLock()
 	defer p.lock.RUnlock()
 
@@ -216,9 +243,12 @@ func (p *partitions) partitionId(partition int) string {
 }
 
 func (p *partitions) close() {
-	p.lock.Lock()
-	p.lock.Unlock()
+	if p.peers != nil {
+		p.unadvertisePartitions()
 
-	p.zkWatcher.removeWatch(p.zkPath)
-	p.unadvertisePartitions()
+		p.lock.Lock()
+		defer p.lock.Unlock()
+
+		p.zkWatcher.removeWatch(p.zkPath)
+	}
 }

@@ -256,6 +256,7 @@ func (s *sequins) refreshAll() {
 
 	for name, db := range oldDBs {
 		if s.dbs[name] == nil {
+			log.Println("Removing and clearing database %s", name)
 			db.close()
 			db.delete()
 		}

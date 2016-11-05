@@ -120,7 +120,6 @@ func (s *sequins) serveStatus(w http.ResponseWriter, r *http.Request) {
 		err := statusTemplate.Execute(w, status)
 		if err != nil {
 			log.Println("Error rendering status:", err)
-			w.WriteHeader(500)
 		}
 	}
 }
@@ -156,14 +155,12 @@ func (db *db) serveStatus(w http.ResponseWriter, r *http.Request) {
 
 		w.Header()["Content-Type"] = []string{"application/json"}
 		w.Write(jsonBytes)
-		return
 	} else {
 		status := status{DBs: make(map[string]dbStatus)}
 		status.DBs[db.name] = s
 		err := statusTemplate.Execute(w, status)
 		if err != nil {
 			log.Println("Error rendering status:", err)
-			w.WriteHeader(500)
 		}
 	}
 }

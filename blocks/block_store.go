@@ -8,7 +8,6 @@ import (
 )
 
 var ErrNoManifest = errors.New("no manifest file found")
-var ErrPartitionNotFound = errors.New("the block store doesn't have the correct partition for the key")
 var ErrMissingPartitions = errors.New("existing block store missing partitions")
 
 type Compression string
@@ -151,37 +150,40 @@ func (store *BlockStore) Revert() {
 	return
 }
 
-// Get returns the value for a given key. It returns ErrPartitionNotFound if
-// the partition requested is not available locally.
+// Get returns the value for a given key.
 func (store *BlockStore) Get(key string) (*Record, error) {
 	store.blockMapLock.RLock()
 	defer store.blockMapLock.RUnlock()
 
 	partition, alternatePartition := KeyPartition([]byte(key), store.numPartitions)
 	if store.BlockMap[partition] == nil && store.BlockMap[alternatePartition] == nil {
-		return nil, ErrPartitionNotFound
+		return nil, nil
 	}
+
+	keyBytes := []byte(key)
+	res, err := store.get(keyBytes, partition)
+	if err != nil {
+		return nil, err
+	}
+
+	// See the comment for alternatePathologicalKeyPartition.
+	if res == nil && err == nil && alternatePartition != partition {
+		res, err = store.get(keyBytes, alternatePartition)
+	}
+
+	return res, err
+}
+
+func (store *BlockStore) get(key []byte, partition int) (*Record, error) {
 
 	// There can be multiple blocks for each partition - in that case, we need to
 	// check each one sequentially.
 	for _, block := range store.BlockMap[partition] {
-		res, err := block.Get([]byte(key))
+		res, err := block.Get(key)
 		if err != nil {
 			return nil, err
 		} else if res != nil {
 			return res, nil
-		}
-	}
-
-	// See the comment for alternatePathologicalKeyPartition.
-	if alternatePartition != partition {
-		for _, block := range store.BlockMap[alternatePartition] {
-			res, err := block.Get([]byte(key))
-			if err != nil {
-				return nil, err
-			} else if res != nil {
-				return res, nil
-			}
 		}
 	}
 

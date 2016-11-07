@@ -24,7 +24,7 @@ rather than everything at once.
 
  - Since sequins is a more-or-less static, stateless store, and since writes are
    async and affect the entire database at once, we don't have to think too hard
-   about consistency. But one important property to try to gaurantee is
+   about consistency. But one important property to try to guarantee is
    monotonic reads; if you talk to a single sequins instance during a version
    upgrade, you get only records from version (N-1) until the node upgrades, and
    then only records from version N.

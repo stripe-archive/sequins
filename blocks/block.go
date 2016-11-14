@@ -26,7 +26,7 @@ type Block struct {
 	maxKey        []byte
 	sparkeyReader *sparkey.HashReader
 	iterPool      iterPool
-	sync.RWMutex
+	lock          sync.RWMutex
 }
 
 func loadBlock(storePath string, manifest BlockManifest) (*Block, error) {
@@ -51,8 +51,8 @@ func loadBlock(storePath string, manifest BlockManifest) (*Block, error) {
 }
 
 func (b *Block) Get(key []byte) (*Record, error) {
-	b.RLock()
-	defer b.RUnlock()
+	b.lock.RLock()
+	defer b.lock.RUnlock()
 
 	if b.minKey != nil && bytes.Compare(key, b.minKey) < 0 {
 		return nil, nil
@@ -64,8 +64,8 @@ func (b *Block) Get(key []byte) (*Record, error) {
 }
 
 func (b *Block) Close() {
-	b.Lock()
-	defer b.Unlock()
+	b.lock.Lock()
+	defer b.lock.Unlock()
 
 	b.sparkeyReader.Close()
 }

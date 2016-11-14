@@ -20,6 +20,8 @@ import (
 
 	"github.com/stripe/sequins/backend"
 	"github.com/stripe/sequins/multilock"
+	"github.com/stripe/sequins/sharding"
+	"github.com/stripe/sequins/zk"
 )
 
 var errDirLocked = errors.New("failed to acquire lock")
@@ -32,8 +34,9 @@ type sequins struct {
 	dbs     map[string]*db
 	dbsLock sync.RWMutex
 
-	peers     *peers
-	zkWatcher *zkWatcher
+	address   string
+	peers     *sharding.Peers
+	zkWatcher *zk.Watcher
 
 	refreshLock   sync.Mutex
 	buildLock     *multilock.Multilock
@@ -109,13 +112,13 @@ func (s *sequins) initCluster() error {
 	}
 
 	prefix := path.Join("/", s.config.Sharding.ClusterName)
-	zkWatcher, err := connectZookeeper(s.config.ZK.Servers, prefix,
+	zkWatcher, err := zk.Connect(s.config.ZK.Servers, prefix,
 		s.config.ZK.ConnectTimeout.Duration, s.config.ZK.SessionTimeout.Duration)
 	if err != nil {
 		return err
 	}
 
-	go zkWatcher.triggerCleanup()
+	go zkWatcher.TriggerCleanup()
 
 	hostname := s.config.Sharding.AdvertisedHostname
 	if hostname == "" {
@@ -136,9 +139,10 @@ func (s *sequins) initCluster() error {
 		shardID = routableAddress
 	}
 
-	peers := watchPeers(zkWatcher, shardID, routableAddress)
-	peers.waitToConverge(s.config.Sharding.TimeToConverge.Duration)
+	peers := sharding.WatchPeers(zkWatcher, shardID, routableAddress)
+	peers.WaitToConverge(s.config.Sharding.TimeToConverge.Duration)
 
+	s.address = routableAddress
 	s.zkWatcher = zkWatcher
 	s.peers = peers
 	return nil
@@ -188,7 +192,7 @@ func (s *sequins) shutdown() {
 
 	zk := s.zkWatcher
 	if zk != nil {
-		zk.close()
+		zk.Close()
 	}
 
 	// TODO: figure out how to cancel in-progress downloads
@@ -266,7 +270,7 @@ func (s *sequins) refreshAll() {
 
 	// Cleanup any zkNodes for deleted versions and dbs.
 	if s.zkWatcher != nil {
-		s.zkWatcher.triggerCleanup()
+		s.zkWatcher.TriggerCleanup()
 	}
 }
 

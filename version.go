@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stripe/sequins/blocks"
+	"github.com/stripe/sequins/sharding"
 )
 
 const versionHeader = "X-Sequins-Version"
@@ -26,7 +27,7 @@ type version struct {
 	path          string
 	name          string
 	blockStore    *blocks.BlockStore
-	partitions    *partitions
+	partitions    *sharding.Partitions
 	numPartitions int
 	files         []string
 
@@ -62,7 +63,7 @@ func newVersion(sequins *sequins, db *db, path, name string) (*version, error) {
 		cancel: make(chan bool),
 	}
 
-	vs.partitions = watchPartitions(sequins.zkWatcher, sequins.peers,
+	vs.partitions = sharding.WatchPartitions(sequins.zkWatcher, sequins.peers,
 		db.name, name, len(files), sequins.config.Sharding.Replication)
 
 	err = vs.initBlockStore(path)
@@ -74,13 +75,13 @@ func newVersion(sequins *sequins, db *db, path, name string) (*version, error) {
 	// store is built.
 	if vs.partitions != nil {
 		select {
-		case <-vs.partitions.ready:
+		case <-vs.partitions.Ready:
 			close(vs.ready)
 		default:
 			go func() {
 				select {
 				case <-vs.cancel:
-				case <-vs.partitions.ready:
+				case <-vs.partitions.Ready:
 				}
 
 				close(vs.ready)
@@ -107,7 +108,7 @@ func (vs *version) initBlockStore(path string) error {
 			have[partition] = true
 		}
 
-		vs.partitions.updateLocalPartitions(have)
+		vs.partitions.UpdateLocal(have)
 	}
 
 	vs.blockStore = blockStore
@@ -122,7 +123,7 @@ func (vs *version) close() {
 		vs.buildLock.Lock()
 		defer vs.buildLock.Unlock()
 
-		vs.partitions.close()
+		vs.partitions.Close()
 		vs.blockStore.Close()
 	}()
 }

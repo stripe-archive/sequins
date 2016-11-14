@@ -38,7 +38,7 @@ func (vs *version) build() {
 		defer vs.sequins.buildLock.Unlock()
 	}
 
-	partitions := vs.partitions.needed()
+	partitions := vs.partitions.NeededLocal()
 	if len(partitions) == 0 {
 		vs.built = true
 		return
@@ -67,7 +67,7 @@ func (vs *version) build() {
 		return
 	}
 
-	vs.partitions.updateLocalPartitions(partitions)
+	vs.partitions.UpdateLocal(partitions)
 	vs.built = true
 }
 
@@ -93,7 +93,7 @@ func (vs *version) addFiles(partitions map[int]bool) error {
 		}
 	}
 
-	return vs.blockStore.Save(vs.partitions.selected)
+	return vs.blockStore.Save(vs.partitions.SelectedLocal())
 }
 
 func (vs *version) addFile(file string, partitions map[int]bool) error {

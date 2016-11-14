@@ -21,7 +21,7 @@ func (vs *version) serveKey(w http.ResponseWriter, r *http.Request, key string) 
 	}
 
 	partition, alternatePartition := blocks.KeyPartition([]byte(key), vs.numPartitions)
-	if vs.partitions.have(partition) || vs.partitions.have(alternatePartition) {
+	if vs.partitions.HaveLocal(partition) || vs.partitions.HaveLocal(alternatePartition) {
 		record, err := vs.blockStore.Get(key)
 		if err != nil {
 			vs.serveError(w, key, err)
@@ -58,7 +58,7 @@ func (vs *version) serveProxied(w http.ResponseWriter, r *http.Request,
 
 	// Shuffle the peers, so we try them in a random order.
 	// TODO: We don't want to blacklist nodes, but we can weight them lower
-	peers := shuffle(vs.partitions.getPeers(partition))
+	peers := shuffle(vs.partitions.FindPeers(partition))
 	if len(peers) == 0 {
 		log.Printf("No peers available for /%s/%s (version %s)", vs.db.name, key, vs.name)
 		w.WriteHeader(http.StatusBadGateway)
@@ -70,7 +70,7 @@ func (vs *version) serveProxied(w http.ResponseWriter, r *http.Request,
 		log.Println("Trying alternate partition for pathological key", key)
 
 		resp.Body.Close()
-		alternatePeers := shuffle(vs.partitions.getPeers(alternatePartition))
+		alternatePeers := shuffle(vs.partitions.FindPeers(alternatePartition))
 		resp, peer, err = vs.proxy(r, alternatePeers)
 	}
 

@@ -19,8 +19,8 @@ var proxyTestVersion = &version{
 	sequins: &sequins{
 		config: sequinsConfig{
 			Sharding: shardingConfig{
-				ProxyTimeout:      duration{30 * time.Millisecond},
-				ProxyStageTimeout: duration{10 * time.Millisecond},
+				ProxyTimeout:      duration{300 * time.Millisecond},
+				ProxyStageTimeout: duration{100 * time.Millisecond},
 			},
 		},
 	},
@@ -55,7 +55,7 @@ func TestProxySinglePeer(t *testing.T) {
 
 func TestProxySlowPeer(t *testing.T) {
 	slowPeer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(1 * time.Second)
 		fmt.Fprintln(w, "sorry, did you need something?")
 	}))
 
@@ -103,7 +103,7 @@ func TestProxyErrorPeer(t *testing.T) {
 
 func TestProxySlowPeerErrorPeer(t *testing.T) {
 	slowPeer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(15 * time.Millisecond)
+		time.Sleep(150 * time.Millisecond)
 		fmt.Fprintln(w, "all good, sorry to keep you waiting")
 	}))
 
@@ -124,7 +124,7 @@ func TestProxySlowPeerErrorPeer(t *testing.T) {
 
 func TestProxyTimeout(t *testing.T) {
 	slowPeer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(1 * time.Second)
 		fmt.Fprintln(w, "sorry, did you need something?")
 	}))
 

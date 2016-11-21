@@ -106,8 +106,6 @@ func (w *Watcher) reconnect() error {
 		}
 	}
 
-	// TODO: recreate permanent paths? What if zookeeper dies and loses data?
-	// TODO: clear data on setup? or just hope that it's uniquely namespaced enough
 	err = w.createAll(w.prefix)
 	if err != nil {
 		return fmt.Errorf("creating base path: %s", err)

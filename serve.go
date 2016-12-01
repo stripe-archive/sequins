@@ -120,12 +120,12 @@ func (vs *version) serveError(w http.ResponseWriter, key string, err error) {
 	w.WriteHeader(http.StatusInternalServerError)
 }
 
-func shuffle(vs []string) []string {
+func shuffle(vs []string, disappeared []string) []string {
 	shuffled := make([]string, len(vs))
 	perm := rand.Perm(len(vs))
 	for i, v := range perm {
 		shuffled[v] = vs[i]
 	}
 
-	return shuffled
+	return append(shuffled, disappeared...)
 }

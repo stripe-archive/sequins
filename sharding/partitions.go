@@ -33,6 +33,7 @@ type Partitions struct {
 	selected        map[int]bool
 	local           map[int]bool
 	remote          map[int][]string
+	disappeared     map[int][]string
 	numMissing      int
 	readyClosed     bool
 	shouldAdvertise bool
@@ -55,6 +56,7 @@ func WatchPartitions(zkWatcher *zk.Watcher, peers *Peers, db, version string, nu
 		replication:   replication,
 		local:         make(map[int]bool),
 		remote:        make(map[int][]string),
+		disappeared:   make(map[int][]string, 1024),
 	}
 
 	p.pickLocal()
@@ -67,6 +69,19 @@ func WatchPartitions(zkWatcher *zk.Watcher, peers *Peers, db, version string, nu
 
 	p.updateMissing()
 	return p
+}
+
+// Dedupelicates elements in a slice of strings.
+func dedupe(nodes []string) []string {
+	found := map[string]bool{}
+	dedupedNodes := make([]string, 0, len(nodes))
+	for _, node := range nodes {
+		if !found[node] {
+			found[node] = true
+			dedupedNodes = append(dedupedNodes, node)
+		}
+	}
+	return dedupedNodes
 }
 
 // pickLocal selects which partitions are local by iterating through
@@ -107,17 +122,20 @@ func (p *Partitions) sync(updates chan []string) {
 }
 
 // FindPeers returns the list of peers who have the given partition available.
-func (p *Partitions) FindPeers(partition int) []string {
-	if p.peers == nil {
-		return nil
-	}
-
+func (p *Partitions) FindPeers(partition int) ([]string, []string) {
 	p.lock.RLock()
 	defer p.lock.RUnlock()
 
+	disappearedPeers := make([]string, 1024)
+	copy(disappearedPeers, p.disappeared[partition])
+
+	if p.peers == nil {
+		return nil, disappearedPeers
+	}
+
 	peers := make([]string, len(p.remote[partition]))
 	copy(peers, p.remote[partition])
-	return peers
+	return peers, disappearedPeers
 }
 
 // Update updates the list of local partitions to the given list.
@@ -225,6 +243,25 @@ func (p *Partitions) updateRemote(nodes []string) {
 		host := parts[1]
 		if host != p.peers.address {
 			remote[partition] = append(remote[partition], host)
+		}
+	}
+
+	for partitionId, partition := range p.remote {
+		disappearedPeers := make([]string, len(partition))
+		for _, oldPeer := range partition {
+			found := false
+			for _, newPeer := range remote[partitionId] {
+				if newPeer == oldPeer {
+					found = true
+				}
+			}
+			if !found {
+				disappearedPeers = append(disappearedPeers, oldPeer)
+			}
+		}
+		p.disappeared[partitionId] = dedupe(append(disappearedPeers, p.disappeared[partitionId]...))
+		if len(p.disappeared[partitionId]) >= 1024 {
+			p.disappeared[partitionId] = p.disappeared[partitionId][:1024]
 		}
 	}
 

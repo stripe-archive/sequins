@@ -71,7 +71,7 @@ func WatchPartitions(zkWatcher *zk.Watcher, peers *Peers, db, version string, nu
 	return p
 }
 
-// Dedupelicates elements in a slice of strings.
+// dedupe dedupelicates elements in a slice of strings.
 func dedupe(nodes []string) []string {
 	found := map[string]bool{}
 	dedupedNodes := make([]string, 0, len(nodes))
@@ -121,7 +121,9 @@ func (p *Partitions) sync(updates chan []string) {
 	}
 }
 
-// FindPeers returns the list of peers who have the given partition available.
+// FindPeers returns the list of peers who have the given partition available,
+// It also returns a list of disappeared peers,
+// that are no longer in Zookeeper
 func (p *Partitions) FindPeers(partition int) ([]string, []string) {
 	p.lock.RLock()
 	defer p.lock.RUnlock()

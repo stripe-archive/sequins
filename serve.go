@@ -58,7 +58,11 @@ func (vs *version) serveProxied(w http.ResponseWriter, r *http.Request,
 
 	// Shuffle the peers, so we try them in a random order.
 	// TODO: We don't want to blacklist nodes, but we can weight them lower
-	peers := shuffle(vs.partitions.FindPeers(partition))
+	rawPeers, disapperedNodes := vs.partitions.FindPeers(partition)
+	if len(rawPeers) < vs.sequins.config.Sharding.Replication {
+		rawPeers = append(rawPeers, disapperedNodes...)
+	}
+	peers := shuffle(rawPeers)
 	if len(peers) == 0 {
 		log.Printf("No peers available for /%s/%s (version %s)", vs.db.name, key, vs.name)
 		w.WriteHeader(http.StatusBadGateway)
@@ -70,7 +74,12 @@ func (vs *version) serveProxied(w http.ResponseWriter, r *http.Request,
 		log.Println("Trying alternate partition for pathological key", key)
 
 		resp.Body.Close()
-		alternatePeers := shuffle(vs.partitions.FindPeers(alternatePartition))
+		rawPeers, disapperedNodes = vs.partitions.FindPeers(alternatePartition)
+		if len(rawPeers) < vs.sequins.config.Sharding.Replication {
+			rawPeers = append(rawPeers, disapperedNodes...)
+		}
+
+		alternatePeers := shuffle(rawPeers)
 		resp, peer, err = vs.proxy(r, alternatePeers)
 	}
 
@@ -120,12 +129,12 @@ func (vs *version) serveError(w http.ResponseWriter, key string, err error) {
 	w.WriteHeader(http.StatusInternalServerError)
 }
 
-func shuffle(vs []string, disappeared []string) []string {
+func shuffle(vs []string) []string {
 	shuffled := make([]string, len(vs))
 	perm := rand.Perm(len(vs))
 	for i, v := range perm {
 		shuffled[v] = vs[i]
 	}
 
-	return append(shuffled, disappeared...)
+	return shuffled
 }

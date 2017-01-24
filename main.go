@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	_ "net/http/pprof"
 	"net/url"
 	"path/filepath"
 

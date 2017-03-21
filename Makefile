@@ -54,7 +54,7 @@ status.tmpl.go: status.tmpl $(BUILD)/bin/go-bindata
 	$(BUILD)/bin/go-bindata -o status.tmpl.go status.tmpl
 
 sequins: $(SOURCES) status.tmpl.go $(BUILD)/lib/libsparkey.a $(BUILD)/lib/libsnappy.a $(BUILD)/lib/libzookeeper_mt.a
-	$(CGO_PREAMBLE) go build -ldflags "-X main.sequinsVersion=$(TRAVIS_TAG)"
+	$(CGO_PREAMBLE) go build -tags=netgo -ldflags "-X main.sequinsVersion=$(TRAVIS_TAG)"
 
 release: sequins
 	./sequins --version

@@ -2,7 +2,7 @@ os:
   - linux
   - osx
 language: go
-go: 1.7
+go: 1.7.5
 sudo: false
 before_install:
 - export ZOOKEEPER_HOME="$HOME/zookeeper-3.4.8"

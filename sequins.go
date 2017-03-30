@@ -132,10 +132,10 @@ func (s *sequins) initCluster() error {
 	if err != nil {
 		return err
 	}
-	
+
 	ip := ""
 	ipAddresses, err := net.LookupHost(hostname)
-	if err	!= nil {
+	if err != nil {
 		return err
 	}
 	if len(ipAddresses) != 1 {

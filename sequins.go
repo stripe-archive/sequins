@@ -132,14 +132,26 @@ func (s *sequins) initCluster() error {
 	if err != nil {
 		return err
 	}
-
+	ipAddresses, err := net.LookupHost(hostname)
+	ip := ""
+	if err	!= nil {
+		return err
+	}
+	if len(ipAddresses) < 1 {
+		ip = hostname
+	} else {
+		ip = ipAddresses[0]
+	}
+	routableIpAddress := net.JoinHostPort(ip, port)
 	routableAddress := net.JoinHostPort(hostname, port)
 	shardID := s.config.Sharding.ShardID
 	if shardID == "" {
 		shardID = routableAddress
 	}
 
-	peers := sharding.WatchPeers(zkWatcher, shardID, routableAddress)
+
+
+	peers := sharding.WatchPeers(zkWatcher, shardID, routableIpAddress)
 	peers.WaitToConverge(s.config.Sharding.TimeToConverge.Duration)
 
 	s.address = routableAddress

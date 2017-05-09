@@ -34,6 +34,9 @@ deploy:
     all_branches: true
 env:
   global:
-  - secure: INFoLu2JnDmONLHbG6RrM19AZby1UDtC1XzJ4QzA0CiDhsd0bFKKDgYF+GVIi3ibLfwEnkk8sPA7q+Mj6/b8hlIy2gyHmCSVDMOkUlWZU37RehpIFAQU/PlIhYi6yYRCXJKsGRuxe+vE/F1kM/zdEzBvecmSPMAsZNxaW1jULUI=
-  - secure: AvFzMf2bVwpU2KYH811CeD419pX9h3fc/gc/C8fvQ5tzRE1mEFJuFALnDx3WvI4WO9RctEt/Pr71RbecdBVMmYZOuFF9PvEFRegGpOj1+uIbdbe7PAtr3gsmlHYxlXFCQ5KTYPYTy4YK5DfRGaK1ZKSBgmYQc1ZLWFJHOYY7324=
-  - secure: Cg7Tg8kTVHhAZmHI+sAIuQNP6vHp5RU/U+M8INN13b+5DrIA56bxYoYkOgSAexv6v2gWPmjPmFxopfKMWbgdsRQ0OOmCqMOceAUTLHSodPOvg7lW156/fBNIE9X+pKqCaQphAYztbvQyhVuqsXKyMGOKo2eBbGZ0YQgXDBCSLos=
+    # Region
+    - secure: "giM8b/a4JfCDh6cpUyKo1uNUlNXZ28/PN3fnIN28s2GGvuipRCv+8BiqyxG6ukwPyQluHNxpsRcLFeXG2noSelHXY4HwdYZY5bDZ2xiWHTudphQD7gnQMoa8jSOx/66rLjMmx5UmtzlYfmsY9Rw1SshORWlgBmMeIYNWYu1NJiw="
+    # Test bucket
+    - secure: "zBxttvSia8TL43USnZuVP9btWyXDFMm7N3fspFrL1+iJlZbWT/2d3MRtBbKc29NTeKwYcrh/b1N64lM5X2RR4tGZ0T+Qms7RzGQEiUmkEqbn5JVVqvXBBBSkGv5hVNaZjHkYW4ZwUe6u278k+LDTNsydtNA8gWy1PZUV/kRtOH4="
+    # AWS credentials
+    - secure: "LVr7PRiCCYRPGlxr5HaZb4cmemF3GOtcqwttPBAkNSBox2RzihC7s+h0zsvXGi39UUokOrK8HNIRJws7LYMG/LoREdgPAmRatXs4+knDIKe3bf/KYWuBhtTW81x2hP3aoTTkJbxF69sk4qRIt0iw7E2PMulR3N2Y8kJPTRQCM2o="

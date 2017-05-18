@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/samuel/go-zookeeper/zk"
 	"github.com/stripe/sequins/zk/zktest"
 )
 
@@ -40,7 +41,7 @@ type testCluster struct {
 	binary     string
 	source     string
 	sequinses  []*testSequins
-	zk         *zktest.TestCluster
+	zk         *zk.TestCluster
 	testClient *http.Client
 }
 
@@ -115,7 +116,7 @@ func (tc *testCluster) addSequins() *testSequins {
 	config.Sharding.TimeToConverge = duration{100 * time.Millisecond}
 	config.Sharding.ProxyTimeout = duration{600 * time.Millisecond}
 	config.Sharding.AdvertisedHostname = "localhost"
-	config.ZK.Servers = []string{tc.zk.Addr}
+	config.ZK.Servers =[]string{fmt.Sprintf("%s:%d", tc.zk.Servers[0].Path, tc.zk.Servers[0].Port) }
 	config.Test.AllowLocalCluster = true
 
 	// Slow everything down to an observable level.
@@ -192,7 +193,7 @@ func (tc *testCluster) tearDown() {
 		tc.T.Logf("Output for %s at %s", ts.name, ts.log.Name())
 	}
 
-	tc.zk.Close()
+	tc.zk.Stop()
 	os.RemoveAll(tc.source)
 }
 

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	zk "launchpad.net/gozk/zookeeper"
+	"github.com/samuel/go-zookeeper/zk"
 )
 
 const (
@@ -19,7 +19,7 @@ const (
 	maxCreateRetries    = 5
 )
 
-var defaultZkACL = zk.WorldACL(zk.PERM_ALL)
+var defaultZkACL = zk.WorldACL(zk.PermAll)
 
 // A Watcher manages a single connection to zookeeper, watching for changes to
 // directories and managing ephemeral nodes. It lazily connects and reconnects
@@ -86,7 +86,7 @@ func (w *Watcher) reconnect() error {
 
 	servers := strings.Join(w.zkServers, ",")
 	log.Println("Connecting to zookeeper at", servers)
-	conn, events, err = zk.Dial(servers, w.sessionTimeout)
+	conn, events, err = zk.Connect(w.zkServers, w.sessionTimeout)
 	if err != nil {
 		return err
 	}
@@ -101,7 +101,7 @@ func (w *Watcher) reconnect() error {
 	case <-connectTimeout.C:
 		return errors.New("connection timeout")
 	case event := <-events:
-		if event.State != zk.STATE_CONNECTED {
+		if event.State != zk.StateConnected {
 			return fmt.Errorf("connection error: %s", event)
 		}
 	}
@@ -113,8 +113,8 @@ func (w *Watcher) reconnect() error {
 
 	go func() {
 		for ev := range events {
-			if ev.State != zk.STATE_CONNECTED && ev.State != zk.STATE_CONNECTING {
-				sendErr(w.errs, errors.New(ev.String()))
+			if ev.State != zk.StateConnected && ev.State != zk.StateConnecting {
+				sendErr(w.errs, ev.Err)
 				return
 			}
 		}
@@ -230,7 +230,7 @@ func (w *Watcher) createEphemeral(node string) error {
 	// Retry a few times, in case the node is removed in between the two following
 	// steps.
 	for i := 0; i < maxCreateRetries; i++ {
-		_, err := w.conn.Create(node, "", zk.EPHEMERAL, defaultZkACL)
+		_, err := w.conn.Create(node, []byte{}, zk.FlagEphemeral, defaultZkACL)
 		if err == nil {
 			break
 		} else if err != nil && !isNoNode(err) {
@@ -323,8 +323,9 @@ func (w *Watcher) watchChildren(node string, wn watchedNode) error {
 			case reconnecting = <-wn.cancel:
 				return
 			case ev := <-events:
-				if !ev.Ok() {
-					sendErr(w.errs, errors.New(ev.String()))
+
+				if ev.Err != nil {
+					sendErr(w.errs, ev.Err)
 					<-wn.cancel
 					return
 				}
@@ -386,7 +387,7 @@ func (w *Watcher) createAll(node string) error {
 		}
 	}
 
-	_, err := w.conn.Create(path.Clean(node), "", 0, defaultZkACL)
+	_, err := w.conn.Create(path.Clean(node), []byte{}, 0, defaultZkACL)
 	if err != nil && !isNodeExists(err) {
 		return err
 	}
@@ -407,7 +408,7 @@ func (w *Watcher) cleanupTree(node string) {
 	children, stat, err := w.conn.Children(node)
 	if err != nil {
 		return
-	} else if stat.EphemeralOwner() != 0 {
+	} else if stat.EphemeralOwner != 0 {
 		return
 	}
 
@@ -418,12 +419,12 @@ func (w *Watcher) cleanupTree(node string) {
 	w.conn.Delete(node, -1)
 }
 
-func (w *Watcher) Close() error {
+func (w *Watcher) Close() {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
 	w.shutdown <- true
-	return w.conn.Close()
+	w.conn.Close()
 }
 
 // sendErr sends the error over the channel, or discards it if the error is full.
@@ -437,7 +438,8 @@ func sendErr(errs chan error, err error) {
 }
 
 func isNodeExists(err error) bool {
-	if zkErr, ok := err.(*zk.Error); ok && zkErr.Code == zk.ZNODEEXISTS {
+	if err == zk.ErrNodeExists {
+
 		return true
 	}
 
@@ -445,7 +447,8 @@ func isNodeExists(err error) bool {
 }
 
 func isNoNode(err error) bool {
-	if zkErr, ok := err.(*zk.Error); ok && zkErr.Code == zk.ZNONODE {
+
+	if err == zk.ErrNoNode {
 		return true
 	}
 

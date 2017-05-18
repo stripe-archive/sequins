@@ -15,7 +15,7 @@ import (
 func connectTest(t *testing.T) (*Watcher, *zk.TestCluster) {
 	tzk := zktest.New(t)
 
-	zkWatcher, err := Connect([]string{fmt.Sprintf("%s:%d", tzk.Servers[0].Path, tzk.Servers[0].Port)}, "/sequins-test", 5*time.Second, 5*time.Second)
+	zkWatcher, err := Connect([]string{fmt.Sprintf("localhost:%d",tzk.Servers[0].Port)}, "/sequins-test", 5*time.Second, 5*time.Second)
 	require.NoError(t, err, "zkWatcher should connect")
 
 	return zkWatcher, tzk
@@ -45,9 +45,9 @@ func TestZKWatcher(t *testing.T) {
 		w.RemoveEphemeral("/foo/bar")
 	}()
 
-	expectWatchUpdate(t, nil, updates, "the list of children should be updated to be empty first")
+	expectWatchUpdate(t, []string{}, updates, "the list of children should be updated to be empty first")
 	expectWatchUpdate(t, []string{"bar"}, updates, "the list of children should be updated with the new node")
-	expectWatchUpdate(t, nil, updates, "the list of children should be updated to be empty again")
+	expectWatchUpdate(t, []string{}, updates, "the list of children should be updated to be empty again")
 }
 
 func TestZKWatcherReconnect(t *testing.T) {
@@ -64,7 +64,7 @@ func TestZKWatcherReconnect(t *testing.T) {
 		w.CreateEphemeral("/foo/baz")
 	}()
 
-	expectWatchUpdate(t, nil, updates, "the list of children should be updated to be empty first")
+	expectWatchUpdate(t, []string{}, updates, "the list of children should be updated to be empty first")
 	expectWatchUpdate(t, []string{"bar"}, updates, "the list of children should be updated with the new node")
 	expectWatchUpdate(t, []string{"bar", "baz"}, updates, "the list of children should be updated with the second new node")
 }
@@ -92,7 +92,7 @@ func TestZKRemoveWatch(t *testing.T) {
 	updates, disconnected := w.WatchChildren("/foo")
 
 	w.CreateEphemeral("/foo/bar")
-	expectWatchUpdate(t, nil, updates, "the list of children should be updated to be empty first")
+	expectWatchUpdate(t, []string{}, updates, "the list of children should be updated to be empty first")
 	expectWatchUpdate(t, []string{"bar"}, updates, "the list of children should be updated with the new node")
 
 	w.RemoveWatch("/foo")

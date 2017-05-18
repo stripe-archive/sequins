@@ -14,7 +14,6 @@ import (
 
 const (
 	coordinationVersion = "v1"
-	zkReconnectPeriod   = 1 * time.Second
 	defaultZKPort       = 2181
 	maxCreateRetries    = 5
 )
@@ -101,7 +100,7 @@ func (w *Watcher) reconnect() error {
 	case <-connectTimeout.C:
 		return errors.New("connection timeout")
 	case event := <-events:
-		if event.State != zk.StateConnected {
+		if event.State != zk.StateConnected && event.State != zk.StateConnecting {
 			return fmt.Errorf("connection error: %s", event)
 		}
 	}
@@ -114,8 +113,10 @@ func (w *Watcher) reconnect() error {
 	go func() {
 		for ev := range events {
 			if ev.State != zk.StateConnected && ev.State != zk.StateConnecting {
-				sendErr(w.errs, ev.Err)
-				return
+				if ev.Err != nil {
+					sendErr(w.errs, ev.Err)
+					return
+				}
 			}
 		}
 	}()
@@ -172,7 +173,7 @@ Reconnect:
 	for {
 		if !first {
 			// Wait before trying to reconnect again.
-			wait := time.NewTimer(zkReconnectPeriod)
+			wait := time.NewTimer(w.sessionTimeout)
 			select {
 			case <-w.shutdown:
 				break Reconnect

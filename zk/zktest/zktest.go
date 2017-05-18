@@ -13,11 +13,6 @@ import (
 
 // New returns a new TestCluster rooted at a temporary dir.
 func New(t *testing.T) *zk.TestCluster {
-	zkHome := os.Getenv("ZOOKEEPER_HOME")
-	if zkHome == "" {
-		t.Skip("Skipping zk tests because ZOOKEEPER_HOME isn't set")
-	}
-
 	tzk, err := zk.StartTestCluster(1, nil, nil)
 	require.NoError(t, err, "zk setup")
 	return tzk

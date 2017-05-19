@@ -14,10 +14,9 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/samuel/go-zookeeper/zk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/samuel/go-zookeeper/zk"
 	"github.com/stripe/sequins/zk/zktest"
 )
 
@@ -116,7 +115,7 @@ func (tc *testCluster) addSequins() *testSequins {
 	config.Sharding.TimeToConverge = duration{100 * time.Millisecond}
 	config.Sharding.ProxyTimeout = duration{600 * time.Millisecond}
 	config.Sharding.AdvertisedHostname = "localhost"
-	config.ZK.Servers =[]string{fmt.Sprintf("localhost:%d", tc.zk.Servers[0].Port) }
+	config.ZK.Servers = []string{fmt.Sprintf("localhost:%d", tc.zk.Servers[0].Port)}
 	config.Test.AllowLocalCluster = true
 
 	// Slow everything down to an observable level.

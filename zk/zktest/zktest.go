@@ -3,7 +3,6 @@ package zktest
 
 import (
 	"math/rand"
-	"os"
 	"testing"
 	"time"
 

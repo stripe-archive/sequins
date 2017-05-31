@@ -5,9 +5,8 @@ language: go
 go: 1.7.5
 sudo: false
 before_install:
-- export ZOOKEEPER_HOME="$HOME/zookeeper-3.4.8"
-- test -d $ZOOKEEPER_HOME || (cd $HOME && wget http://apache.mirror.iphh.net/zookeeper/zookeeper-3.4.8/zookeeper-3.4.8.tar.gz
-  && tar -zxvf zookeeper-3.4.8.tar.gz)
+- wget http://apache.claz.org/zookeeper/zookeeper-3.4.6/zookeeper-3.4.6.tar.gz
+- tar -zxvf zookeeper*tar.gz
 - export NN_PORT=9000
 - export HADOOP_NAMENODE="localhost:$NN_PORT"
 - export HADOOP_DISTRO=cdh
@@ -19,7 +18,6 @@ script: make test
 before_deploy: make release
 cache:
   directories:
-  - "$ZOOKEEPER_HOME"
   - "$HADOOP_HOME"
 deploy:
   skip_cleanup: true

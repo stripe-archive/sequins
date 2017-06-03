@@ -79,7 +79,7 @@ func (store *BlockStore) Add(key, value []byte) error {
 	var err error
 	if !ok {
 		log.Println("New Block")
-		block, err = newBlock(store.path, partition, store.compression, store.blockSize)
+		block, err = newBlock(store.path, partition, store.compression)
 		if err != nil {
 			return err
 		}

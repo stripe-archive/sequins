@@ -21,6 +21,7 @@ type Block struct {
 	Name      string
 	Partition int
 	Count     int
+	Compression Compression
 
 	minKey []byte
 	maxKey []byte

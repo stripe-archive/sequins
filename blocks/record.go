@@ -1,11 +1,11 @@
 package blocks
 
 import (
+	"bytes"
 	"io"
 
-	"bytes"
-
 	"github.com/boltdb/bolt"
+	"github.com/golang/snappy"
 )
 
 // A Record is one key/value pair loaded from a block.
@@ -23,6 +23,11 @@ func (b *Block) get(key []byte) (*Record, error) {
 	b.db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(b.Name))
 		value := bucket.Get(key)
+		if b.Compression == SnappyCompression {
+			var err error
+			value, err = snappy.Decode(nil, value)
+			return err
+		}
 		r.value = value
 		r.ValueLen = uint64(len(value))
 		r.reader = bytes.NewReader(value)

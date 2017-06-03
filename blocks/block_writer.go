@@ -8,46 +8,40 @@ import (
 	"path/filepath"
 
 	"github.com/boltdb/bolt"
+	"github.com/golang/snappy"
 	"github.com/pborman/uuid"
 )
 
 type blockWriter struct {
-	minKey    []byte
-	maxKey    []byte
-	count     int
-	partition int
+	minKey      []byte
+	maxKey      []byte
+	count       int
+	partition   int
+	compression Compression
 
 	path string
 	id   string
 	db   *bolt.DB
 }
 
-func newBlock(storePath string, partition int, compression Compression, blockSize int) (*blockWriter, error) {
+func newBlock(storePath string, partition int, compression Compression) (*blockWriter, error) {
 	id := uuid.New()
 	name := fmt.Sprintf("block-%05d-%s.spl", partition, id)
 
 	path := filepath.Join(storePath, name)
 	log.Println("Initializing block at", path)
 
-	// TODO: Compression
-	/*
-		c := sparkey.COMPRESSION_NONE
-		if compression == SnappyCompression {
-			c = sparkey.COMPRESSION_SNAPPY
-		}
-		options := &sparkey.Options{Compression: c, CompressionBlockSize: blockSize}
-		sparkeyWriter, err := sparkey.CreateLogWriter(path, options)
-	*/
 	db, err := bolt.Open(path, 0600, nil)
 	if err != nil {
 		return nil, fmt.Errorf("initializing block %s: %s", path, err)
 	}
 
 	bw := &blockWriter{
-		partition: partition,
-		path:      path,
-		id:        id,
-		db:        db,
+		partition:   partition,
+		path:        path,
+		id:          id,
+		db:          db,
+		compression: compression,
 	}
 
 	return bw, nil
@@ -72,6 +66,9 @@ func (bw *blockWriter) add(key, value []byte) error {
 		bucket, err := tx.CreateBucketIfNotExists([]byte(filepath.Base(bw.path)))
 		if err != nil {
 			return err
+		}
+		if bw.compression == SnappyCompression {
+			value = snappy.Encode(nil, value)
 		}
 		err = bucket.Put(key, value)
 		return err

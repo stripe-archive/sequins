@@ -6,46 +6,8 @@ SOURCES = $(shell find . -name '*.go' -not -name '*_test.go')
 TEST_SOURCES = $(shell find . -name '*_test.go')
 BUILD = $(shell pwd)/build
 
-VENDORED_LIBS = $(BUILD)/lib/libsparkey.a $(BUILD)/lib/libsnappy.a $(BUILD)/lib/libzookeeper_mt.a
-
-UNAME := $(shell uname)
-ifeq ($(UNAME), Darwin)
-	CGO_PREAMBLE_LDFLAGS = -lstdc++
-else
-	CGO_PREAMBLE_LDFLAGS = -lrt -lm -lstdc++
-endif
-
-CGO_PREAMBLE = CGO_CFLAGS="-I$(BUILD)/include -I$(BUILD)/include/zookeeper" CGO_LDFLAGS="$(VENDORED_LIBS) $(CGO_PREAMBLE_LDFLAGS)"
-
 
 all: sequins
-
-vendor/snappy/configure:
-	cd vendor/snappy && ./autogen.sh
-
-vendor/snappy/Makefile: vendor/snappy/configure
-	cd vendor/snappy && ./configure --prefix=$(BUILD)
-
-$(BUILD)/lib/libsnappy.a: vendor/snappy/Makefile
-	cd vendor/snappy && make install
-
-vendor/sparkey/configure:
-	cd vendor/sparkey && autoreconf --install
-
-vendor/sparkey/Makefile: vendor/sparkey/configure $(BUILD)/lib/libsnappy.a
-	cd vendor/sparkey && ./configure --prefix=$(BUILD) LDFLAGS="-L$(BUILD)/lib" CPPFLAGS="-I$(BUILD)/include"
-
-$(BUILD)/lib/libsparkey.a: vendor/sparkey/Makefile
-	cd vendor/sparkey && make install
-
-vendor/zookeeper/configure:
-	cd vendor/zookeeper && autoreconf --install -v -I $(CURDIR)/vendor/zookeeper/
-
-vendor/zookeeper/Makefile: vendor/zookeeper/configure
-	cd vendor/zookeeper && ./configure --prefix=$(BUILD)
-
-$(BUILD)/lib/libzookeeper_mt.a: vendor/zookeeper/Makefile
-	cd vendor/zookeeper && make install
 
 $(BUILD)/bin/go-bindata:
 	go build -o $(BUILD)/bin/go-bindata ./vendor/github.com/jteeuwen/go-bindata/go-bindata/
@@ -53,8 +15,8 @@ $(BUILD)/bin/go-bindata:
 status.tmpl.go: status.tmpl $(BUILD)/bin/go-bindata
 	$(BUILD)/bin/go-bindata -o status.tmpl.go status.tmpl
 
-sequins: $(SOURCES) status.tmpl.go $(BUILD)/lib/libsparkey.a $(BUILD)/lib/libsnappy.a $(BUILD)/lib/libzookeeper_mt.a
-	$(CGO_PREAMBLE) go build -ldflags "-X main.sequinsVersion=$(TRAVIS_TAG)"
+sequins: $(SOURCES) status.tmpl.go
+	go build -ldflags "-X main.sequinsVersion=$(TRAVIS_TAG)"
 
 release: sequins
 	./sequins --version
@@ -63,20 +25,16 @@ release: sequins
 	tar -cvzf $(RELEASE_NAME).tar.gz $(RELEASE_NAME)
 
 test: $(TEST_SOURCES)
-	$(CGO_PREAMBLE) go test -short -race -timeout 2m $(shell go list ./... | grep -v vendor)
+	go test -short -race -timeout 2m $(shell go list ./... | grep -v vendor)
 	# This test exercises some sync.Pool code, so it should be run without -race
 	# as well (sync.Pool doesn't ever share objects under -race).
-	$(CGO_PREAMBLE) go test -timeout 30s ./blocks -run TestBlockParallelReads
+	go test -timeout 30s ./blocks -run TestBlockParallelReads
 
 test_functional: sequins $(TEST_SOURCES)
-	$(CGO_PREAMBLE) go test -timeout 10m -run "^TestCluster"
+	go test -timeout 10m -run "^TestCluster"
 
 clean:
 	rm -rf $(BUILD)
-	rm -f vendor/snappy/configure
-	cd vendor/snappy && make distclean; true
-	rm -f vendor/sparkey/configure
-	cd vendor/sparkey && make distclean; true
 	rm -f vendor/zookeeper/configure
 	cd vendor/zookeeper && make distclean; true
 	rm -f sequins sequins-*.tar.gz

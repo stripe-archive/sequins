@@ -2,6 +2,7 @@ package blocks
 
 import (
 	"errors"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -77,6 +78,7 @@ func (store *BlockStore) Add(key, value []byte) error {
 	block, ok := store.newBlocks[partition]
 	var err error
 	if !ok {
+		log.Println("New Block")
 		block, err = newBlock(store.path, partition, store.compression, store.blockSize)
 		if err != nil {
 			return err

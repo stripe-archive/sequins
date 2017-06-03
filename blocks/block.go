@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/bsm/go-sparkey"
+	"github.com/boltdb/bolt"
 )
 
 // A block represents a chunk of data, all of the keys of which match a
@@ -22,11 +22,10 @@ type Block struct {
 	Partition int
 	Count     int
 
-	minKey        []byte
-	maxKey        []byte
-	sparkeyReader *sparkey.HashReader
-	iterPool      iterPool
-	lock          sync.RWMutex
+	minKey []byte
+	maxKey []byte
+	db     *bolt.DB
+	lock   sync.RWMutex
 }
 
 func loadBlock(storePath string, manifest BlockManifest) (*Block, error) {
@@ -40,13 +39,12 @@ func loadBlock(storePath string, manifest BlockManifest) (*Block, error) {
 		maxKey: manifest.MaxKey,
 	}
 
-	reader, err := sparkey.Open(filepath.Join(storePath, b.Name))
+	db, err := bolt.Open(filepath.Join(storePath, b.Name), 0600, nil)
 	if err != nil {
 		return nil, fmt.Errorf("opening block: %s", err)
 	}
 
-	b.sparkeyReader = reader
-	b.iterPool = newIterPool(reader)
+	b.db = db
 	return b, nil
 }
 
@@ -66,8 +64,7 @@ func (b *Block) Get(key []byte) (*Record, error) {
 func (b *Block) Close() {
 	b.lock.Lock()
 	defer b.lock.Unlock()
-
-	b.sparkeyReader.Close()
+	b.db.Close()
 }
 
 func (b *Block) manifest() BlockManifest {

@@ -58,7 +58,7 @@ func NewFromManifest(path string) (*BlockStore, Manifest, error) {
 
 	store := New(path, manifest.NumPartitions, manifest.Compression, manifest.BlockSize)
 	for _, blockManifest := range manifest.Blocks {
-		block, err := loadBlock(path, blockManifest)
+		block, err := loadBlock(path, blockManifest, manifest.Compression)
 		if err != nil {
 			return nil, Manifest{}, err
 		}

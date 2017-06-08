@@ -68,9 +68,23 @@ func (bw *blockWriter) add(key, value []byte) error {
 			return err
 		}
 		if bw.compression == SnappyCompression {
-			value = snappy.Encode(nil, value)
+			var buff bytes.Buffer
+
+			writer := snappy.NewBufferedWriter(&buff)
+
+			writer.Write(value)
+			writer.Close()
+
+			compressedValue := buff.Bytes()
+
+			err = bucket.Put(key, compressedValue)
+			if err != nil {
+				log.Println(err)
+			}
+		} else {
+			err = bucket.Put(key, value)
 		}
-		err = bucket.Put(key, value)
+
 		return err
 
 	})
@@ -89,6 +103,7 @@ func (bw *blockWriter) save() (*Block, error) {
 		Name:      filepath.Base(bw.path),
 		Partition: bw.partition,
 		Count:     bw.count,
+		Compression: bw.compression,
 
 		minKey: bw.minKey,
 		maxKey: bw.maxKey,

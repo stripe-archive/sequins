@@ -29,12 +29,13 @@ type Block struct {
 	lock   sync.RWMutex
 }
 
-func loadBlock(storePath string, manifest BlockManifest) (*Block, error) {
+func loadBlock(storePath string, manifest BlockManifest, compression Compression) (*Block, error) {
 	b := &Block{
 		ID:        manifest.ID,
 		Name:      manifest.Name,
 		Partition: manifest.Partition,
 		Count:     manifest.Count,
+		Compression: compression,
 
 		minKey: manifest.MinKey,
 		maxKey: manifest.MaxKey,

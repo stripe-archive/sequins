@@ -35,7 +35,7 @@ func TestBlock(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("", "sequins-test-")
 	require.NoError(t, err, "creating a test tmpdir")
 
-	bw, err := newBlock(tmpDir, 1, "snappy", 8192)
+	bw, err := newBlock(tmpDir, 1, "snappy")
 	require.NoError(t, err, "initializing a block")
 
 	err = bw.add([]byte("foo"), []byte("bar"))
@@ -78,7 +78,7 @@ func TestBlock(t *testing.T) {
 
 	block.Close()
 
-	block, err = loadBlock(tmpDir, manifest)
+	block, err = loadBlock(tmpDir, manifest, NoCompression)
 	require.NoError(t, err, "loading the block from a manifest")
 
 	assert.Equal(t, 1, block.Partition, "the partition should be loaded")
@@ -102,7 +102,7 @@ func TestBlockParallelReads(t *testing.T) {
 	tmpDir, err := ioutil.TempDir("", "sequins-test-")
 	require.NoError(t, err, "creating a test tmpdir")
 
-	bw, err := newBlock(tmpDir, 1, "snappy", 8192)
+	bw, err := newBlock(tmpDir, 1, "snappy")
 	require.NoError(t, err, "initializing a block")
 
 	expected := make([][][]byte, 0, 100)

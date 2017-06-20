@@ -7,7 +7,11 @@ import (
 	"net/http"
 	"strconv"
 
+	"context"
+	"io/ioutil"
+
 	"github.com/stripe/sequins/blocks"
+	pb "github.com/stripe/sequins/rpc"
 )
 
 // serveKey is the entrypoint for incoming HTTP requests. It looks up the value
@@ -128,4 +132,75 @@ func shuffle(vs []string) []string {
 	}
 
 	return shuffled
+}
+
+// GRPC methods
+
+func shuffleRPC(vs []pb.SequinsRpcClient) []pb.SequinsRpcClient {
+	shuffled := make([]pb.SequinsRpcClient, len(vs))
+	perm := rand.Perm(len(vs))
+	for i, v := range perm {
+		shuffled[v] = vs[i]
+	}
+
+	return shuffled
+}
+
+func (vs *version) GetKey(ctx context.Context, keyPb *pb.Key) (*pb.Record, error) {
+	if vs.numPartitions == 0 {
+		return nil, errNoAvailablePeers
+	}
+	key := string(keyPb.Key)
+	partition, alternatePartition := blocks.KeyPartition([]byte(key), vs.numPartitions)
+	if vs.partitions.HaveLocal(partition) || vs.partitions.HaveLocal(alternatePartition) {
+		record, err := vs.blockStore.Get(key)
+		if err != nil {
+			return nil, err
+		}
+		value, err := ioutil.ReadAll(record)
+		if err != nil {
+			return nil, err
+		}
+		return &pb.Record{
+			Key:     keyPb.Key,
+			Value:   value,
+			Version: vs.name,
+			Proxied: false,
+		}, nil
+
+	} else if keyPb.ProxiedVersion != "" {
+		vs.serveProxiedRPC(ctx, keyPb, partition, alternatePartition)
+	}
+	return nil, errNoAvailablePeers
+
+}
+
+func (vs *version) serveProxiedRPC(ctx context.Context, keyPb *pb.Key, partition, alternatePartition int) (*pb.Record, error) {
+	// Set key string.
+	key := string(keyPb.Key)
+
+	// Shuffle the peers, so we try them in a random order.
+	// TODO: We don't want to blacklist nodes, but we can weight them lower
+	peers := shuffleRPC(vs.partitions.FindGRPCPeers(partition))
+	if len(peers) == 0 {
+		log.Printf("No peers available for /%s/%s (version %s)", vs.db.name, key, vs.name)
+		return nil, errNoAvailablePeers
+	}
+
+	keyPb.ProxiedVersion = vs.name
+
+	//TODO: Timeout Logic.
+
+	for _, peer := range peers {
+		record, err := peer.GetKey(context.Background(), keyPb)
+		if err == nil {
+			return record, nil
+		}
+		record.Proxied = true
+		// TODO Set proxied To
+	//	record.ProxiedTo =
+
+	}
+	return nil, errNoAvailablePeers
+
 }

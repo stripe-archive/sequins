@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.stripe.storage.sequins";
+option java_outer_classname = "rpc";
+
+package rpc;
+
+service SequinsRpc {
+    rpc GetKey(Key) returns(Record) {}
+    rpc GetRange(Range) returns(stream Record) {}
+}
+
+message Record {
+    string DB = 1;
+    bytes Key = 2;
+    bytes Value = 3;
+    string Version = 4;
+    bool Proxied = 5;
+    string ProxiedTo = 6;
+}
+
+message Key {
+    string DB = 1;
+    bytes Key = 2;
+    string ProxiedVersion = 3;
+}
+
+message Range {
+    string DB = 1;
+    bytes StartKey = 2;
+    bytes EndKey = 3;
+}

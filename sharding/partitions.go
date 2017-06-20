@@ -7,7 +7,11 @@ import (
 	"strings"
 	"sync"
 
+	"log"
+
+	pb "github.com/stripe/sequins/rpc"
 	"github.com/stripe/sequins/zk"
+	"google.golang.org/grpc"
 )
 
 // Partitions represents a list of partitions for a single version and their
@@ -117,6 +121,33 @@ func (p *Partitions) FindPeers(partition int) []string {
 
 	peers := make([]string, len(p.remote[partition]))
 	copy(peers, p.remote[partition])
+	return peers
+}
+
+// Find GRPC peers
+func (p *Partitions) FindGRPCPeers(partition int) []pb.SequinsRpcClient {
+	if p.peers == nil {
+		return nil
+	}
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+
+	peers := make([]pb.SequinsRpcClient, len(p.remote[partition]))
+	for i, peer := range p.remote[partition] {
+		splitPeer := strings.SplitN(peer, ":", 2)
+		port, err := strconv.Atoi(splitPeer[1])
+		if err != nil {
+			log.Fatalf("Failed to find GRPC port: %v", err)
+		}
+		port += 1
+		conn, err := grpc.Dial(fmt.Sprintf("%s:%d", splitPeer[0], port), nil)
+		if err != nil {
+			log.Fatalf("fail to dial: %v", err)
+		}
+		defer conn.Close()
+		client := pb.NewSequinsRpcClient(conn)
+		peers[i] = client
+	}
 	return peers
 }
 

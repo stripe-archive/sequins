@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"sync"
 	"time"
+	"context"
+
+	pb "github.com/stripe/sequins/rpc"
 )
 
 const defaultVersionRemoveTimeout = 10 * time.Minute
@@ -241,4 +244,38 @@ func (mux *versionMux) mustGet(version *version) versionReferenceCount {
 	}
 
 	return vs
+}
+
+//GRPC methods.
+func (mux *versionMux) GetKey(ctx context.Context, keyPb *pb.Key) (*pb.Record, error) {
+	proxyVersion := keyPb.ProxiedVersion
+	var vs *version
+
+	if proxyVersion != ""  {
+		vs = mux.getVersion(proxyVersion)
+
+		// If this is a proxy request, but we don't have the version the peer is
+		// asking for, just return what we have. This should never happen unless
+		// sharding is broken, since peers should only route requests for versions
+		// that we expressly make available.
+		if vs == nil {
+			vs = mux.getCurrent()
+
+			// If we don't have *any* version, we need to indicate that, rather than
+			// returning a 404, which might indicate that we do have the dataset but
+			// that key doesn't exist. We use http 501 for this.
+			if vs == nil {
+				return nil, errNoVersions
+			}
+		}
+	} else {
+		vs = mux.getCurrent()
+		if vs == nil {
+			return nil, errNoVersions
+		}
+	}
+
+	record, err := vs.GetKey(ctx, keyPb)
+	mux.release(vs)
+	return record, err
 }

@@ -22,6 +22,12 @@ import (
 	"github.com/stripe/sequins/multilock"
 	"github.com/stripe/sequins/sharding"
 	"github.com/stripe/sequins/zk"
+	"strconv"
+	"google.golang.org/grpc/grpclog"
+	"google.golang.org/grpc"
+	pb "github.com/stripe/sequins/rpc"
+
+	"golang.org/x/net/context"
 )
 
 var errDirLocked = errors.New("failed to acquire lock")
@@ -187,7 +193,24 @@ func (s *sequins) start() {
 	if s.config.Debug.Bind != "" && s.config.Debug.Expvars {
 		h = trackQueries(s)
 	}
+	// TODO: Shitty logic please remove
+	splitGRPC := strings.SplitN(s.config.Bind, ":", 2)
+	port, err:= strconv.Atoi(splitGRPC[1])
+	if err != nil {
+		log.Fatalf("Failed to start GRPC", port)
+	}
+	port += 1
+	grpcHost := fmt.Sprintf("%s:%d", splitGRPC[0], port)
 
+	log.Printf("Starting up GRPC on %s", grpcHost)
+	lis, err := net.Listen("tcp", grpcHost)
+	if err != nil {
+		grpclog.Fatalf("failed to listen on grpc host: %v", err)
+	}
+
+	grpcServer := grpc.NewServer()
+	pb.RegisterSequinsRpcServer(grpcServer, s)
+	go grpcServer.Serve(lis)
 	log.Println("Listening on", s.config.Bind)
 	graceful.Run(s.config.Bind, time.Second, h)
 }
@@ -331,4 +354,20 @@ func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	db.serveKey(w, r, key)
+}
+
+//GRPC methods:
+func (s *sequins) GetKey(ctx context.Context, keyPb *pb.Key) (*pb.Record, error) {
+	s.dbsLock.RLock()
+	db := s.dbs[string(keyPb.DB)]
+	s.dbsLock.RUnlock()
+	if db == nil {
+			return nil, errNoAvailablePeers
+	}
+	return db.mux.GetKey(ctx, keyPb)
+}
+
+func (s *sequins) GetRange(rng *pb.Range, stream pb.SequinsRpc_GetRangeServer) error {
+	return errNoVersions;
+
 }

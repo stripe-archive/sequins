@@ -10,24 +10,22 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/nightlyone/lockfile"
-	"github.com/tylerb/graceful"
-
 	"github.com/stripe/sequins/backend"
 	"github.com/stripe/sequins/multilock"
+	pb "github.com/stripe/sequins/rpc"
 	"github.com/stripe/sequins/sharding"
 	"github.com/stripe/sequins/zk"
-	"strconv"
-	"google.golang.org/grpc/grpclog"
-	"google.golang.org/grpc"
-	pb "github.com/stripe/sequins/rpc"
-
+	"github.com/tylerb/graceful"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/grpclog"
 )
 
 var errDirLocked = errors.New("failed to acquire lock")
@@ -195,7 +193,7 @@ func (s *sequins) start() {
 	}
 	// TODO: Shitty logic please remove
 	splitGRPC := strings.SplitN(s.config.Bind, ":", 2)
-	port, err:= strconv.Atoi(splitGRPC[1])
+	port, err := strconv.Atoi(splitGRPC[1])
 	if err != nil {
 		log.Fatalf("Failed to start GRPC", port)
 	}
@@ -362,12 +360,39 @@ func (s *sequins) GetKey(ctx context.Context, keyPb *pb.Key) (*pb.Record, error)
 	db := s.dbs[string(keyPb.DB)]
 	s.dbsLock.RUnlock()
 	if db == nil {
-			return nil, errNoAvailablePeers
+		return nil, errNoAvailablePeers
 	}
 	return db.mux.GetKey(ctx, keyPb)
 }
 
 func (s *sequins) GetRange(rng *pb.Range, stream pb.SequinsRpc_GetRangeServer) error {
-	return errNoVersions;
+	s.dbsLock.RLock()
+	db := s.dbs[string(rng.DB)]
+	s.dbsLock.RUnlock()
+	if db == nil {
+		return errNoAvailablePeers
+	}
+	responseChan := make(chan *pb.Record, 100)
+	// Tiemout here?
+	ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
+	defer cancel()
+	go db.mux.GetRange(ctx, rng, responseChan)
+
+	for {
+		select {
+		case record := <-responseChan:
+			err := stream.Send(record)
+			if err != nil {
+				log.Println(err)
+				return err
+			}
+		case <-ctx.Done():
+			log.Println("Timeout")
+			return nil
+
+		}
+	}
+
+	return errNoVersions
 
 }

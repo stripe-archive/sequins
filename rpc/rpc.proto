@@ -30,4 +30,5 @@ message Range {
     string DB = 1;
     bytes StartKey = 2;
     bytes EndKey = 3;
+    string ProxiedVersion = 4;
 }

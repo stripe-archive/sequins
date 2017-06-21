@@ -5,10 +5,12 @@ import (
 	"io"
 
 	"io/ioutil"
+
 	"log"
 
-	"github.com/boltdb/bolt"
-	"github.com/golang/snappy"
+	"github.com/bsm/go-sparkey"
+	pb "github.com/stripe/sequins/rpc"
+	"golang.org/x/net/context"
 )
 
 // A Record is one key/value pair loaded from a block.
@@ -18,6 +20,77 @@ type Record struct {
 	value  []byte
 	reader io.Reader
 	closed bool
+}
+
+// Return on channel?!
+func (b *Block) getRange(ctx context.Context, lowKey, highKey []byte, response chan *pb.Record) error {
+	// TODO Return channel?
+	log.Println("b getRange")
+
+	iter, err := b.iterPool.getIter()
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	if bytes.Compare(lowKey, b.minKey) > 0 {
+		log.Println("key is lower than this file, seek to start.")
+		if err := iter.Seek(lowKey); err != nil {
+			log.Println(err)
+			return err
+		}
+	}
+	if err := iter.Seek(lowKey); err != nil {
+		log.Println(err)
+
+		return err
+	}
+	key, err := iter.Key()
+	if err != nil {
+		log.Println(err)
+
+		return err
+	}
+	value, err := ioutil.ReadAll(iter.ValueReader())
+	response <- &pb.Record{
+		Value:   value,
+		Key:     key,
+		Version: b.Name,
+	}
+
+	for iter.Next() != nil {
+		key, err := iter.Key()
+		if err != nil {
+			log.Println(err)
+
+			return err
+		}
+		value, err := ioutil.ReadAll(iter.ValueReader())
+		response <- &pb.Record{
+			Value:   value,
+			Key:     key,
+			Version: b.Name,
+		}
+
+		if bytes.Compare(key, highKey) > 0 {
+			// Ship to return channel then break
+			break
+		}
+		if err := iter.Seek(lowKey); err != nil {
+			log.Println(err)
+
+			return err
+		}
+		if iter.State() != sparkey.ITERATOR_ACTIVE {
+			b.iterPool.Put(iter)
+			return nil
+		}
+	}
+	if iter.State() != sparkey.ITERATOR_ACTIVE {
+		b.iterPool.Put(iter)
+		return nil
+	}
+	log.Println("b GetRange exit")
+	return nil
 }
 
 func (b *Block) get(key []byte) (*Record, error) {

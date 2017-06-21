@@ -1,11 +1,14 @@
 package blocks
 
 import (
+	"context"
 	"errors"
 	"log"
 	"os"
 	"path/filepath"
 	"sync"
+
+	pb "github.com/stripe/sequins/rpc"
 )
 
 var ErrNoManifest = errors.New("no manifest file found")
@@ -190,6 +193,47 @@ func (store *BlockStore) get(key []byte, partition int) (*Record, error) {
 	}
 
 	return nil, nil
+}
+
+func (store *BlockStore) GetRange(ctx context.Context, lowKey, highKey string, responseChan chan *pb.Record) error {
+	store.blockMapLock.RLock()
+	defer store.blockMapLock.RUnlock()
+	log.Println("bs GetRange")
+	 lowPartition, _ := KeyPartition([]byte(lowKey), store.numPartitions)
+	/*if store.BlockMap[lowPartition] == nil && store.BlockMap[alternateLowPartition] == nil {
+		return nil
+	}*/
+	highPartition, _ := KeyPartition([]byte(highKey), store.numPartitions)
+	/*if store.BlockMap[highPartition] == nil && store.BlockMap[alternateHighPartition] == nil {
+		return nil
+	} */
+	lowKeyBytes := []byte(lowKey)
+	highKeyBytes := []byte(highKey)
+	// noidea if this will work?
+	if highPartition < lowPartition {
+		l := lowPartition
+		lowPartition = highPartition
+		highPartition = l
+	}
+	for i := lowPartition; i <= highPartition; i++ {
+		err := store.getRange(ctx, lowKeyBytes, highKeyBytes, i, responseChan)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func (store *BlockStore) getRange(ctx context.Context, lowKey, highKey []byte, partition int, responseChan chan *pb.Record) error {
+	for _, block := range store.BlockMap[partition] {
+		log.Println("bs getRange calling block getRange", block.Partition)
+
+		err := block.GetRange(ctx, lowKey, highKey, responseChan)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Close closes the BlockStore, and any files it has open.

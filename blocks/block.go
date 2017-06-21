@@ -6,7 +6,10 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/boltdb/bolt"
+	"github.com/bsm/go-sparkey"
+	pb "github.com/stripe/sequins/rpc"
+	"golang.org/x/net/context"
+	"log"
 )
 
 // A block represents a chunk of data, all of the keys of which match a
@@ -61,6 +64,21 @@ func (b *Block) Get(key []byte) (*Record, error) {
 	}
 
 	return b.get(key)
+}
+
+func (b *Block) GetRange(ctx context.Context, lowKey, highKey []byte, responseChan chan *pb.Record) error {
+	b.lock.RLock()
+	defer b.lock.RUnlock()
+	// Check to see if this block even has key.
+	if b.minKey != nil && bytes.Compare(lowKey, b.minKey) < 0 {
+		log.Println("min Doesn't have key.")
+		return nil
+	} else if b.maxKey != nil && bytes.Compare(lowKey, b.maxKey) > 0 {
+		log.Println("max Doesn't have key.", string(b.maxKey))
+
+		return nil
+	}
+	return b.getRange(ctx, lowKey, highKey, responseChan)
 }
 
 func (b *Block) Close() {

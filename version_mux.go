@@ -1,13 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"sync"
 	"time"
-	"context"
 
 	pb "github.com/stripe/sequins/rpc"
+	"log"
 )
 
 const defaultVersionRemoveTimeout = 10 * time.Minute
@@ -251,7 +252,7 @@ func (mux *versionMux) GetKey(ctx context.Context, keyPb *pb.Key) (*pb.Record, e
 	proxyVersion := keyPb.ProxiedVersion
 	var vs *version
 
-	if proxyVersion != ""  {
+	if proxyVersion != "" {
 		vs = mux.getVersion(proxyVersion)
 
 		// If this is a proxy request, but we don't have the version the peer is
@@ -278,4 +279,28 @@ func (mux *versionMux) GetKey(ctx context.Context, keyPb *pb.Key) (*pb.Record, e
 	record, err := vs.GetKey(ctx, keyPb)
 	mux.release(vs)
 	return record, err
+}
+
+func (mux *versionMux) GetRange(ctx context.Context, rng *pb.Range, responseChan chan *pb.Record) error {
+	log.Println("Mux GetRange: ", rng)
+	proxyVersion := rng.ProxiedVersion
+
+	var vs *version
+	if proxyVersion != "" {
+		vs = mux.getVersion(proxyVersion)
+		if vs == nil {
+			vs = mux.getCurrent()
+			if vs == nil {
+				return errNoVersions
+			}
+
+		}
+	} else {
+
+		vs = mux.getCurrent()
+		if vs == nil {
+			return errNoVersions
+		}
+	}
+	return vs.GetRange(ctx, rng, responseChan)
 }

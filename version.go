@@ -15,6 +15,7 @@ const versionHeader = "X-Sequins-Version"
 var (
 	errNoAvailablePeers   = errors.New("no available peers")
 	errProxiedIncorrectly = errors.New("this server doesn't have the requested partition")
+	errNotImplemented     = errors.New("Not Implemented.")
 )
 
 // A version represents a single version of a particular sequins db: in

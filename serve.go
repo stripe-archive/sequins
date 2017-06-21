@@ -12,6 +12,7 @@ import (
 
 	"github.com/stripe/sequins/blocks"
 	pb "github.com/stripe/sequins/rpc"
+	"sync"
 )
 
 // serveKey is the entrypoint for incoming HTTP requests. It looks up the value
@@ -175,6 +176,52 @@ func (vs *version) GetKey(ctx context.Context, keyPb *pb.Key) (*pb.Record, error
 
 }
 
+func (vs *version) GetRange(ctx context.Context, rng *pb.Range, responseChan chan *pb.Record) error {
+	if vs.numPartitions == 0 {
+		return errNoAvailablePeers
+	}
+
+	startKey := string(rng.StartKey)
+	endKey := string(rng.EndKey)
+
+	startPartition, alternateStartPartition := blocks.KeyPartition(rng.StartKey, vs.numPartitions)
+	endPartition, alternateEndPartition := blocks.KeyPartition(rng.EndKey, vs.numPartitions)
+	// Check if we have to fan out.
+	log.Println("vs GetRange", rng)
+	log.Println("vs GetRange Start", startPartition, alternateStartPartition)
+	log.Println("vs GetRange End", endPartition, alternateEndPartition)
+
+	if startPartition == endPartition || startPartition == alternateEndPartition || alternateStartPartition == endPartition || alternateStartPartition == alternateEndPartition {
+		log.Println("No fanout")
+		if vs.partitions.HaveLocal(startPartition) || vs.partitions.HaveLocal(alternateStartPartition) {
+
+			return vs.blockStore.GetRange(ctx, startKey, endKey, responseChan)
+		}
+
+	} else {
+		log.Println("fanout")
+		s := startPartition
+		e := endPartition
+		if  endPartition < startPartition {
+			s = endPartition
+			e = startPartition
+		}
+		log.Println(s,e)
+		wg := sync.WaitGroup{}
+		for i := s; i <= e; i++ {
+			if vs.partitions.HaveLocal(i) {
+				wg.Add(1)
+				go vs.blockStore.GetRange(ctx, startKey, endKey, responseChan)
+			} // else proxy
+		}
+		wg.Wait()
+		return errNoAvailablePeers
+		// fan out.
+	}
+
+	return nil
+}
+
 func (vs *version) serveProxiedRPC(ctx context.Context, keyPb *pb.Key, partition, alternatePartition int) (*pb.Record, error) {
 	// Set key string.
 	key := string(keyPb.Key)
@@ -198,7 +245,7 @@ func (vs *version) serveProxiedRPC(ctx context.Context, keyPb *pb.Key, partition
 		}
 		record.Proxied = true
 		// TODO Set proxied To
-	//	record.ProxiedTo =
+		//	record.ProxiedTo =
 
 	}
 	return nil, errNoAvailablePeers

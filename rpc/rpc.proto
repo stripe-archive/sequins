@@ -9,6 +9,7 @@ package rpc;
 service SequinsRpc {
     rpc GetKey(Key) returns(Record) {}
     rpc GetRange(Range) returns(stream Record) {}
+    rpc GetRangeWithLimit(RangeWithLimit) returns (stream Record) {}
 }
 
 message Record {
@@ -24,6 +25,14 @@ message Key {
     string DB = 1;
     bytes Key = 2;
     string ProxiedVersion = 3;
+}
+
+message RangeWithLimit {
+    string DB = 1;
+    bytes StartKey = 2;
+    int64 Records = 3;
+    string ProxiedVersion = 4;
+    int64 TimeOutInSec = 5;
 }
 
 message Range {

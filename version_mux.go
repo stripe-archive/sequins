@@ -281,17 +281,14 @@ func (mux *versionMux) GetKey(ctx context.Context, keyPb *pb.Key) (*pb.Record, e
 	return record, err
 }
 
-func (mux *versionMux) GetRange(ctx context.Context, rng *pb.Range, responseChan chan *pb.Record) error {
-	log.Println("Mux GetRange: ", rng)
-	proxyVersion := rng.ProxiedVersion
-
+func (mux *versionMux) getRPCVersion(proxyVersion string) (*version, error) {
 	var vs *version
 	if proxyVersion != "" {
 		vs = mux.getVersion(proxyVersion)
 		if vs == nil {
 			vs = mux.getCurrent()
 			if vs == nil {
-				return errNoVersions
+				return nil, errNoVersions
 			}
 
 		}
@@ -299,8 +296,29 @@ func (mux *versionMux) GetRange(ctx context.Context, rng *pb.Range, responseChan
 
 		vs = mux.getCurrent()
 		if vs == nil {
-			return errNoVersions
+			return nil, errNoVersions
 		}
 	}
+
+	return vs, nil
+}
+
+func (mux *versionMux) GetRange(ctx context.Context, rng *pb.Range, responseChan chan *pb.Record) error {
+	log.Println("Mux GetRange: ", rng)
+	proxiedVersion := rng.ProxiedVersion
+
+	vs, err := mux.getRPCVersion(proxiedVersion)
+	if err != nil {
+		return err
+	}
 	return vs.GetRange(ctx, rng, responseChan)
+}
+
+func (mux *versionMux) GetRangeWithLimit(ctx context.Context, rng *pb.RangeWithLimit, responseChan chan *pb.Record) error {
+	proxiedVersion := rng.ProxiedVersion
+	vs, err := mux.getRPCVersion(proxiedVersion)
+	if err != nil {
+		return err
+	}
+	return vs.GetRangeWithLimit(ctx, rng, responseChan)
 }

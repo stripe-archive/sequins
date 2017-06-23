@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	"context"
-	"io/ioutil"
 
 	"github.com/stripe/sequins/blocks"
 	pb "github.com/stripe/sequins/rpc"
@@ -158,13 +157,10 @@ func (vs *version) GetKey(ctx context.Context, keyPb *pb.Key) (*pb.Record, error
 		if err != nil {
 			return nil, err
 		}
-		value, err := ioutil.ReadAll(record)
-		if err != nil {
-			return nil, err
-		}
+
 		return &pb.Record{
 			Key:     keyPb.Key,
-			Value:   value,
+			Value:   record.Value,
 			Version: vs.name,
 			Proxied: false,
 		}, nil
@@ -200,25 +196,35 @@ func (vs *version) GetRange(ctx context.Context, rng *pb.Range, responseChan cha
 
 	} else {
 		log.Println("fanout")
-		s := startPartition
-		e := endPartition
-		if  endPartition < startPartition {
-			s = endPartition
-			e = startPartition
-		}
-		log.Println(s,e)
-		wg := sync.WaitGroup{}
-		for i := s; i <= e; i++ {
-			if vs.partitions.HaveLocal(i) {
-				wg.Add(1)
-				go vs.blockStore.GetRange(ctx, startKey, endKey, responseChan)
-			} // else proxy
-		}
-		wg.Wait()
+		//TODO add proxy logic.
+		vs.blockStore.GetRange(ctx, startKey, endKey, responseChan)
+
 		return errNoAvailablePeers
 		// fan out.
 	}
 
+	return nil
+}
+
+func (vs *version) GetRangeWithLimit(ctx context.Context, rng *pb.RangeWithLimit, responseChan chan *pb.Record) error {
+	if vs.numPartitions == 0 {
+		return  errNoAvailablePeers
+	}
+	// TODO: No full scans.
+	wg := sync.WaitGroup{}
+	for i := 0; i < vs.numPartitions; i++ {
+		if vs.partitions.HaveLocal(i) {
+			wg.Add(1)
+			go vs.blockStore.GetRangeWithLimit(ctx, rng,i, responseChan)
+
+		} else {
+			//TODO PROXY LOGIC.......
+
+			return errNotImplemented;
+		}
+	}
+	// TODO: Acutally not block
+	wg.Wait()
 	return nil
 }
 

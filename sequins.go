@@ -26,6 +26,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
+	"container/heap"
 )
 
 var errDirLocked = errors.New("failed to acquire lock")
@@ -395,4 +396,98 @@ func (s *sequins) GetRange(rng *pb.Range, stream pb.SequinsRpc_GetRangeServer) e
 
 	return errNoVersions
 
+}
+
+func (s *sequins) GetRangeWithLimit(rng *pb.RangeWithLimit, stream pb.SequinsRpc_GetRangeWithLimitServer) error {
+	s.dbsLock.RLock()
+	db := s.dbs[string(rng.DB)]
+	s.dbsLock.RUnlock()
+	if db == nil {
+		return errNoVersions
+	}
+	limit := rng.Records
+
+	if limit == 0 {
+		limit = 10
+	}
+	pq := make(pb.PriorityQueue, 0)
+	heap.Init(&pq)
+	timeout := 5
+	if rng.TimeOutInSec > 0 && rng.TimeOutInSec < 120 {
+		timeout = int(rng.TimeOutInSec)
+	}
+
+	responseChan := make(chan *pb.Record, 100)
+
+	ctx, cancel := context.WithTimeout(context.Background(), (time.Duration(timeout) * time.Second))
+	defer cancel()
+
+	go db.mux.GetRangeWithLimit(ctx, rng, responseChan)
+	recordCount := int64(0)
+	sendCount := int64(0)
+	for {
+		select {
+		case record := <-responseChan:
+			heap.Push(&pq, &pb.Item{
+				Key:   record.Key,
+				Value: record,
+			})
+			recordCount++
+			if recordCount >= limit*int64(db.mux.getCurrent().numPartitions) {
+				log.Println("Hit limit dumping results.")
+
+				for pq.Len() > 0 && sendCount < limit {
+					sendItem := heap.Pop(&pq).(*pb.Item)
+					err := stream.Send(sendItem.Value)
+					if err != nil {
+						log.Println(err)
+						return err
+					}
+					sendCount++;
+				}
+				return nil
+			}
+		case <-ctx.Done():
+			log.Println("Hit ctx.Done dumping results.")
+
+			for pq.Len() > 0 && sendCount < limit {
+				sendItem := heap.Pop(&pq).(*pb.Item)
+				err := stream.Send(sendItem.Value)
+				if err != nil {
+					log.Println(err)
+					return err
+				}
+				sendCount++;
+			}
+			return nil
+
+		case <-time.After(500 * time.Millisecond):
+			log.Println("Hit Timeout dumping results.")
+
+			for pq.Len() > 0 && sendCount < limit {
+				sendItem := heap.Pop(&pq).(*pb.Item)
+				err := stream.Send(sendItem.Value)
+				if err != nil {
+					log.Println(err)
+					return err
+				}
+				sendCount++;
+			}
+			return nil
+		}
+	}
+	log.Println("Left Switch  dumping results.")
+
+	for pq.Len() > 0  && sendCount < limit{
+		sendItem := heap.Pop(&pq).(*pb.Item)
+		err := stream.Send(sendItem.Value)
+		if err != nil {
+			log.Println(err)
+			return err
+		}
+		sendCount++;
+	}
+
+
+	return nil
 }

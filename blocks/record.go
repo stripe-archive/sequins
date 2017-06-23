@@ -4,22 +4,20 @@ import (
 	"bytes"
 	"io"
 
-	"io/ioutil"
-
 	"log"
 
-	"github.com/bsm/go-sparkey"
+	"github.com/boltdb/bolt"
 	pb "github.com/stripe/sequins/rpc"
 	"golang.org/x/net/context"
 )
 
 // A Record is one key/value pair loaded from a block.
 type Record struct {
-	ValueLen uint64
+	ValueLen    uint64
 	compression Compression
-	value  []byte
-	reader io.Reader
-	closed bool
+	Value       []byte
+	reader      io.Reader
+	closed      bool
 }
 
 // Return on channel?!
@@ -27,69 +25,40 @@ func (b *Block) getRange(ctx context.Context, lowKey, highKey []byte, response c
 	// TODO Return channel?
 	log.Println("b getRange")
 
-	iter, err := b.iterPool.getIter()
-	if err != nil {
-		log.Println(err)
-		return err
-	}
-	if bytes.Compare(lowKey, b.minKey) > 0 {
-		log.Println("key is lower than this file, seek to start.")
-		if err := iter.Seek(lowKey); err != nil {
-			log.Println(err)
-			return err
-		}
-	}
-	if err := iter.Seek(lowKey); err != nil {
-		log.Println(err)
+	b.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(b.Name)).Cursor()
 
-		return err
-	}
-	key, err := iter.Key()
-	if err != nil {
-		log.Println(err)
-
-		return err
-	}
-	value, err := ioutil.ReadAll(iter.ValueReader())
-	response <- &pb.Record{
-		Value:   value,
-		Key:     key,
-		Version: b.Name,
-	}
-
-	for iter.Next() != nil {
-		key, err := iter.Key()
-		if err != nil {
-			log.Println(err)
-
-			return err
+		for k, v := bucket.Seek(lowKey); k != nil && bytes.Compare(k, highKey) <= 0; k, v = bucket.Next() {
+			log.Println(b.ID, string(k), string(v))
+			response <- &pb.Record{
+				Key:   k,
+				Value: v,
+				DB: b.Name,
+			}
 		}
-		value, err := ioutil.ReadAll(iter.ValueReader())
-		response <- &pb.Record{
-			Value:   value,
-			Key:     key,
-			Version: b.Name,
-		}
-
-		if bytes.Compare(key, highKey) > 0 {
-			// Ship to return channel then break
-			break
-		}
-		if err := iter.Seek(lowKey); err != nil {
-			log.Println(err)
-
-			return err
-		}
-		if iter.State() != sparkey.ITERATOR_ACTIVE {
-			b.iterPool.Put(iter)
-			return nil
-		}
-	}
-	if iter.State() != sparkey.ITERATOR_ACTIVE {
-		b.iterPool.Put(iter)
 		return nil
+	})
+
+	return nil
+}
+
+func (b *Block) getRangeWithLimit(ctx context.Context, rng *pb.RangeWithLimit, responseChan chan *pb.Record) error {
+	startKey := b.minKey
+	if bytes.Compare(startKey, rng.StartKey) < 0 {
+		startKey = rng.StartKey
 	}
-	log.Println("b GetRange exit")
+	b.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(b.Name)).Cursor()
+
+		for k, v := bucket.Seek(startKey); k != nil && bytes.Compare(k, b.maxKey) <= 0; k, v = bucket.Next() {
+			responseChan <- &pb.Record{
+				Key:   k,
+				Value: v,
+				DB: b.Name,
+			}
+		}
+		return nil
+	})
 	return nil
 }
 
@@ -99,7 +68,7 @@ func (b *Block) get(key []byte) (*Record, error) {
 	b.db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(b.Name))
 		value := bucket.Get(key)
-		if b.Compression == SnappyCompression {
+		/*if b.Compression == SnappyCompression {
 			var err error
 			var decodeBuff *bytes.Buffer
 			readerBuff := bytes.NewBuffer(value)
@@ -111,22 +80,22 @@ func (b *Block) get(key []byte) (*Record, error) {
 				return err
 			}
 			r.reader = snappy.NewReader(readerBuff)
-			r.value = decompressed_value
+			r.Value = decompressed_value
 			r.ValueLen = uint64(len(decompressed_value))
 
 			r.compression = b.Compression
 
-		} else {
-			r.reader = bytes.NewReader(value)
-			r.compression = NoCompression
-			r.value = value
-			r.ValueLen = uint64(len(value))
+		} else {*/
+		r.reader = bytes.NewReader(value)
+		r.compression = NoCompression
+		r.Value = value
+		r.ValueLen = uint64(len(value))
 
-		}
+		//}
 		return nil
 	})
 
-	if r.value == nil {
+	if r.Value == nil {
 		return nil, nil
 	}
 	return r, nil
@@ -137,8 +106,8 @@ func (r *Record) Read(b []byte) (int, error) {
 }
 
 func (r *Record) WriteTo(w io.Writer) (n int64, err error) {
-	if r.compression == SnappyCompression {
-		data , err:= ioutil.ReadAll(r.reader)
+	/*if r.compression == SnappyCompression {
+		data, err := ioutil.ReadAll(r.reader)
 		if err != nil {
 			return int64(0), err
 		}
@@ -148,9 +117,9 @@ func (r *Record) WriteTo(w io.Writer) (n int64, err error) {
 		}
 		return int64(n), nil
 
-	} else {
-		return r.reader.(io.WriterTo).WriteTo(w)
-	}
+	} else {*/
+	return r.reader.(io.WriterTo).WriteTo(w)
+	//}
 
 }
 

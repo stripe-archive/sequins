@@ -216,11 +216,19 @@ func (s *sequins) shutdown() {
 	s.storeLock.Unlock()
 }
 
+func (s *sequins) listDBs() ([]string, error) {
+	dbs, err := s.backend.ListDBs()
+	if err != nil {
+		return nil, err
+	}
+	return filterPaths(dbs), nil
+}
+
 func (s *sequins) refreshAll() {
 	s.refreshLock.Lock()
 	defer s.refreshLock.Unlock()
 
-	dbs, err := s.backend.ListDBs()
+	dbs, err := s.listDBs()
 	if err != nil {
 		log.Printf("Error listing DBs from %s: %s", s.backend.DisplayPath(""), err)
 		return

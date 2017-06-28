@@ -64,21 +64,21 @@ func getSequins(t *testing.T, backend backend.Backend, localStore string) *sequi
 	require.NoError(t, s.init())
 
 	// This is a hack to wait until all DBs are ready.
-	dbs, err := backend.ListDBs()
+	dbs, err := s.listDBs()
 	require.NoError(t, err)
 	for _, dbName := range dbs {
 		for {
-			versions, err := backend.ListVersions(dbName, "", false)
-			require.NoError(t, err)
-			if len(versions) == 0 {
-				break
-			}
-
 			s.dbsLock.RLock()
 			db := s.dbs[dbName]
 			s.dbsLock.RUnlock()
 
 			if db != nil {
+				versions, err := db.listVersions("")
+				require.NoError(t, err)
+				if len(versions) == 0 {
+					break
+				}
+
 				current := db.mux.getCurrent()
 				db.mux.release(current)
 				if current != nil {
@@ -224,6 +224,23 @@ func TestNoDBsSequins(t *testing.T) {
 
 	assert.Equal(t, 404, w.Code, "fetching a nonexistent key should 404")
 	assert.Equal(t, "", w.Body.String(), "fetching a nonexistent key should return no body")
+}
+
+func TestInvalidVersionSequins(t *testing.T) {
+	scratch, err := ioutil.TempDir("", "sequins-")
+	require.NoError(t, err, "setup")
+
+	dst := filepath.Join(scratch, "baby-names", "{ invalid_version }")
+	require.NoError(t, directoryCopy(t, dst, "test/baby-names/1"), "setup: copy data")
+
+	backend := backend.NewLocalBackend(scratch)
+	ts := getSequins(t, backend, "")
+
+	req, _ := http.NewRequest("GET", "/baby-names/1881/boy", nil)
+	w := httptest.NewRecorder()
+	ts.ServeHTTP(w, req)
+
+	assert.Equal(t, 404, w.Code, "an invalid version should not be loaded")
 }
 
 // TestSequinsThreadsafe makes sure that reads that occur during an update DTRT

@@ -63,10 +63,12 @@ Instead, databases are versioned. To update a database, you present it with an
 entirely new copy of the dataset, called a **version**, by dropping it into the
 database folder in the source root.
 
-Database and version names are just arbitrary strings, and are compared
-lexicographically - so to update a database, you need to give it a version that
-is lexicographically greater than the current one. At Stripe we use `date
-+%Y%m%d` (eg `20160901`) and timestamps.
+Database and version names must consist of alphanumeric characters,
+hyphens, and underscores (path components are ignored if they include
+other characters). But otherwise, they are just arbitrary strings, and
+are compared lexicographically - so to update a database, you need to
+give it a version that is lexicographically greater than the current
+one. At Stripe we use `date +%Y%m%d` (eg `20160901`) and timestamps.
 
 Sequins will load this in the background and hotswap it in atomically.
 Additionally, Sequins returns an `X-Sequins-Version` header [on

@@ -34,6 +34,14 @@ func newDB(sequins *sequins, name string) *db {
 	return db
 }
 
+func (db *db) listVersions(after string) ([]string, error) {
+	versions, err := db.sequins.backend.ListVersions(db.name, after, db.sequins.config.RequireSuccessFile)
+	if err != nil {
+		return nil, err
+	}
+	return filterPaths(versions), nil
+}
+
 // backfillVersions is called at startup, and tries to grab any versions that
 // are either downloaded locally or available entirely at peers. This allows a
 // node to join a cluster with an existing version all set to go, and start up
@@ -43,7 +51,7 @@ func (db *db) backfillVersions() error {
 	db.refreshLock.Lock()
 	defer db.refreshLock.Unlock()
 
-	versions, err := db.sequins.backend.ListVersions(db.name, "", db.sequins.config.RequireSuccessFile)
+	versions, err := db.listVersions("")
 	if err != nil {
 		return err
 	} else if len(versions) == 0 {
@@ -95,7 +103,7 @@ func (db *db) refresh() error {
 		after = currentVersion.name
 	}
 
-	versions, err := db.sequins.backend.ListVersions(db.name, after, db.sequins.config.RequireSuccessFile)
+	versions, err := db.listVersions(after)
 	if err != nil {
 		return err
 	} else if len(versions) == 0 {

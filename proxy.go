@@ -52,7 +52,22 @@ func (vs *version) proxy(r *http.Request, peers []string) (*http.Response, strin
 	// means it's canceled almost immediately.
 	// defer cancel()
 
+	// Per the documentation for `http.Client.Do`, if that returns successfully,
+	// callers are required to the close the response Body, even if the request
+	// is cancelled mid-flight.
 	outstanding := 0
+	defer func() {
+		go func() {
+			for ; outstanding > 0; outstanding-- {
+				res := <-responses
+				if res.err == nil {
+					res.resp.Body.Close()
+				}
+			}
+			close(responses)
+		}()
+	}()
+
 	cancels := make(map[string]context.CancelFunc, len(peers))
 	for peerIndex := 0; ; peerIndex++ {
 		stageTimeout := time.NewTimer(vs.sequins.config.Sharding.ProxyStageTimeout.Duration)
@@ -76,10 +91,10 @@ func (vs *version) proxy(r *http.Request, peers []string) (*http.Response, strin
 
 		select {
 		case res := <-responses:
+			outstanding -= 1
 			if res.err != nil {
 				log.Printf("Error proxying request to peer: %s", res.err)
 				cancels[res.peer]()
-				outstanding -= 1
 			} else {
 				// Cancel any other outstanding attempts.
 				for peer, cancelAttempt := range cancels {

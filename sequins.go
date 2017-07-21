@@ -303,6 +303,11 @@ func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.URL.Path == "/healthcheck" || r.URL.Path == "/healthz" {
+		s.serveHealth(w, r)
+		return
+	}
+
 	var dbName, key string
 	path := strings.TrimPrefix(r.URL.Path, "/")
 	split := strings.Index(path, "/")

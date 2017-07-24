@@ -153,7 +153,7 @@ func s3Setup(bucketName string, path string, config sequinsConfig) *sequins {
 		Credentials: creds,
 	})
 
-	backend := backend.NewS3Backend(bucketName, path, s3.New(sess))
+	backend := backend.NewS3Backend(bucketName, path, config.S3.MaxRetries, s3.New(sess))
 	return newSequins(backend, config)
 }
 

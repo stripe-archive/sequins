@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -13,13 +13,28 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stripe/sequins/backend"
 )
 
-func setupS3(t *testing.T) *backend.S3Backend {
+type S3ClientMock struct {
+	s3iface.S3API
+	toggle bool
+}
 
+func (c *S3ClientMock) GetObject(*s3.GetObjectInput) (*s3.GetObjectOutput, error) {
+	c.toggle = !c.toggle
+
+	if c.toggle {
+		return nil, errors.New("this is a mocked error")
+	}
+
+	return &s3.GetObjectOutput{}, nil
+}
+
+func setupS3(t *testing.T) *backend.S3Backend {
 	bucket := os.Getenv("SEQUINS_TEST_BUCKET")
 	if bucket == "" {
 		t.Skip("Skipping s3 tests because SEQUINS_TEST_BUCKET isn't set")
@@ -27,7 +42,7 @@ func setupS3(t *testing.T) *backend.S3Backend {
 
 	sess := session.New(nil)
 	svc := s3.New(sess)
-	testBackend := backend.NewS3Backend(bucket, "test", svc)
+	testBackend := backend.NewS3Backend(bucket, "test", 3, svc)
 
 	infos, _ := ioutil.ReadDir("test/baby-names/1")
 	sourceDest := path.Join("test", "baby-names")
@@ -38,8 +53,10 @@ func setupS3(t *testing.T) *backend.S3Backend {
 		require.NoError(t, err, "setup: putting %s", path.Join(sourceDest, "1", info.Name()))
 	}
 
-	putS3Blob(svc, bucket, "test/baby-names/0/_SUCCESS", nil)
-	putS3Blob(svc, bucket, "test/baby-names/foo", bytes.NewReader([]byte("rando file")))
+	err := putS3Blob(svc, bucket, "test/baby-names/0/_SUCCESS", nil)
+	require.NoError(t, err, "setup: putting _SUCCESS file")
+	err = putS3Blob(svc, bucket, "test/baby-names/foo", nil)
+	require.NoError(t, err, "setup: putting random file")
 
 	return testBackend
 }
@@ -69,6 +86,16 @@ func TestS3Backend(t *testing.T) {
 	files, err := s.ListFiles("baby-names", "0")
 	require.NoError(t, err, "it should be able to list files")
 	assert.Equal(t, 20, len(files), "the list of files should be correct")
+}
+
+func TestS3Retries(t *testing.T) {
+	retryBackend := backend.NewS3Backend("", "test", 1, &S3ClientMock{})
+	_, err := retryBackend.Open("", "", "")
+	require.NoError(t, err, "backend should retry and succeed the second time")
+
+	noRetryBackend := backend.NewS3Backend("", "test", 0, &S3ClientMock{})
+	_, err = noRetryBackend.Open("", "", "")
+	require.Error(t, err, "backend should return an error on the first attempt")
 }
 
 func putS3(svc *s3.S3, bucket, dst, src string) error {

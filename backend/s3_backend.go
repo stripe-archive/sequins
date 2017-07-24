@@ -6,22 +6,26 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 )
 
 type S3Backend struct {
-	bucket string
-	path   string
-	svc    *s3.S3
+	bucket     string
+	path       string
+	maxRetries int
+	svc        s3iface.S3API
 }
 
-func NewS3Backend(bucket string, s3path string, svc *s3.S3) *S3Backend {
+func NewS3Backend(bucket string, s3path string, maxRetries int, svc s3iface.S3API) *S3Backend {
 	return &S3Backend{
-		bucket: bucket,
-		path:   strings.TrimPrefix(path.Clean(s3path), "/"),
-		svc:    svc,
+		bucket:     bucket,
+		path:       strings.TrimPrefix(path.Clean(s3path), "/"),
+		maxRetries: maxRetries,
+		svc:        svc,
 	}
 }
 
@@ -160,6 +164,15 @@ func (s *S3Backend) Open(db, version, file string) (io.ReadCloser, error) {
 		Key:    aws.String(src),
 	}
 	resp, err := s.svc.GetObject(params)
+
+	// If the download failed, retry maxRetries number of times with an
+	// exponential backoff.
+	backoff := time.Duration(1)
+	for i := 0; i < s.maxRetries && err != nil; i++ {
+		time.Sleep(backoff * time.Second)
+		resp, err = s.svc.GetObject(params)
+		backoff *= 2
+	}
 
 	if err != nil {
 		return nil, fmt.Errorf("error opening S3 path %s: %s", s.path, err)

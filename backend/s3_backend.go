@@ -183,11 +183,13 @@ func (s *S3Backend) exists(key string) bool {
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(key),
 	}
-	body, err := s.svc.GetObject(params)
+
+	resp, err := s.svc.GetObject(params)
 	if err != nil {
 		return false
 	}
-	defer body.Body.Close()
+
+	defer resp.Body.Close()
 
 	return true
 }

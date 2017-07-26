@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/bsm/go-sparkey"
+	"github.com/boltdb/bolt"
 	"github.com/pborman/uuid"
 )
 
@@ -17,9 +17,9 @@ type blockWriter struct {
 	count     int
 	partition int
 
-	path          string
-	id            string
-	sparkeyWriter *sparkey.LogWriter
+	path string
+	id   string
+	db   *bolt.DB
 }
 
 func newBlock(storePath string, partition int, compression Compression, blockSize int) (*blockWriter, error) {
@@ -29,21 +29,25 @@ func newBlock(storePath string, partition int, compression Compression, blockSiz
 	path := filepath.Join(storePath, name)
 	log.Println("Initializing block at", path)
 
-	c := sparkey.COMPRESSION_NONE
-	if compression == SnappyCompression {
-		c = sparkey.COMPRESSION_SNAPPY
-	}
-	options := &sparkey.Options{Compression: c, CompressionBlockSize: blockSize}
-	sparkeyWriter, err := sparkey.CreateLogWriter(path, options)
+	// TODO: Compression
+	/*
+		c := sparkey.COMPRESSION_NONE
+		if compression == SnappyCompression {
+			c = sparkey.COMPRESSION_SNAPPY
+		}
+		options := &sparkey.Options{Compression: c, CompressionBlockSize: blockSize}
+		sparkeyWriter, err := sparkey.CreateLogWriter(path, options)
+	*/
+	db, err := bolt.Open(path, 0600, nil)
 	if err != nil {
 		return nil, fmt.Errorf("initializing block %s: %s", path, err)
 	}
 
 	bw := &blockWriter{
-		partition:     partition,
-		path:          path,
-		id:            id,
-		sparkeyWriter: sparkeyWriter,
+		partition: partition,
+		path:      path,
+		id:        id,
+		db:        db,
 	}
 
 	return bw, nil
@@ -64,21 +68,21 @@ func (bw *blockWriter) add(key, value []byte) error {
 		copy(bw.minKey, key)
 	}
 
-	return bw.sparkeyWriter.Put(key, value)
+	return bw.db.Update(func(tx *bolt.Tx) error {
+		bucket, err := tx.CreateBucketIfNotExists([]byte(filepath.Base(bw.path)))
+		if err != nil {
+			return err
+		}
+		err = bucket.Put(key, value)
+		return err
+
+	})
 }
 
 func (bw *blockWriter) save() (*Block, error) {
-	err := bw.sparkeyWriter.WriteHashFile(0)
-	if err != nil {
-		return nil, err
-	}
+	err := bw.db.Close()
 
-	err = bw.sparkeyWriter.Close()
-	if err != nil {
-		return nil, err
-	}
-
-	reader, err := sparkey.Open(bw.path)
+	db, err := bolt.Open(bw.path, 0600, nil)
 	if err != nil {
 		return nil, fmt.Errorf("opening block: %s", err)
 	}
@@ -89,17 +93,16 @@ func (bw *blockWriter) save() (*Block, error) {
 		Partition: bw.partition,
 		Count:     bw.count,
 
-		minKey:        bw.minKey,
-		maxKey:        bw.maxKey,
-		sparkeyReader: reader,
-		iterPool:      newIterPool(reader),
+		minKey: bw.minKey,
+		maxKey: bw.maxKey,
+		db:     db,
 	}
 
 	return b, nil
 }
 
 func (bw *blockWriter) close() {
-	bw.sparkeyWriter.Close()
+	bw.db.Close()
 }
 
 func (bw *blockWriter) delete() {

@@ -256,11 +256,11 @@ func TestMultiHintActions(t *testing.T) {
 
 	a := c.Flag("foo", "foo").
 		HintAction(func() []string {
-		return []string{"opt1"}
-	}).
+			return []string{"opt1"}
+		}).
 		HintAction(func() []string {
-		return []string{"opt2"}
-	})
+			return []string{"opt2"}
+		})
 	args := a.resolveCompletions()
 	assert.Equal(t, []string{"opt1", "opt2"}, args)
 }
@@ -281,14 +281,14 @@ func TestCombinationEnumActions(t *testing.T) {
 
 	a := c.Flag("foo", "foo").
 		HintAction(func() []string {
-		return []string{"opt1", "opt2"}
-	})
+			return []string{"opt1", "opt2"}
+		})
 	a.Enum("opt3", "opt4")
 
 	b := c.Flag("bar", "bar").
 		HintAction(func() []string {
-		return []string{"opt5", "opt6"}
-	})
+			return []string{"opt5", "opt6"}
+		})
 	b.EnumVar(&foo, "opt3", "opt4")
 
 	// Provided HintActions should override automatically generated Enum options.

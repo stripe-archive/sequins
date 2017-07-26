@@ -21,6 +21,25 @@ with `Accept: application/json`:
             "flights": {
               ...
 
+A simplified healthcheck interface is available at the `/healthz` and
+`/healthcheck` endpoints which will return a JSON representation of the state
+of each node. The status code will either be `200` if they all have the status
+`AVAILABLE` or `404` if at least one node does not:
+
+    $ http localhost:9599/healthz
+    HTTP/1.1 200 OK
+    Content-Length: 46
+    Content-Type: application/json
+    Date: Wed, 26 Jul 2017 21:49:52 GMT
+ 
+    {
+        "baby-names": {
+            "1": {
+                "localhost": "AVAILABLE"
+            }
+        }
+    }
+
 ### Expvars
 
 You can bind the sequins ["debug" HTTP

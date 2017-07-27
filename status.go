@@ -77,7 +77,7 @@ func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
 
 	s.dbsLock.RUnlock()
 
-	ok := true
+	allNodesAvailable := true
 	statuses := make(map[string]map[string]map[string]versionState)
 
 	// Iterate through all of the nodes of the local databases and ensure
@@ -86,19 +86,19 @@ func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
 	for dbKey, dbValue := range status.DBs {
 		for versionKey, versionValue := range dbValue.Versions {
 			for nodeKey, nodeValue := range versionValue.Nodes {
-				_, exists := statuses[dbKey]
-				if !exists {
+				_, ok := statuses[dbKey]
+				if !ok {
 					statuses[dbKey] = make(map[string]map[string]versionState)
 				}
 
-				_, exists = statuses[dbKey][versionKey]
-				if !exists {
+				_, ok = statuses[dbKey][versionKey]
+				if !ok {
 					statuses[dbKey][versionKey] = make(map[string]versionState)
 				}
 
 				statuses[dbKey][versionKey][nodeKey] = nodeValue.State
 				if nodeValue.State != versionAvailable {
-					ok = false
+					allNodesAvailable = false
 				}
 			}
 		}
@@ -112,7 +112,7 @@ func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if ok {
+	if allNodesAvailable {
 		w.WriteHeader(http.StatusOK)
 	} else {
 		w.WriteHeader(http.StatusNotFound)

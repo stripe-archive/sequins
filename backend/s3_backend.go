@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 )
@@ -165,13 +166,19 @@ func (s *S3Backend) Open(db, version, file string) (io.ReadCloser, error) {
 	}
 	resp, err := s.svc.GetObject(params)
 
-	// If the download failed, retry maxRetries number of times with an
-	// exponential backoff.
+	// If the download failed, due to the key not being found, retry
+	// maxRetries number of times with an exponential backoff as it may
+	// have been due to latency.
 	backoff := time.Duration(1)
 	for i := 0; i < s.maxRetries && err != nil; i++ {
-		time.Sleep(backoff * time.Second)
-		resp, err = s.svc.GetObject(params)
-		backoff *= 2
+		aerr, ok := err.(awserr.Error)
+		if ok && aerr.Code() == s3.ErrCodeNoSuchKey {
+			time.Sleep(backoff * time.Second)
+			resp, err = s.svc.GetObject(params)
+			backoff *= 2
+		} else {
+			break
+		}
 	}
 
 	if err != nil {

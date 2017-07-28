@@ -96,7 +96,7 @@ func defaultConfig() sequinsConfig {
 		S3: s3Config{
 			Region:          "",
 			AccessKeyId:     "",
-			MaxRetries:      2,
+			MaxRetries:      3,
 			SecretAccessKey: "",
 		},
 		Sharding: shardingConfig{

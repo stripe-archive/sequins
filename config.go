@@ -44,7 +44,6 @@ type storageConfig struct {
 type s3Config struct {
 	Region          string `toml:"region"`
 	AccessKeyId     string `toml:"access_key_id"`
-	MaxRetries      int    `toml:"max_retries"`
 	SecretAccessKey string `toml:"secret_access_key"`
 }
 
@@ -96,7 +95,6 @@ func defaultConfig() sequinsConfig {
 		S3: s3Config{
 			Region:          "",
 			AccessKeyId:     "",
-			MaxRetries:      3,
 			SecretAccessKey: "",
 		},
 		Sharding: shardingConfig{

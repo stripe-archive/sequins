@@ -30,7 +30,7 @@ func setupS3(t *testing.T) *backend.S3Backend {
 	testBackend := backend.NewS3Backend(bucket, "test", svc)
 
 	// Remove old files from previous tests
-	err := delS3Prefix(svc, bucket, "test/baby-names")
+	err := delS3Prefix(svc, bucket, "test/")
 	require.NoError(t, err, "should be able to delete old test files on s3")
 
 	infos, _ := ioutil.ReadDir("test/baby-names/1")

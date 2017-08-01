@@ -25,8 +25,9 @@ import (
 	"github.com/stripe/sequins/zk"
 
 	pb "github.com/stripe/sequins/rpc"
+	"golang.org/x/net/context"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/grpclog"
+	health "google.golang.org/grpc/health/grpc_health_v1"
 )
 
 var errDirLocked = errors.New("failed to acquire lock")
@@ -206,6 +207,18 @@ func (s *sequins) start() {
 		h = trackQueries(s)
 	}
 
+	if s.config.GRPC != "" {
+		log.Println("Starting up GRPC on", s.config.GRPC)
+		lis, err := net.Listen("tcp", s.config.GRPC)
+		if err != nil {
+			log.Fatalf("Failed to listen on %s: %v", s.config.GRPC, err)
+		}
+		grpcServer := grpc.NewServer()
+		pb.RegisterSequinsRpcServer(grpcServer, s)
+		health.RegisterHealthServer(grpcServer, s)
+		go grpcServer.Serve(lis)
+	}
+
 	log.Println("Listening on", s.config.Bind)
 	graceful.Run(s.config.Bind, time.Second, h)
 }
@@ -342,9 +355,7 @@ func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.dbsLock.RLock()
-	db := s.dbs[dbName]
-	s.dbsLock.RUnlock()
+	db := s.getDB(dbName)
 
 	// If this is a proxy request, we don't want to confuse "we don't have this
 	// db" with "we don't have this key"; if this is a proxied request, then the
@@ -362,4 +373,27 @@ func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	db.serveKey(w, r, key)
+}
+
+func (s *sequins) GetKey(ctx context.Context, keyPb *pb.Key) (*pb.Record, error) {
+	db := s.getDB(string(keyPb.DB))
+	if db == nil {
+		return nil, errNoAvailablePeers
+	}
+
+	// TODO
+	return nil, errors.New("not yet implemented")
+}
+
+func (s *sequins) Check(ctx context.Context, req *health.HealthCheckRequest) (*health.HealthCheckResponse, error) {
+	return &health.HealthCheckResponse{
+		Status: health.HealthCheckResponse_SERVING,
+	}, nil
+}
+
+func (s *sequins) getDB(dbName string) *db {
+	s.dbsLock.RLock()
+	db := s.dbs[dbName]
+	s.dbsLock.RUnlock()
+	return db
 }

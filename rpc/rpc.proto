@@ -4,7 +4,7 @@ option java_multiple_files = true;
 option java_package = "com.stripe.storage.sequins";
 option java_outer_classname = "rpc";
 
-package rpc;
+package sequins.rpc;
 
 service SequinsRpc {
     rpc GetKey(Key) returns(Record) {}

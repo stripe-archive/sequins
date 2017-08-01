@@ -1571,6 +1571,30 @@
 			"revisionTime": "2017-07-21T18:20:09Z"
 		},
 		{
+			"checksumSHA1": "1NDOJcpv9WiP9cULqEbrHbM0fx8=",
+			"path": "github.com/colinmarc/hdfs",
+			"revision": "d9614569203878ff04bb4420b929923949e855fc",
+			"revisionTime": "2017-01-31T02:28:00Z"
+		},
+		{
+			"checksumSHA1": "OgVPAECpU7iL1R/X33WI0iARwu0=",
+			"path": "github.com/colinmarc/hdfs/protocol/hadoop_common",
+			"revision": "d9614569203878ff04bb4420b929923949e855fc",
+			"revisionTime": "2017-01-31T02:28:00Z"
+		},
+		{
+			"checksumSHA1": "+guxSKBBg0D8+toJz53JfdXYolg=",
+			"path": "github.com/colinmarc/hdfs/protocol/hadoop_hdfs",
+			"revision": "d9614569203878ff04bb4420b929923949e855fc",
+			"revisionTime": "2017-01-31T02:28:00Z"
+		},
+		{
+			"checksumSHA1": "I4AN0ylZf0ll7ggVYFeIHFMHUWo=",
+			"path": "github.com/colinmarc/hdfs/rpc",
+			"revision": "d9614569203878ff04bb4420b929923949e855fc",
+			"revisionTime": "2017-01-31T02:28:00Z"
+		},
+		{
 			"checksumSHA1": "a2yC46a1qsJomgY6rb+FkTFiqmE=",
 			"path": "github.com/davecgh/go-spew/spew/testdata",
 			"revision": "5215b55f46b2b919f50a1df0eaa5886afe4e3b3d",
@@ -1659,6 +1683,36 @@
 			"path": "golang.org/x/net/lex/httplex",
 			"revision": "dd2d9a67c97da0afa00d5726e28086007a0acce5",
 			"revisionTime": "2017-02-23T02:43:42Z"
+		},
+		{
+			"checksumSHA1": "QbEqHthuI7lKo8J+wvt1gaoli8s=",
+			"path": "google.golang.org/grpc",
+			"revision": "fa1cb32dc4f81e23ab862dd5e7ac4f2920a33088",
+			"revisionTime": "2017-08-01T00:31:24Z"
+		},
+		{
+			"checksumSHA1": "pc9cweMiKQ5hVMuO9UoMGdbizaY=",
+			"path": "google.golang.org/grpc/health",
+			"revision": "fa1cb32dc4f81e23ab862dd5e7ac4f2920a33088",
+			"revisionTime": "2017-08-01T00:31:24Z"
+		},
+		{
+			"checksumSHA1": "W5KfI1NIGJt7JaVnLzefDZr3+4s=",
+			"path": "google.golang.org/grpc/health/grpc_health_v1",
+			"revision": "fa1cb32dc4f81e23ab862dd5e7ac4f2920a33088",
+			"revisionTime": "2017-08-01T00:31:24Z"
+		},
+		{
+			"checksumSHA1": "b5olv1QkmY5YFeemgsNLsE6cL3A=",
+			"path": "google.golang.org/grpc/naming",
+			"revision": "fa1cb32dc4f81e23ab862dd5e7ac4f2920a33088",
+			"revisionTime": "2017-08-01T00:31:24Z"
+		},
+		{
+			"checksumSHA1": "l+HY2+u7xDAgnsqYbsGE/A8KKj0=",
+			"path": "google.golang.org/grpc/testdata",
+			"revision": "fa1cb32dc4f81e23ab862dd5e7ac4f2920a33088",
+			"revisionTime": "2017-08-01T00:31:24Z"
 		}
 	],
 	"rootPath": "github.com/stripe/sequins"

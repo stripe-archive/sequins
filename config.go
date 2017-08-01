@@ -21,6 +21,7 @@ var errNoConfig = errors.New("no config file found")
 type sequinsConfig struct {
 	Source             string   `toml:"source"`
 	Bind               string   `toml:"bind"`
+	GRPC               string   `toml:"grpc"`
 	MaxParallelLoads   int      `toml:"max_parallel_loads"`
 	ThrottleLoads      duration `toml:"throttle_loads"`
 	LocalStore         string   `toml:"local_store"`
@@ -95,6 +96,7 @@ func defaultConfig() sequinsConfig {
 	return sequinsConfig{
 		Source:             "",
 		Bind:               "0.0.0.0:9599",
+		GRPC:               "0.0.0.0:9600",
 		LocalStore:         "/var/sequins/",
 		MaxParallelLoads:   0,
 		RefreshPeriod:      duration{time.Duration(0)},

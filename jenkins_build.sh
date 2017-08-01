@@ -17,6 +17,8 @@ cd protobuf
 git checkout 748d386b5c1ea99658fd69fe9f03991ce86a90c1
 GOBIN=/build/proto/bin make
 
+ls /build/proto/bin
+
 cd /go/src/github.com/stripe/sequins
 PATH=/build/proto/bin:$PATH make sequins vet
 

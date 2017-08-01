@@ -11,3 +11,4 @@ test_scratch
 status.tmpl.go
 sequins.conf
 **/*.pb.go
+!vendor/**/*.pb.go

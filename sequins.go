@@ -23,6 +23,10 @@ import (
 	"github.com/stripe/sequins/multilock"
 	"github.com/stripe/sequins/sharding"
 	"github.com/stripe/sequins/zk"
+
+  "google.golang.org/grpc/grpclog"
+  "google.golang.org/grpc"
+  pb "github.com/stripe/sequins/rpc"
 )
 
 var errDirLocked = errors.New("failed to acquire lock")

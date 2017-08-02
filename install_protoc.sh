@@ -2,7 +2,8 @@
 
 set -eux
 
-INSTALL_ROOT=$1
+# Get absolute path
+INSTALL_ROOT=$(cd $1 && pwd)
 
 # Install protoc
 mkdir -p $INSTALL_ROOT
@@ -18,4 +19,4 @@ cd $GOPATH/src/github.com/golang
 git clone https://github.com/golang/protobuf.git
 cd protobuf
 git checkout 748d386b5c1ea99658fd69fe9f03991ce86a90c1
-GOBIN=$(cd $INSTALL_ROOT && pwd)/bin make
+GOBIN=$INSTALL_ROOT/bin make

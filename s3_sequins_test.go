@@ -29,10 +29,14 @@ func setupS3(t *testing.T) *backend.S3Backend {
 	svc := s3.New(sess)
 	testBackend := backend.NewS3Backend(bucket, "test", svc)
 
+	// Remove old files from previous tests
+	err := delS3Prefix(svc, bucket, "test/baby-names")
+	require.NoError(t, err, "should be able to delete old test files on s3")
+
 	infos, _ := ioutil.ReadDir("test/baby-names/1")
 	sourceDest := path.Join("test", "baby-names")
 	for _, info := range infos {
-		err := putS3(svc, bucket, path.Join(sourceDest, "0", info.Name()), filepath.Join("test/baby-names/1", info.Name()))
+		err = putS3(svc, bucket, path.Join(sourceDest, "0", info.Name()), filepath.Join("test/baby-names/1", info.Name()))
 		require.NoError(t, err, "setup: putting %s", path.Join(sourceDest, "0", info.Name()))
 		err = putS3(svc, bucket, path.Join(sourceDest, "1", info.Name()), filepath.Join("test/baby-names/1", info.Name()))
 		require.NoError(t, err, "setup: putting %s", path.Join(sourceDest, "1", info.Name()))
@@ -68,7 +72,7 @@ func TestS3Backend(t *testing.T) {
 
 	files, err := s.ListFiles("baby-names", "0")
 	require.NoError(t, err, "it should be able to list files")
-	assert.Equal(t, 20, len(files), "the list of files should be correct")
+	assert.Equal(t, 5, len(files), "the list of files should be correct")
 }
 
 func putS3(svc *s3.S3, bucket, dst, src string) error {
@@ -94,6 +98,36 @@ func putS3Blob(svc *s3.S3, bucket, dst string, data io.ReadSeeker) error {
 	}
 
 	return nil
+}
+
+func delS3Prefix(svc *s3.S3, bucket, prefix string) error {
+	listParams := &s3.ListObjectsInput{
+		Bucket: aws.String(bucket),
+		Prefix: aws.String(prefix),
+	}
+
+	result, err := svc.ListObjects(listParams)
+	if err != nil || len(result.Contents) == 0 {
+		return err
+	}
+
+	objects := make([]*s3.ObjectIdentifier, len(result.Contents))
+	for i, object := range result.Contents {
+		objects[i] = &s3.ObjectIdentifier{
+			Key: aws.String(*object.Key),
+		}
+	}
+
+	deleteParams := &s3.DeleteObjectsInput{
+		Bucket: aws.String(bucket),
+		Delete: &s3.Delete{
+			Objects: objects,
+			Quiet:   aws.Bool(false),
+		},
+	}
+
+	_, err = svc.DeleteObjects(deleteParams)
+	return err
 }
 
 func TestS3Sequins(t *testing.T) {

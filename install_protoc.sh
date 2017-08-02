@@ -18,4 +18,4 @@ cd $GOPATH/src/github.com/golang
 git clone https://github.com/golang/protobuf.git
 cd protobuf
 git checkout 748d386b5c1ea99658fd69fe9f03991ce86a90c1
-GOBIN=$INSTALL_ROOT/bin make
+GOBIN=$(dirname $INSTALL_ROOT)/bin make

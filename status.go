@@ -67,6 +67,59 @@ const (
 	versionError                  = "ERROR"
 )
 
+func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
+	s.dbsLock.RLock()
+
+	status := status{DBs: make(map[string]dbStatus)}
+	for name, db := range s.dbs {
+		status.DBs[name] = copyDBStatus(db.status())
+	}
+
+	s.dbsLock.RUnlock()
+
+	allNodesAvailable := true
+	statuses := make(map[string]map[string]map[string]versionState)
+
+	// Iterate through all of the nodes of the local databases and ensure
+	// that the versions they own are all marked as available. A single
+	// version being in an unvailable state results in an error response.
+	for dbKey, dbValue := range status.DBs {
+		for versionKey, versionValue := range dbValue.Versions {
+			for nodeKey, nodeValue := range versionValue.Nodes {
+				_, ok := statuses[dbKey]
+				if !ok {
+					statuses[dbKey] = make(map[string]map[string]versionState)
+				}
+
+				_, ok = statuses[dbKey][versionKey]
+				if !ok {
+					statuses[dbKey][versionKey] = make(map[string]versionState)
+				}
+
+				statuses[dbKey][versionKey][nodeKey] = nodeValue.State
+				if nodeValue.State != versionAvailable {
+					allNodesAvailable = false
+				}
+			}
+		}
+	}
+
+	jsonBytes, err := json.Marshal(statuses)
+	if err != nil {
+		log.Printf("Error encoding response to JSON: %v", jsonBytes)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if allNodesAvailable {
+		w.WriteHeader(http.StatusOK)
+	} else {
+		w.WriteHeader(http.StatusNotFound)
+	}
+	w.Write(jsonBytes)
+}
+
 func (s *sequins) serveStatus(w http.ResponseWriter, r *http.Request) {
 	s.dbsLock.RLock()
 

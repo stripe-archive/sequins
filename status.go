@@ -68,6 +68,25 @@ const (
 )
 
 func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
+	allNodesAvailable, statuses := s.isHealthy()
+
+	jsonBytes, err := json.Marshal(statuses)
+	if err != nil {
+		log.Printf("Error encoding response to JSON: %v", jsonBytes)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if allNodesAvailable {
+		w.WriteHeader(http.StatusOK)
+	} else {
+		w.WriteHeader(http.StatusNotFound)
+	}
+	w.Write(jsonBytes)
+}
+
+func (s *sequins) isHealthy() (bool, map[string]map[string]map[string]versionState) {
 	s.dbsLock.RLock()
 
 	status := status{DBs: make(map[string]dbStatus)}
@@ -99,20 +118,7 @@ func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	jsonBytes, err := json.Marshal(statuses)
-	if err != nil {
-		log.Printf("Error encoding response to JSON: %v", jsonBytes)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	if allNodesAvailable {
-		w.WriteHeader(http.StatusOK)
-	} else {
-		w.WriteHeader(http.StatusNotFound)
-	}
-	w.Write(jsonBytes)
+	return allNodesAvailable, statuses
 }
 
 func (s *sequins) serveStatus(w http.ResponseWriter, r *http.Request) {

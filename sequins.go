@@ -386,8 +386,13 @@ func (s *sequins) GetKey(ctx context.Context, keyPb *pb.Key) (*pb.Record, error)
 }
 
 func (s *sequins) Check(ctx context.Context, req *health.HealthCheckRequest) (*health.HealthCheckResponse, error) {
+	var status = health.HealthCheckResponse_NOT_SERVING
+	if ok, _ := s.isHealthy(); ok {
+		status = health.HealthCheckResponse_SERVING
+	}
+
 	return &health.HealthCheckResponse{
-		Status: health.HealthCheckResponse_SERVING,
+		Status: status,
 	}, nil
 }
 

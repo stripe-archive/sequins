@@ -11,7 +11,7 @@ before_install:
 - export HADOOP_DISTRO=cdh
 - export HADOOP_HOME="$HOME/hadoop"
 - sh vendor/github.com/colinmarc/hdfs/setup_test_env.sh
-- sh install_protoc.sh build-proto
+- bash install_protoc.sh build-proto
 - export PATH="build-proto/bin:$PATH"
 before_script:
 - make

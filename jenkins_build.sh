@@ -2,7 +2,7 @@
 
 set -eux
 
-sh install_protoc.sh /build/proto
+bash install_protoc.sh /build/proto
 
 cd /go/src/github.com/stripe/sequins
 PATH=/build/proto/bin:$PATH make sequins vet

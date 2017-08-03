@@ -42,15 +42,6 @@ var (
 func (vs *version) proxy(r *http.Request, peers []string) (*http.Response, string, error) {
 	responses := make(chan proxyResponse, len(peers))
 	totalTimeout := time.NewTimer(vs.sequins.config.Sharding.ProxyTimeout.Duration)
-	ctx, cancel := context.WithCancel(r.Context())
-
-	// Not canceling here will leak a reference to this context on the parent
-	// context. However, we don't want to cancel when we return out of the method,
-	// since we want the returned http.Response.Body to be left open for
-	// streaming. Ultimately, it'll get canceled (and GC'd) when the parent
-	// context does anyway - and its parent is the incoming request context, which
-	// means it's canceled almost immediately.
-	// defer cancel()
 
 	// Per the documentation for `http.Client.Do`, if that returns successfully,
 	// callers are required to the close the response Body, even if the request
@@ -75,7 +66,7 @@ func (vs *version) proxy(r *http.Request, peers []string) (*http.Response, strin
 		if peerIndex < len(peers) {
 			peer := peers[peerIndex]
 
-			attemptCtx, cancelAttempt := context.WithCancel(ctx)
+			attemptCtx, cancelAttempt := context.WithCancel(r.Context())
 			req, err := vs.newProxyRequest(attemptCtx, r.URL.Path, peer)
 			if err != nil {
 				cancelAttempt()
@@ -106,15 +97,18 @@ func (vs *version) proxy(r *http.Request, peers []string) (*http.Response, strin
 				return res.resp, res.peer, nil
 			}
 		case <-totalTimeout.C:
-			cancel()
+			for _, cancelAttempt := range cancels {
+				cancelAttempt()
+			}
 			return nil, "", errProxyTimeout
-		case <-ctx.Done():
+		case <-r.Context().Done():
+			for _, cancelAttempt := range cancels {
+				cancelAttempt()
+			}
 			return nil, "", errRequestCanceled
 		case <-stageTimeout.C:
 		}
 	}
-
-	return nil, "", errNoAvailablePeers
 }
 
 func (vs *version) proxyAttempt(proxyRequest *http.Request, peer string, res chan proxyResponse) {

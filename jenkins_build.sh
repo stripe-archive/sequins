@@ -3,7 +3,7 @@
 set -eux
 
 cd /go/src/github.com/stripe/sequins
-make
+make sequins vet
 
 ./sequins --help 2>&1 | grep usage && echo 'binary looks good'
 

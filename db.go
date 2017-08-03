@@ -78,7 +78,7 @@ func (db *db) backfillVersions() error {
 
 		version, err := newVersion(db.sequins, db, db.localPath(v), v)
 		if err != nil {
-			log.Println("Error initializing version %s of %s: %s", db.name, v, err)
+			log.Printf("Error initializing version %s of %s: %s", db.name, v, err)
 			continue
 		}
 

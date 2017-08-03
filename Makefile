@@ -68,6 +68,9 @@ test: $(TEST_SOURCES)
 	# as well (sync.Pool doesn't ever share objects under -race).
 	$(CGO_PREAMBLE) go test -timeout 30s ./blocks -run TestBlockParallelReads
 
+vet:
+	$(CGO_PREAMBLE) go vet $(shell go list ./... | grep -v vendor)
+
 test_functional: sequins $(TEST_SOURCES)
 	$(CGO_PREAMBLE) go test -timeout 10m -run "^TestCluster"
 

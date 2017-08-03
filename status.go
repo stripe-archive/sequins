@@ -35,7 +35,7 @@ type status struct {
 }
 
 type dbStatus struct {
-	Versions map[string]versionStatus `json:"versions",omitempty`
+	Versions map[string]versionStatus `json:"versions,omitempty"`
 }
 
 type versionStatus struct {

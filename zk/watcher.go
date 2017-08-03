@@ -430,7 +430,7 @@ func (w *Watcher) Close() {
 
 // sendErr sends the error over the channel, or discards it if the error is full.
 func sendErr(errs chan error, err error, path string, server string) {
-	log.Println("Zookeeper error: err=%q, path=%q, server=%q", err, path, server)
+	log.Printf("Zookeeper error: err=%q, path=%q, server=%q", err, path, server)
 
 	select {
 	case errs <- err:

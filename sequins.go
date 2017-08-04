@@ -24,7 +24,7 @@ import (
 	"github.com/stripe/sequins/sharding"
 	"github.com/stripe/sequins/zk"
 
-	pb "github.com/stripe/sequins/rpc"
+	pb "github.com/stripe/sequins/proto"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	health "google.golang.org/grpc/health/grpc_health_v1"

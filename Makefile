@@ -54,7 +54,7 @@ status.tmpl.go: status.tmpl $(BUILD)/bin/go-bindata
 	$(BUILD)/bin/go-bindata -o status.tmpl.go status.tmpl
 
 rpc.pb.go:
-	protoc --go_out=plugins=grpc:. rpc/rpc.proto
+	protoc --go_out=plugins=grpc:. proto/rpc.proto
 
 sequins: $(SOURCES) rpc.pb.go status.tmpl.go $(BUILD)/lib/libsparkey.a $(BUILD)/lib/libsnappy.a $(BUILD)/lib/libzookeeper_mt.a
 	$(CGO_PREAMBLE) go build -ldflags "-X main.sequinsVersion=$(TRAVIS_TAG)"

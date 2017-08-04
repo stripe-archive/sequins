@@ -121,9 +121,16 @@ func (w *Watcher) reconnect() error {
 		}
 	}()
 
+	// Every time we connect, reset watches and recreate ephemeral nodes.
+	err = w.runHooks()
+	if err != nil {
+		return fmt.Errorf("zookeeper hooks error: %v", err)
+	}
+
 	return nil
 }
 
+// Must be called with `w.lock` locked for write.
 func (w *Watcher) runHooks() error {
 	w.hooksLock.Lock()
 	defer w.hooksLock.Unlock()
@@ -185,13 +192,6 @@ Reconnect:
 				log.Println("Error reconnecting to zookeeper:", err)
 				continue Reconnect
 			}
-
-			// Every time we connect, reset watches and recreate ephemeral nodes.
-			err = w.runHooks()
-			if err != nil {
-				log.Println("Error running zookeeper hooks:", err)
-				continue Reconnect
-			}
 		} else {
 			first = false
 		}
@@ -216,6 +216,9 @@ func (w *Watcher) CreateEphemeral(node string) {
 	w.hooksLock.Lock()
 	defer w.hooksLock.Unlock()
 
+	w.lock.RLock()
+	defer w.lock.RUnlock()
+
 	node = path.Join(w.prefix, node)
 	w.ephemeralNodes[node] = true
 	err := w.createEphemeral(node)
@@ -224,10 +227,8 @@ func (w *Watcher) CreateEphemeral(node string) {
 	}
 }
 
+// Must be called with `w.lock` locked (either for read or write).
 func (w *Watcher) createEphemeral(node string) error {
-	w.lock.RLock()
-	defer w.lock.RUnlock()
-
 	// Retry a few times, in case the node is removed in between the two following
 	// steps.
 	for i := 0; i < maxCreateRetries; i++ {
@@ -277,6 +278,9 @@ func (w *Watcher) WatchChildren(node string) (chan []string, chan bool) {
 	disconnected := make(chan bool)
 	cancel := make(chan bool)
 
+	w.lock.RLock()
+	defer w.lock.RUnlock()
+
 	wn := watchedNode{updates: updates, disconnected: disconnected, cancel: cancel}
 	w.watchedNodes[node] = wn
 	err := w.watchChildren(node, wn)
@@ -290,10 +294,8 @@ func (w *Watcher) WatchChildren(node string) (chan []string, chan bool) {
 	return updates, disconnected
 }
 
+// Must be called with `w.lock` locked (either for read or write).
 func (w *Watcher) watchChildren(node string, wn watchedNode) error {
-	w.lock.RLock()
-	defer w.lock.RUnlock()
-
 	children, _, events, err := w.childrenW(node)
 	if err != nil {
 		return err

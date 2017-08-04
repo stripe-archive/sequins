@@ -1,4 +1,4 @@
-FROM golang:1.7.5
+FROM golang:1.8.3
 
 RUN apt-get update
 RUN apt-get install -y build-essential autoconf libtool pkg-config

@@ -14,9 +14,8 @@ cp -a sequins /build/bin/
 
 # persist schemas to S3; we may later obsolete this with tooling that makes
 # this happens automatically for anything in a proto/ directory
-SCHEMAS_OUT="/log/persisted/proto/$(git rev-parse --abbrev-ref HEAD)/$(git rev-parse HEAD)"
-mkdir -p $SCHEMAS_OUT
-cp proto/rpc.proto $SCHEMAS_OUT
-cp vendor/google.golang.org/grpc/health/grpc_health_v1/health.proto $SCHEMAS_OUT
+SCHEMAS_OUT="s3://stripe-data/schemas/proto/sequins/$(git rev-parse --abbrev-ref HEAD)/$(git rev-parse HEAD)"
+aws s3 cp proto/rpc.proto "$SCHEMAS_OUT/rpc.proto"
+aws s3 cp proto/rpc.proto vendor/google.golang.org/grpc/health/grpc_health_v1/health.proto "$SCHEMAS_OUT/health.proto"
 
 echo "DONE"

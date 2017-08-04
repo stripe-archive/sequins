@@ -12,7 +12,7 @@ PATH=/build/proto/bin:$PATH make sequins vet
 mkdir -p /build/bin/
 cp -a sequins /build/bin/
 
-# persist schemas to S3; we may later obsolete this with tooling that makes
+
 # this happens automatically for anything in a proto/ directory
 SCHEMAS_OUT="s3://stripe-data/schemas/proto/sequins/$(git rev-parse --abbrev-ref HEAD)/$(git rev-parse HEAD)"
 aws s3 cp proto/rpc.proto "$SCHEMAS_OUT/rpc.proto"

@@ -213,11 +213,11 @@ Reconnect:
 // needed parent nodes are also created, as permanent nodes. The ephemeral is
 // then recreated any time the Watcher reconnects.
 func (w *Watcher) CreateEphemeral(node string) {
-	w.hooksLock.Lock()
-	defer w.hooksLock.Unlock()
-
 	w.lock.RLock()
 	defer w.lock.RUnlock()
+
+	w.hooksLock.Lock()
+	defer w.hooksLock.Unlock()
 
 	node = path.Join(w.prefix, node)
 	w.ephemeralNodes[node] = true
@@ -255,11 +255,11 @@ func (w *Watcher) createEphemeral(node string) error {
 // RemoveEphemeral removes the given ephemeral node from the zookeeper cluster.
 // The node is then no longer recreated when the Watcher reconnects.
 func (w *Watcher) RemoveEphemeral(node string) {
-	w.hooksLock.Lock()
-	defer w.hooksLock.Unlock()
-
 	w.lock.RLock()
 	defer w.lock.RUnlock()
+
+	w.hooksLock.Lock()
+	defer w.hooksLock.Unlock()
 
 	node = path.Join(w.prefix, node)
 	w.conn.Delete(node, -1)
@@ -272,6 +272,9 @@ func (w *Watcher) RemoveEphemeral(node string) {
 // reconnects. Before the watch is set, WatchChildren creates the node and any
 // parents.
 func (w *Watcher) WatchChildren(node string) (chan []string, chan bool) {
+	w.lock.RLock()
+	defer w.lock.RUnlock()
+
 	w.hooksLock.Lock()
 	defer w.hooksLock.Unlock()
 
@@ -279,9 +282,6 @@ func (w *Watcher) WatchChildren(node string) (chan []string, chan bool) {
 	updates := make(chan []string)
 	disconnected := make(chan bool)
 	cancel := make(chan bool)
-
-	w.lock.RLock()
-	defer w.lock.RUnlock()
 
 	wn := watchedNode{updates: updates, disconnected: disconnected, cancel: cancel}
 	w.watchedNodes[node] = wn

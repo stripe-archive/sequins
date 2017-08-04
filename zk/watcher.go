@@ -222,7 +222,9 @@ func (w *Watcher) CreateEphemeral(node string) {
 	node = path.Join(w.prefix, node)
 	w.ephemeralNodes[node] = true
 	err := w.createEphemeral(node)
-	if err != nil {
+	// It's fine if we're currently reconnecting to zookeeper, since `runHooks`
+	// will create the node for us.
+	if err != nil && err != zk.ErrClosing {
 		sendErr(w.errs, err, node, "")
 	}
 }
@@ -235,7 +237,7 @@ func (w *Watcher) createEphemeral(node string) error {
 		_, err := w.conn.Create(node, []byte{}, zk.FlagEphemeral, defaultZkACL)
 		if err == nil {
 			break
-		} else if err != nil && !isNoNode(err) {
+		} else if err != nil && err != zk.ErrNoNode {
 			return err
 		}
 
@@ -284,7 +286,9 @@ func (w *Watcher) WatchChildren(node string) (chan []string, chan bool) {
 	wn := watchedNode{updates: updates, disconnected: disconnected, cancel: cancel}
 	w.watchedNodes[node] = wn
 	err := w.watchChildren(node, wn)
-	if err != nil {
+	// It's fine if we're currently reconnecting to zookeeper, since `runHooks`
+	// will set up the watch for us.
+	if err != nil && err != zk.ErrClosing {
 		sendErr(w.errs, err, node, "")
 		go func() {
 			<-cancel
@@ -354,7 +358,7 @@ func (w *Watcher) childrenW(node string) (children []string, stat *zk.Stat, even
 	// steps.
 	for i := 0; i < maxCreateRetries; i++ {
 		children, stat, events, err = w.conn.ChildrenW(node)
-		if !isNoNode(err) {
+		if err != zk.ErrNoNode {
 			return
 		}
 
@@ -391,7 +395,7 @@ func (w *Watcher) createAll(node string) error {
 	}
 
 	_, err := w.conn.Create(path.Clean(node), []byte{}, 0, defaultZkACL)
-	if err != nil && !isNodeExists(err) {
+	if err != nil && err != zk.ErrNodeExists {
 		return err
 	}
 
@@ -438,22 +442,4 @@ func sendErr(errs chan error, err error, path string, server string) {
 	case errs <- err:
 	default:
 	}
-}
-
-func isNodeExists(err error) bool {
-	if err == zk.ErrNodeExists {
-
-		return true
-	}
-
-	return false
-}
-
-func isNoNode(err error) bool {
-
-	if err == zk.ErrNoNode {
-		return true
-	}
-
-	return false
 }

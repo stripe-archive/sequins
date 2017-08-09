@@ -78,25 +78,20 @@ func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
 	s.dbsLock.RUnlock()
 
 	allNodesAvailable := true
-	statuses := make(map[string]map[string]map[string]versionState)
+	statuses := make(map[string]map[string]versionState)
 
 	// Iterate through all of the nodes of the local databases and ensure
 	// that the versions they own are all marked as available. A single
 	// version being in an unvailable state results in an error response.
 	for dbKey, dbValue := range status.DBs {
 		for versionKey, versionValue := range dbValue.Versions {
-			for nodeKey, nodeValue := range versionValue.Nodes {
+			for _, nodeValue := range versionValue.Nodes {
 				_, ok := statuses[dbKey]
 				if !ok {
-					statuses[dbKey] = make(map[string]map[string]versionState)
+					statuses[dbKey] = make(map[string]versionState)
 				}
 
-				_, ok = statuses[dbKey][versionKey]
-				if !ok {
-					statuses[dbKey][versionKey] = make(map[string]versionState)
-				}
-
-				statuses[dbKey][versionKey][nodeKey] = nodeValue.State
+				statuses[dbKey][versionKey] = nodeValue.State
 				if nodeValue.State != versionAvailable {
 					allNodesAvailable = false
 				}

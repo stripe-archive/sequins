@@ -127,6 +127,12 @@ source = "hdfs://namenode:8020/path/to/sequins"
 # actual timeout is negotiated between server and client, but will never be
 # lower than this number.
 
+[datadog]
+
+# url = "localhost:8200"
+# If set, sequins will report metrics concerning S3 file downloads using the
+# DogStatsD protocol to this address.
+
 [debug]
 
 # bind = "localhost:6060"

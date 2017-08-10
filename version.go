@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-go/statsd"
+
 	"github.com/stripe/sequins/blocks"
 	"github.com/stripe/sequins/sharding"
 )
@@ -40,6 +42,8 @@ type version struct {
 	cancel    chan bool
 	built     bool
 	buildLock sync.Mutex
+
+	stats *statsd.Client
 }
 
 func newVersion(sequins *sequins, db *db, path, name string) (*version, error) {
@@ -61,6 +65,8 @@ func newVersion(sequins *sequins, db *db, path, name string) (*version, error) {
 
 		ready:  make(chan bool),
 		cancel: make(chan bool),
+
+		stats: sequins.stats,
 	}
 
 	vs.partitions = sharding.WatchPartitions(sequins.zkWatcher, sequins.peers,

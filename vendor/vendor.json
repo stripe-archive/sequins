@@ -3,6 +3,12 @@
 	"ignore": "",
 	"package": [
 		{
+			"checksumSHA1": "si7VkhtWD+P3lySGsItM3kNQYEM=",
+			"path": "github.com/DataDog/datadog-go/statsd",
+			"revision": "a420eee23bee2aa05781129002fcdff70339dac6",
+			"revisionTime": "2017-07-27T08:34:28Z"
+		},
+		{
 			"checksumSHA1": "gHoi4/TSFjOBPQFjp4Z/vabFs+Y=",
 			"path": "github.com/aws/aws-sdk-go",
 			"revision": "9be9ed23f9e923c795e27a1ee06d91567125367a",

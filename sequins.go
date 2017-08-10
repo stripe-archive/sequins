@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-go/statsd"
 	"github.com/nightlyone/lockfile"
 	"github.com/tylerb/graceful"
 
@@ -43,6 +44,8 @@ type sequins struct {
 	refreshTicker *time.Ticker
 	sighups       chan os.Signal
 
+	stats *statsd.Client
+
 	storeLock lockfile.Lockfile
 }
 
@@ -55,6 +58,16 @@ func newSequins(backend backend.Backend, config sequinsConfig) *sequins {
 }
 
 func (s *sequins) init() error {
+	// Start Datadog client if configured
+	if s.config.Datadog.Url != "" {
+		statsdClient, err := statsd.New(s.config.Datadog.Url)
+		if err != nil {
+			log.Fatalf("Error connecting to statsd: %s", err)
+		}
+		statsdClient.Namespace = "sequins."
+		s.stats = statsdClient
+	}
+
 	if s.config.Sharding.Enabled {
 		err := s.initCluster()
 		if err != nil {

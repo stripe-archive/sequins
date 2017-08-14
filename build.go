@@ -83,7 +83,8 @@ func (vs *version) addFiles(partitions map[int]bool) error {
 	for i, file := range vs.files {
 		if vs.stats != nil {
 			remaining := float64(len(vs.files) - i - 1)
-			vs.stats.Gauge("s3.queue_depth", remaining, []string{vs.db.name}, 1)
+			tags := []string{fmt.Sprintf("db:%s", vs.db.name)}
+			vs.stats.Gauge("s3.queue_depth", remaining, tags, 1)
 		}
 
 		select {
@@ -106,7 +107,8 @@ func (vs *version) addFile(file string, partitions map[int]bool) error {
 		start := time.Now()
 		defer func() {
 			duration := time.Since(start)
-			vs.stats.Timing("s3.download_duration", duration, []string{vs.db.name}, 1)
+			tags := []string{fmt.Sprintf("db:%s", vs.db.name)}
+			vs.stats.Timing("s3.download_duration", duration, tags, 1)
 		}()
 	}
 

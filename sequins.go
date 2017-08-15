@@ -65,7 +65,7 @@ func (s *sequins) init() error {
 			log.Fatalf("Error connecting to statsd: %s", err)
 		}
 		statsdClient.Namespace = "sequins."
-		statsdClient.Tags = append(statsdClient.Tags, fmt.Sprintf("cluster:%s", s.config.Sharding.ClusterName))
+		statsdClient.Tags = append(statsdClient.Tags, fmt.Sprintf("sequins:%s", s.config.Sharding.ClusterName))
 		s.stats = statsdClient
 	}
 

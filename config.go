@@ -34,6 +34,7 @@ type sequinsConfig struct {
 	ZK       zkConfig       `toml:"zk"`
 	Debug    debugConfig    `toml:"debug"`
 	Test     testConfig     `toml:"test"`
+	Datadog  datadogConfig  `toml:"datadog"`
 }
 
 type storageConfig struct {
@@ -78,6 +79,10 @@ type testConfig struct {
 	AllowLocalCluster    bool     `toml:"allow_local_cluster"`
 	VersionRemoveTimeout duration `toml:"version_remove_timeout"`
 	S3                   s3Config `toml:"s3"`
+}
+
+type datadogConfig struct {
+	Url string `toml:"url"`
 }
 
 func defaultConfig() sequinsConfig {
@@ -127,6 +132,9 @@ func defaultConfig() sequinsConfig {
 				AccessKeyId:     "",
 				SecretAccessKey: "",
 			},
+		},
+		Datadog: datadogConfig{
+			Url: "localhost:8200",
 		},
 	}
 }

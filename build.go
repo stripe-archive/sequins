@@ -80,7 +80,13 @@ func (vs *version) addFiles(partitions map[int]bool) error {
 	}
 
 	// TODO: parallelize files?
-	for _, file := range vs.files {
+	for i, file := range vs.files {
+		if vs.stats != nil {
+			remaining := float64(len(vs.files) - i - 1)
+			tags := []string{fmt.Sprintf("db:%s", vs.db.name)}
+			vs.stats.Gauge("s3.queue_depth", remaining, tags, 1)
+		}
+
 		select {
 		case <-vs.cancel:
 			return errCanceled
@@ -97,6 +103,15 @@ func (vs *version) addFiles(partitions map[int]bool) error {
 }
 
 func (vs *version) addFile(file string, partitions map[int]bool) error {
+	if vs.stats != nil {
+		start := time.Now()
+		defer func() {
+			duration := time.Since(start)
+			tags := []string{fmt.Sprintf("db:%s", vs.db.name)}
+			vs.stats.Timing("s3.download_duration", duration, tags, 1)
+		}()
+	}
+
 	disp := vs.sequins.backend.DisplayPath(vs.db.name, vs.name, file)
 	log.Println("Reading records from", disp)
 

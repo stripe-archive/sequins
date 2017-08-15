@@ -115,7 +115,7 @@ Once your data is finished loading, you can query it by issuing an HTTP GET to
 
     <value>
 
-*Note*: The database names `healthz` and `healthcheck` cannot be used as they
+**Note**: The database names `healthz` and `healthcheck` cannot be used as they
 are reserved for the healthcheck endpoints.
 
 ### Further Configuration

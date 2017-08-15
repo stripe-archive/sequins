@@ -255,6 +255,17 @@ string | `"10s"`
 This specifies the session timeout to use with zookeeper. The actual timeout is
 negotiated between server and client, but will never be lower than this number.
 
+## [datadog]
+
+### url
+
+Type    | Default
+:-----: | -------
+string  | `"localhost:8200"`
+
+If set, sequins will send metrics concerning S3 file downloads using the
+[DogStatsD][dogstatsd] protocol to this address.
+
 ## [debug]
 
 ### bind
@@ -285,3 +296,4 @@ If set, this adds the default pprof handlers to the debug HTTP server.
 
 [toml]: https://github.com/toml-lang/toml
 [confexample]: https://github.com/stripe/sequins/blob/master/sequins.conf.example
+[dogstatsd]: https://docs.datadoghq.com/guides/dogstatsd/

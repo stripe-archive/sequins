@@ -67,5 +67,10 @@ At Stripe, we use [Datadog][datadog] for statsd-like monitoring with lots of
 bells and whistles. We've open-sourced our Datadog plugin for sequins on
 [github][ddcheck].
 
+Sequins can also report metrics concerning file downloads from S3 using the
+[DogStatsD][dogstatsd] protocol if the `datadog.url` (by default
+`localhost:8200`) is set.
+
 [datadog]: https://www.datadoghq.com/
 [ddcheck]: https://github.com/stripe/datadog-checks/blob/master/checks.d/sequins.py
+[dogstatsd]: https://docs.datadoghq.com/guides/dogstatsd/

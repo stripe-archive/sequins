@@ -12,10 +12,7 @@ PATH=/build/proto/bin:$PATH make sequins vet
 mkdir -p /build/bin/
 cp -a sequins /build/bin/
 
-
-# this happens automatically for anything in a proto/ directory
-SCHEMAS_OUT="s3://stripe-data/schemas/proto/sequins/$(git rev-parse --abbrev-ref HEAD)/$(git rev-parse HEAD)"
-aws s3 cp proto/rpc.proto "$SCHEMAS_OUT/rpc.proto"
-aws s3 cp proto/rpc.proto vendor/google.golang.org/grpc/health/grpc_health_v1/health.proto "$SCHEMAS_OUT/health.proto"
+# Make health.proto available for upload to S3
+cp vendor/google.golang.org/grpc/health/grpc_health_v1/health.proto proto/
 
 echo "DONE"

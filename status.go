@@ -388,8 +388,8 @@ func (vs *version) setState(state versionState) {
 
 			if vs.stats != nil {
 				tags := []string{fmt.Sprintf("sequins_db:%s", vs.db.name)}
-				span := vs.available.Sub(vs.created)
-				vs.stats.Timing("db_creation_time", span, tags, 1)
+				duration := vs.available.Sub(vs.created)
+				vs.stats.Timing("db_creation_time", duration, tags, 1)
 			}
 		}
 	}

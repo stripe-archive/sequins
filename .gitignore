@@ -2,9 +2,11 @@
 /build
 /doc/manual/_book
 /doc/manual/node_modules
+.idea/
 testdata
 .index
 .manifest
 *.swp
 test_scratch
 status.tmpl.go
+sequins.conf

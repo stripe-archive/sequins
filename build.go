@@ -134,6 +134,12 @@ func (vs *version) addFile(file string, partitions map[int]bool) error {
 		return fmt.Errorf("reading %s: %s", disp, err)
 	}
 
+	// Intentionally hang, for tests.
+	hang := &vs.sequins.config.Test.Hang
+	if hang.Version == vs.name && hang.File == file {
+		time.Sleep(time.Hour)
+	}
+
 	return nil
 }
 

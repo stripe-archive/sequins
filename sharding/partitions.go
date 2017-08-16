@@ -30,10 +30,12 @@ type Partitions struct {
 	numPartitions int
 	replication   int
 
+	// The minimum replication to stop counting a partition as "missing".
+	minReplication int
+
 	selected        map[int]bool
 	local           map[int]bool
 	remote          map[int][]string
-	numMissing      int
 	readyClosed     bool
 	shouldAdvertise bool
 
@@ -42,19 +44,20 @@ type Partitions struct {
 
 // WatchPartitions creates a watch on the partitions prefix in zookeeper, and
 // returns a Partitions object for managing local and remote partitions.
-func WatchPartitions(zkWatcher *zk.Watcher, peers *Peers, db, version string, numPartitions, replication int) *Partitions {
+func WatchPartitions(zkWatcher *zk.Watcher, peers *Peers, db, version string, numPartitions, replication, minReplication int) *Partitions {
 	p := &Partitions{
 		Ready: make(chan bool),
 
-		peers:         peers,
-		zkWatcher:     zkWatcher,
-		db:            db,
-		version:       version,
-		zkPath:        path.Join("partitions", db, version),
-		numPartitions: numPartitions,
-		replication:   replication,
-		local:         make(map[int]bool),
-		remote:        make(map[int][]string),
+		peers:          peers,
+		zkWatcher:      zkWatcher,
+		db:             db,
+		version:        version,
+		zkPath:         path.Join("partitions", db, version),
+		numPartitions:  numPartitions,
+		replication:    replication,
+		minReplication: minReplication,
+		local:          make(map[int]bool),
+		remote:         make(map[int][]string),
 	}
 
 	p.pickLocal()
@@ -65,7 +68,7 @@ func WatchPartitions(zkWatcher *zk.Watcher, peers *Peers, db, version string, nu
 		go p.sync(updates)
 	}
 
-	p.updateMissing()
+	p.updateReplicationStatus()
 	return p
 }
 
@@ -128,7 +131,7 @@ func (p *Partitions) UpdateLocal(local map[int]bool) {
 	for partition := range local {
 		p.local[partition] = true
 	}
-	p.updateMissing()
+	p.updateReplicationStatus()
 
 	if p.shouldAdvertise {
 		for partition := range p.local {
@@ -165,16 +168,6 @@ func (p *Partitions) HaveLocal(partition int) bool {
 	defer p.lock.Unlock()
 
 	return p.local[partition]
-}
-
-// Missing returns the number of missing partitions from the complete set; in
-// other words, the number of partitions which do not exist either locally or
-// with peers.
-func (p *Partitions) Missing() int {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-
-	return p.numMissing
 }
 
 // Advertise creates an ephemeral node for each partition this local peer is
@@ -229,26 +222,28 @@ func (p *Partitions) updateRemote(nodes []string) {
 	}
 
 	p.remote = remote
-	p.updateMissing()
+	p.updateReplicationStatus()
 }
 
-func (p *Partitions) updateMissing() {
-	// Check for each partition. If every one is available on at least one node,
+func (p *Partitions) updateReplicationStatus() {
+	// Check for each partition. If every one is available on at least minReplication node,
 	// then we're ready to rumble.
 	missing := 0
 	for i := 0; i < p.numPartitions; i++ {
+		replication := 0
 		if _, ok := p.local[i]; ok {
-			continue
+			replication++
 		}
 
-		if _, ok := p.remote[i]; ok {
-			continue
+		if remotes, ok := p.remote[i]; ok {
+			replication += len(remotes)
 		}
 
-		missing += 1
+		if replication < p.minReplication {
+			missing += 1
+		}
 	}
 
-	p.numMissing = missing
 	if missing == 0 && !p.readyClosed {
 		close(p.Ready)
 		p.readyClosed = true

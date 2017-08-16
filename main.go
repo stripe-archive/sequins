@@ -13,8 +13,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/colinmarc/hdfs"
-	"github.com/stripe/sequins/backend"
 	"gopkg.in/alecthomas/kingpin.v2"
+
+	"github.com/stripe/sequins/backend"
 )
 
 var (

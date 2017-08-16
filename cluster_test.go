@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"testing"
 	"time"
@@ -91,7 +92,21 @@ func newTestCluster(t *testing.T) *testCluster {
 	}
 }
 
-func (tc *testCluster) addSequins() *testSequins {
+type configOption func(*sequinsConfig)
+
+func repl(r int) configOption {
+	return func(config *sequinsConfig) {
+		config.Sharding.Replication = r
+	}
+}
+
+func minRepl(r int) configOption {
+	return func(config *sequinsConfig) {
+		config.Sharding.MinReplication = r
+	}
+}
+
+func (tc *testCluster) addSequins(opts ...configOption) *testSequins {
 	port := zktest.RandomPort()
 	path := filepath.Join(tc.source, fmt.Sprintf("node-%d", port))
 
@@ -115,12 +130,17 @@ func (tc *testCluster) addSequins() *testSequins {
 	config.Sharding.TimeToConverge = duration{100 * time.Millisecond}
 	config.Sharding.ProxyTimeout = duration{600 * time.Millisecond}
 	config.Sharding.AdvertisedHostname = "localhost"
+	config.Sharding.ShardID = strconv.Itoa(len(tc.sequinses))
 	config.ZK.Servers = []string{fmt.Sprintf("localhost:%d", tc.zk.Servers[0].Port)}
 	config.Test.AllowLocalCluster = true
 
 	// Slow everything down to an observable level.
 	config.ThrottleLoads = duration{5 * time.Millisecond}
 	config.Test.UpgradeDelay = duration{1 * time.Second}
+
+	for _, opt := range opts {
+		opt(&config)
+	}
 
 	s := &testSequins{
 		T:           tc.T,
@@ -138,9 +158,9 @@ func (tc *testCluster) addSequins() *testSequins {
 	return s
 }
 
-func (tc *testCluster) addSequinses(n int) {
+func (tc *testCluster) addSequinses(n int, opts ...configOption) {
 	for i := 0; i < n; i++ {
-		tc.addSequins()
+		tc.addSequins(opts...)
 	}
 }
 
@@ -408,7 +428,7 @@ func TestClusterEmpty(t *testing.T) {
 	tc := newTestCluster(t)
 	defer tc.tearDown()
 
-	tc.addSequinses(3)
+	tc.addSequinses(3, minRepl(2))
 	tc.makeVersionAvailable(v3)
 	tc.expectProgression(down, noVersion, v3)
 
@@ -428,7 +448,7 @@ func TestLargeClusterEmpty(t *testing.T) {
 	tc := newTestCluster(t)
 	defer tc.tearDown()
 
-	tc.addSequinses(30)
+	tc.addSequinses(30, minRepl(2))
 	tc.makeVersionAvailable(v3)
 	tc.expectProgression(down, noVersion, v3)
 
@@ -448,7 +468,7 @@ func TestClusterUpgrading(t *testing.T) {
 	tc := newTestCluster(t)
 	defer tc.tearDown()
 
-	tc.addSequinses(3)
+	tc.addSequinses(3, minRepl(2))
 	tc.makeVersionAvailable(v1)
 	tc.expectProgression(down, noVersion, v1, v2, v3)
 
@@ -477,7 +497,7 @@ func TestClusterDelayedUpgrade(t *testing.T) {
 	tc := newTestCluster(t)
 	defer tc.tearDown()
 
-	tc.addSequinses(3)
+	tc.addSequinses(3, minRepl(2))
 	tc.expectProgression(down, noVersion, v1, v2)
 
 	tc.makeVersionAvailable(v1)
@@ -505,7 +525,7 @@ func TestClusterNoDowngrade(t *testing.T) {
 	tc := newTestCluster(t)
 	defer tc.tearDown()
 
-	tc.addSequinses(3)
+	tc.addSequinses(3, minRepl(2))
 	tc.expectProgression(down, noVersion, v3)
 
 	tc.makeVersionAvailable(v3)
@@ -531,7 +551,7 @@ func TestClusterLateJoin(t *testing.T) {
 	tc := newTestCluster(t)
 	defer tc.tearDown()
 
-	tc.addSequinses(3)
+	tc.addSequinses(3, minRepl(2))
 	tc.expectProgression(down, noVersion, v3)
 
 	tc.makeVersionAvailable(v3)
@@ -539,7 +559,7 @@ func TestClusterLateJoin(t *testing.T) {
 	tc.startTest()
 	time.Sleep(expectTimeout)
 
-	s := tc.addSequins()
+	s := tc.addSequins(minRepl(2))
 	s.makeVersionAvailable(v3)
 	s.setup()
 	s.expectProgression(down, v3)
@@ -559,7 +579,8 @@ func TestClusterNodeWithoutData(t *testing.T) {
 	tc := newTestCluster(t)
 	defer tc.tearDown()
 
-	tc.addSequinses(3)
+	// Needs repl(3) so two nodes can cover two of each partition.
+	tc.addSequinses(3, repl(3), minRepl(2))
 
 	// By default this is 10 minutes; we're reducing it to confirm that
 	// nodes are not removing versions that their peers still have.
@@ -600,7 +621,7 @@ func TestClusterRollingRestart(t *testing.T) {
 	tc := newTestCluster(t)
 	defer tc.tearDown()
 
-	tc.addSequinses(3)
+	tc.addSequinses(3, minRepl(2))
 	tc.makeVersionAvailable(v3)
 	tc.expectProgression(down, noVersion, v3, down, v3)
 
@@ -629,7 +650,7 @@ func TestClusterNodeVacation(t *testing.T) {
 	tc := newTestCluster(t)
 	defer tc.tearDown()
 
-	tc.addSequinses(3)
+	tc.addSequinses(3, minRepl(2))
 	tc.makeVersionAvailable(v2)
 	tc.sequinses[0].expectProgression(down, noVersion, v2, down, v3)
 	tc.sequinses[1].expectProgression(down, noVersion, v2, v3)
@@ -649,4 +670,149 @@ func TestClusterNodeVacation(t *testing.T) {
 
 	tc.sequinses[0].start()
 	tc.assertProgression()
+}
+
+type crashTest struct {
+	MinReplication    int
+	VersionAfterCrash string
+	MissingData       bool
+}
+
+func testCrash(t *testing.T, testCase crashTest) {
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	tc.addSequinses(3, repl(2), minRepl(testCase.MinReplication))
+	// Keep one sequins permanently hanging
+	tc.sequinses[1].config.Test.Hang = hangAfterRead{
+		Version: "v2",
+		File:    "part-00003",
+	}
+
+	// Version 1: Everything is fine.
+	tc.makeVersionAvailable(v1)
+	tc.expectProgression(down, noVersion, v1)
+	tc.setup()
+	tc.startTest()
+	tc.assertProgression()
+
+	tc.makeVersionAvailable(v2)
+	tc.hup()
+	time.Sleep(expectTimeout)
+
+	// Simulate a crash.
+	tc.sequinses[2].stop()
+	// Ensure node 2 is down.
+	url := fmt.Sprintf("http://%s/%s/%s", tc.sequinses[2].name, dbName, babyNames[0].key)
+	_, err := tc.testClient.Get(url)
+	assert.Error(t, err)
+
+	testCrashStatus(t, tc, testCase.VersionAfterCrash, testCase.MissingData)
+
+	// When nodes come back up, we should be fine.
+	tc.sequinses[1].stop()
+	tc.sequinses[1].config.Test.Hang = hangAfterRead{}
+	tc.sequinses[1].setup()
+	tc.sequinses[1].start()
+	tc.sequinses[2].start()
+
+	time.Sleep(expectTimeout)
+	testCrashStatus(t, tc, "v2", false)
+}
+
+func testCrashStatus(t *testing.T, tc *testCluster, versionAfterCrash string, missingData bool) {
+	// Check for missing data.
+	numErrors := 0
+	numSuccess := 0
+	for _, name := range babyNames {
+		url := fmt.Sprintf("http://%s/%s/%s", tc.sequinses[0].name, dbName, name.key)
+		resp, err := tc.testClient.Get(url)
+		require.NoError(t, err)
+		resp.Body.Close()
+		if resp.StatusCode >= 500 && resp.StatusCode < 600 {
+			numErrors++
+		} else {
+			require.Equal(t, 200, resp.StatusCode)
+			numSuccess++
+			v := resp.Header.Get("X-Sequins-Version")
+			assert.Equal(t, versionAfterCrash, v)
+		}
+	}
+	assert.NotZero(t, numSuccess)
+
+	// If data should be missing, node 0 returns error for at least some key.
+	if missingData {
+		assert.NotZero(t, numErrors)
+	} else {
+		assert.Zero(t, numErrors)
+	}
+}
+
+// TestClusterCrashMin tests that min_replication allows robustness in case
+// of a crash just after a version is complete.
+func TestClusterCrashMin(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+	t.Parallel()
+
+	testCases := []crashTest{
+		// With min_replication = 1, we prematurely go to v2, and then data is missing
+		// after a crash.
+		{1, "v2", true},
+		// With min_replication = 2, we hold off on v2, and still can serve v1.
+		{2, "v1", false},
+	}
+	for _, testCase := range testCases {
+		t.Run(fmt.Sprintf("MinRepl-%d", testCase.MinReplication), func(t *testing.T) {
+			t.Parallel()
+			testCrash(t, testCase)
+		})
+	}
+}
+
+func testMinReplication(t *testing.T, mrepl int, progression testVersion) {
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	tc.addSequinses(4, repl(3), minRepl(mrepl))
+	tc.makeVersionAvailable(v1)
+	tc.expectProgression(down, noVersion, v1)
+
+	tc.setup()
+	tc.startTest()
+	tc.assertProgression()
+
+	tc.sequinses[3].stop()
+	tc.makeVersionAvailable(v2)
+	tc.hup()
+	tc.sequinses[3].expectProgression(down)
+	for i := 0; i <= 2; i++ {
+		tc.sequinses[i].expectProgression(progression)
+	}
+	tc.assertProgression()
+}
+
+// TestClusterMin tests that 1 < min_replication < replication < count(shard_id)
+// allows upgrades even if a node goes down.
+func TestClusterMin(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+	t.Parallel()
+
+	testCases := []struct {
+		MinReplication int
+		Progression    testVersion
+	}{
+		{3, timeout},
+		{2, v2},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(fmt.Sprintf("MinRepl-%d", testCase.MinReplication), func(t *testing.T) {
+			t.Parallel()
+			testMinReplication(t, testCase.MinReplication, testCase.Progression)
+		})
+	}
 }

@@ -52,6 +52,7 @@ type s3Config struct {
 type shardingConfig struct {
 	Enabled            bool     `toml:"enabled"`
 	Replication        int      `toml:"replication"`
+	MinReplication     int      `toml:"min_replication"`
 	TimeToConverge     duration `toml:"time_to_converge"`
 	ProxyTimeout       duration `toml:"proxy_timeout"`
 	ProxyStageTimeout  duration `toml:"proxy_stage_timeout"`
@@ -74,11 +75,16 @@ type debugConfig struct {
 
 // testConfig has some options used in functional tests to slow sequins down
 // and make it more observable.
+type hangAfterRead struct {
+	Version string `toml:"db"`
+	File    string `toml:"file"`
+}
 type testConfig struct {
-	UpgradeDelay         duration `toml:"upgrade_delay"`
-	AllowLocalCluster    bool     `toml:"allow_local_cluster"`
-	VersionRemoveTimeout duration `toml:"version_remove_timeout"`
-	S3                   s3Config `toml:"s3"`
+	UpgradeDelay         duration      `toml:"upgrade_delay"`
+	AllowLocalCluster    bool          `toml:"allow_local_cluster"`
+	VersionRemoveTimeout duration      `toml:"version_remove_timeout"`
+	S3                   s3Config      `toml:"s3"`
+	Hang                 hangAfterRead `toml:"hang"`
 }
 
 type datadogConfig struct {
@@ -107,6 +113,7 @@ func defaultConfig() sequinsConfig {
 		Sharding: shardingConfig{
 			Enabled:            false,
 			Replication:        2,
+			MinReplication:     1,
 			TimeToConverge:     duration{10 * time.Second},
 			ProxyTimeout:       duration{100 * time.Millisecond},
 			ProxyStageTimeout:  duration{time.Duration(0)},
@@ -202,6 +209,13 @@ func validateConfig(config sequinsConfig) (sequinsConfig, error) {
 
 	if config.Sharding.Replication <= 0 {
 		return config, fmt.Errorf("invalid replication factor: %d", config.Sharding.Replication)
+	}
+	if config.Sharding.MinReplication <= 0 {
+		return config, fmt.Errorf("invalid minimum replication factor: %d", config.Sharding.MinReplication)
+	}
+	if config.Sharding.MinReplication > config.Sharding.Replication {
+		return config, fmt.Errorf("invalid minimum replication factor greater than total replication factor: %d > %d",
+			config.Sharding.MinReplication, config.Sharding.Replication)
 	}
 
 	return config, nil

@@ -161,6 +161,19 @@ int  | 2
 
 This is the number of replicas responsible for each partition.
 
+### min_replication
+
+Type | Default
+:--: | -------
+int  | 1
+
+This is the minimum number of replicas required for sequins to switch to
+a new version. Set this to a higher value to ensure data redundancy before
+upgrading.
+
+You probably don't want this to be equal to `replication`,
+or sequins will never upgrade versions if any node at all is down.
+
 ### time_to_converge
 
 Type   | Default

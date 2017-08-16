@@ -77,7 +77,30 @@ asynchronously. That means that if Zookeeper becomes unavailable,
 Crucially, however, Zookeeper going down should **never impact an existing
 cluster's ability to service requests**.
 
-### Version Consistency Around Upgrades
+### Version upgrades
+
+Sequins uses Zookeeper to check which nodes have which partitions. It will
+upgrade to a new version when that version is minimally replicated—when every
+partition is available somewhere in the cluster.
+
+Note that this occurs before the version is fully replicated, and
+possibly even before the local node has any partitions.
+
+#### Replication
+
+During the window between an upgrade and full replication, Sequins is
+more vulnerable to node failure. You can mitigate this vulnerability by
+setting `sharding.min_replication`, so that Sequins waits for a certain
+amount of redundancy before triggering the upgrade.
+
+However, a high `min_replication` will also make upgrades take longer.
+In particular, if `min_replication` is the same as `replication`, a
+successful upgrade requires every single node to be up and running.
+
+Recommended settings for a stable cluster are therefore
+1 < `min_replication` < `replication` <= count(`shard_id`).
+
+#### Version consistency
 
 Nodes in a sequins cluster will make a best-effort attempt to upgrade a given
 database at more or less the same time. It is, of course, physically impossible

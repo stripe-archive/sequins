@@ -385,6 +385,13 @@ func (vs *version) setState(state versionState) {
 		vs.state = state
 		if state == versionAvailable {
 			vs.available = time.Now()
+			if vs.stats != nil {
+				tags := []string{fmt.Sprintf("sequins_db:%s", vs.db.name)}
+				span := vs.available.Sub(vs.created)
+				vs.stats.Timing("db_creation_time", span, tags, 1)
+
+			}
+
 		}
 	}
 }

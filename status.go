@@ -86,7 +86,7 @@ func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonBytes)
 }
 
-func (s *sequins) isHealthy() (bool, map[string]map[string]map[string]versionState) {
+func (s *sequins) isHealthy() (bool, map[string]map[string]versionState) {
 	s.dbsLock.RLock()
 
 	status := status{DBs: make(map[string]dbStatus)}

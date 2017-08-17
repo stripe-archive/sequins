@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"log"
+
 	"net/url"
 	"path/filepath"
 
@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/colinmarc/hdfs"
 	"github.com/stripe/sequins/backend"
+	"github.com/stripe/sequins/log"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 

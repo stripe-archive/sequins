@@ -90,7 +90,6 @@ func (vs *version) proxy(r *http.Request, peers []string) (*http.Response, strin
 			if res.err != nil {
 				log.LogWithKVs(&log.KeyValue{
 					"error_message": "peer-proxy-error",
-					"status_code": res.resp.StatusCode,
 					"traceback": res.err,
 				})
 				cancels[res.peer]()

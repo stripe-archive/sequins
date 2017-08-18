@@ -2,7 +2,6 @@ package sharding
 
 import (
 	"fmt"
-	"log"
 	"path"
 	"strings"
 	"sync"
@@ -10,6 +9,7 @@ import (
 
 	"stathat.com/c/consistent"
 
+	"github.com/stripe/sequins/log"
 	"github.com/stripe/sequins/zk"
 )
 
@@ -92,7 +92,7 @@ func (p *Peers) updatePeers(addrs []string) {
 		peer := peer{shardID: id, address: addr}
 		disp = append(disp, peer.display())
 		if !p.peers[peer] {
-			log.Println("New peer:", peer.display())
+			log.PrintlnWithKV("New peer", "peer", peer.display())
 		}
 
 		shards[id] = true
@@ -102,7 +102,7 @@ func (p *Peers) updatePeers(addrs []string) {
 	// Log for any lost peers.
 	for peer := range p.peers {
 		if !newPeers[peer] {
-			log.Println("Lost peer:", peer.display())
+			log.PrintlnWithKV("Lost peer", "peer", peer.display())
 		}
 	}
 
@@ -120,7 +120,7 @@ func (p *Peers) updatePeers(addrs []string) {
 
 // WaitToConverge blocks until the list of peers has stabilized for dur.
 func (p *Peers) WaitToConverge(dur time.Duration) {
-	log.Printf("Waiting for list of peers to stabilize for %v...", dur)
+	log.PrintlnWithKV("Waiting for list of peers to stabilize", "wait_time", fmt.Sprintf("%v", dur))
 	timer := time.NewTimer(dur)
 
 	for {

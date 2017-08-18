@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -23,6 +22,7 @@ import (
 	"github.com/stripe/sequins/multilock"
 	"github.com/stripe/sequins/sharding"
 	"github.com/stripe/sequins/zk"
+	"github.com/stripe/sequins/log"
 )
 
 var errDirLocked = errors.New("failed to acquire lock")
@@ -62,7 +62,11 @@ func (s *sequins) init() error {
 	if s.config.Datadog.Url != "" {
 		statsdClient, err := statsd.New(s.config.Datadog.Url)
 		if err != nil {
-			log.Fatalf("Error connecting to statsd: %s", err)
+			log.LogWithKVs(&log.KeyValue{
+				"error_message": "statsd-connect-error",
+				"dd_url": s.config.Datadog.Url,
+				"traceback": err,
+			})
 		}
 		statsdClient.Namespace = "sequins."
 		statsdClient.Tags = append(statsdClient.Tags, fmt.Sprintf("sequins:%s", s.config.Sharding.ClusterName))
@@ -98,7 +102,7 @@ func (s *sequins) init() error {
 	if refresh != 0 {
 		s.refreshTicker = time.NewTicker(refresh)
 		go func() {
-			log.Println("Automatically checking for new versions every", refresh.String())
+			log.PrintlnWithKV("Checking for new versions", "db_refresh", refresh.String())
 			for range s.refreshTicker.C {
 				s.refreshAll()
 			}
@@ -185,7 +189,11 @@ func (s *sequins) initLocalStore() error {
 	if err != nil {
 		p, err := s.storeLock.GetOwner()
 		if err == nil {
-			log.Printf("The local store at %s is locked by process %d", s.config.LocalStore, p.Pid)
+			log.LogWithKVs(&log.KeyValue{
+				"error_message": "local-store-locked-error",
+				"local_store": s.config.LocalStore,
+				"pid": p.Pid,
+			})
 		}
 
 		return errDirLocked
@@ -202,12 +210,12 @@ func (s *sequins) start() {
 		h = trackQueries(s)
 	}
 
-	log.Println("Listening on", s.config.Bind)
+	log.LogWithKV("listening", s.config.Bind)
 	graceful.Run(s.config.Bind, time.Second, h)
 }
 
 func (s *sequins) shutdown() {
-	log.Println("Shutting down...")
+	log.Println("Shutting down")
 	signal.Stop(s.sighups)
 
 	if s.refreshTicker != nil {
@@ -244,7 +252,11 @@ func (s *sequins) refreshAll() {
 
 	dbs, err := s.listDBs()
 	if err != nil {
-		log.Printf("Error listing DBs from %s: %s", s.backend.DisplayPath(""), err)
+		log.LogWithKVs(&log.KeyValue{
+			"error_message": "listing-db-error",
+			"backend": s.backend.DisplayPath(""),
+			"traceback": err,
+		})
 		return
 	}
 
@@ -269,7 +281,11 @@ func (s *sequins) refreshAll() {
 			go func() {
 				err := db.refresh()
 				if err != nil {
-					log.Printf("Error refreshing %s: %s", db.name, err)
+					log.LogWithKVs(&log.KeyValue{
+						"error_message": "db-refresh-error",
+						"db_name": db.name,
+						"traceback": err,
+					})
 				}
 			}()
 		}
@@ -292,7 +308,7 @@ func (s *sequins) refreshAll() {
 
 	for name, db := range oldDBs {
 		if s.dbs[name] == nil {
-			log.Println("Removing and clearing database", name)
+			log.PrintlnWithKV("Removing and clearing database", "db_name", name)
 			db.close()
 			db.delete()
 		}

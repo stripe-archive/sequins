@@ -3,12 +3,12 @@ package blocks
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 
 	"github.com/bsm/go-sparkey"
 	"github.com/pborman/uuid"
+	"github.com/stripe/sequins/log"
 )
 
 type blockWriter struct {
@@ -27,7 +27,7 @@ func newBlock(storePath string, partition int, compression Compression, blockSiz
 	name := fmt.Sprintf("block-%05d-%s.spl", partition, id)
 
 	path := filepath.Join(storePath, name)
-	log.Println("Initializing block at", path)
+	log.PrintlnWithKV("Initializing block", "path", path)
 
 	c := sparkey.COMPRESSION_NONE
 	if compression == SnappyCompression {

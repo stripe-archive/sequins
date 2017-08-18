@@ -3,12 +3,13 @@ package main
 import (
 	"errors"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/stripe/sequins/log"
 )
 
 var errNoVersions = errors.New("no versions available")
@@ -78,7 +79,12 @@ func (db *db) backfillVersions() error {
 
 		version, err := newVersion(db.sequins, db, db.localPath(v), v)
 		if err != nil {
-			log.Printf("Error initializing version %s of %s: %s", db.name, v, err)
+			log.LogWithKVs(&log.KeyValue{
+				"error_message": "version-init-error",
+				"db_name":       db.name,
+				"version":       v,
+				"traceback":     err,
+			})
 			continue
 		}
 
@@ -200,7 +206,12 @@ func (db *db) upgrade(version *version) {
 		return
 	}
 
-	log.Printf("Switching to version %s of %s!", version.name, db.name)
+	log.LogWithKVs(&log.KeyValue{
+		"msg":        "Switching version",
+		"db_version": version.name,
+		"db_name":    db.name,
+	})
+
 	db.mux.upgrade(version)
 	version.setState(versionAvailable)
 
@@ -234,7 +245,12 @@ func (db *db) removeVersion(old *version, shouldWait bool) {
 		removed.close()
 		err := removed.delete()
 		if err != nil {
-			log.Printf("Error cleaning up version %s of %s: %s", removed.name, db.name, err)
+			log.LogWithKVs(&log.KeyValue{
+				"error_message": "version-clean-up-error",
+				"db_version":    removed.name,
+				"db_name":       db.name,
+				"traceback":     err,
+			})
 		}
 	}
 }
@@ -247,7 +263,11 @@ func (db *db) cleanupStore() {
 	if os.IsNotExist(err) {
 		return
 	} else if err != nil {
-		log.Println("Error listing local dir:", err)
+		log.LogWithKVs(&log.KeyValue{
+			"error_message": "local-dir-listing-error",
+			"db_name":       db.name,
+			"traceback":     err,
+		})
 		return
 	}
 
@@ -263,7 +283,11 @@ func (db *db) cleanupStore() {
 			continue
 		}
 
-		log.Println("Clearing defunct version", v, "of", db.name)
+		log.LogWithKVs(&log.KeyValue{
+			"msg":        "Clearing defunct verion",
+			"db_version": v,
+			"db_name":    db.name,
+		})
 		os.RemoveAll(db.localPath(v))
 	}
 }

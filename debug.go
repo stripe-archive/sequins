@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
-	"log"
+
 	"net/http"
 	"net/http/pprof"
 	"os"
@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/codahale/hdrhistogram"
+	"github.com/stripe/sequins/log"
 )
 
 var expStats *sequinsStats
@@ -144,7 +145,7 @@ func (s *sequinsStats) updateRequestStats() {
 			case 504:
 				s.Qps.status504++
 			default:
-				log.Println("Untrackable http status:", q.status)
+				log.PrintlnWithKV("Untrackable http status", "http_status", string(q.status))
 			}
 		}
 	}

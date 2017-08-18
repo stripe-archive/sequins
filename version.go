@@ -2,13 +2,13 @@ package main
 
 import (
 	"errors"
-	"log"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
 
 	"github.com/stripe/sequins/blocks"
+	"github.com/stripe/sequins/log"
 	"github.com/stripe/sequins/sharding"
 )
 
@@ -107,7 +107,12 @@ func (vs *version) initBlockStore(path string) error {
 	// Try loading anything we have locally. If it doesn't work out, that's ok.
 	blockStore, manifest, err := blocks.NewFromManifest(path)
 	if err != nil && err != blocks.ErrNoManifest {
-		log.Println("Error loading", vs.db.name, "version", vs.name, "from manifest:", err)
+		log.LogWithKVs(&log.KeyValue{
+			"error_message": "manifest-load-error",
+			"db_name":       vs.db.name,
+			"db_version":    vs.name,
+			"traceback":     err,
+		})
 	}
 
 	if blockStore == nil {

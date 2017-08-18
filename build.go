@@ -4,13 +4,12 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
 	"github.com/colinmarc/sequencefile"
-
 	"github.com/stripe/sequins/blocks"
+	"github.com/stripe/sequins/log"
 )
 
 var (
@@ -44,7 +43,7 @@ func (vs *version) build() {
 		return
 	}
 
-	log.Println("Loading", len(partitions), "partitions of", vs.db.name, "version", vs.name,
+	log.Println("Loading", string(len(partitions)), "partitions of", vs.db.name, "version", vs.name,
 		"from", vs.sequins.backend.DisplayPath(vs.db.name, vs.name))
 
 	// We create the directory right before we load data into it, so we don't

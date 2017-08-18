@@ -2,12 +2,12 @@ package main
 
 import (
 	"io"
-	"log"
 	"math/rand"
 	"net/http"
 	"strconv"
 
 	"github.com/stripe/sequins/blocks"
+	"github.com/stripe/sequins/log"
 )
 
 // serveKey is the entrypoint for incoming HTTP requests. It looks up the value
@@ -49,7 +49,13 @@ func (vs *version) serveLocal(w http.ResponseWriter, key string, record *blocks.
 	_, err := io.Copy(w, record)
 	if err != nil {
 		// We already wrote a 200 OK, so not much we can do here except log.
-		log.Printf("Error streaming response for /%s/%s (version %s): %s", vs.db.name, key, vs.name, err)
+		log.LogWithKVs(&log.KeyValue{
+			"error_message": "streaming-response-error",
+			"db_name":       vs.db.name,
+			"db_version":    vs.name,
+			"key":           key,
+			"traceback":     err,
+		})
 	}
 }
 
@@ -60,14 +66,19 @@ func (vs *version) serveProxied(w http.ResponseWriter, r *http.Request,
 	// TODO: We don't want to blacklist nodes, but we can weight them lower
 	peers := shuffle(vs.partitions.FindPeers(partition))
 	if len(peers) == 0 {
-		log.Printf("No peers available for /%s/%s (version %s)", vs.db.name, key, vs.name)
+		log.LogWithKVs(&log.KeyValue{
+			"error_message": "no-peers-available-error",
+			"db_name":       vs.db.name,
+			"db_version":    vs.name,
+			"key":           key,
+		})
 		w.WriteHeader(http.StatusBadGateway)
 		return
 	}
 
 	resp, peer, err := vs.proxy(r, peers)
 	if err == nil && resp.StatusCode == 404 && alternatePartition != partition {
-		log.Println("Trying alternate partition for pathological key", key)
+		log.PrintlnWithKV("Trying alternate partition for pathological key", "key", key)
 
 		resp.Body.Close()
 		alternatePeers := shuffle(vs.partitions.FindPeers(alternatePartition))
@@ -77,12 +88,22 @@ func (vs *version) serveProxied(w http.ResponseWriter, r *http.Request,
 	if err == errNoAvailablePeers {
 		// Either something is wrong with sharding, or all peers errored for some
 		// other reason. 502
-		log.Printf("No peers available for /%s/%s (version %s)", vs.db.name, key, vs.name)
+		log.LogWithKVs(&log.KeyValue{
+			"error_message": "no-peers-available-error",
+			"db_name":       vs.db.name,
+			"db_version":    vs.name,
+			"key":           key,
+		})
 		w.WriteHeader(http.StatusBadGateway)
 		return
 	} else if err == errProxyTimeout {
 		// All of our peers failed us. 504.
-		log.Printf("All peers timed out for /%s/%s (version %s)", vs.db.name, key, vs.name)
+		log.LogWithKVs(&log.KeyValue{
+			"error_message": "all-peers-timed-out-error",
+			"db_name":       vs.db.name,
+			"db_version":    vs.name,
+			"key":           key,
+		})
 		w.WriteHeader(http.StatusGatewayTimeout)
 		return
 	} else if err != nil {
@@ -106,7 +127,13 @@ func (vs *version) serveProxied(w http.ResponseWriter, r *http.Request,
 	_, err = io.Copy(w, resp.Body)
 	if err != nil {
 		// We already wrote a 200 OK, so not much we can do here except log.
-		log.Printf("Error copying response from peer for /%s/%s (version %s): %s", vs.db.name, key, vs.name, err)
+		log.LogWithKVs(&log.KeyValue{
+			"error_message": "copying-response-from-peer-error",
+			"db_name":       vs.db.name,
+			"db_version":    vs.name,
+			"key":           key,
+			"traceback":     err,
+		})
 	}
 }
 
@@ -116,7 +143,12 @@ func (vs *version) serveNotFound(w http.ResponseWriter) {
 }
 
 func (vs *version) serveError(w http.ResponseWriter, key string, err error) {
-	log.Printf("Error fetching value for /%s/%s: %s\n", vs.db.name, key, err)
+	log.LogWithKVs(&log.KeyValue{
+		"error_message": "fetch-value-error",
+		"db_name":       vs.db.name,
+		"db_version":    vs.name,
+		"key":           key,
+	})
 	w.WriteHeader(http.StatusInternalServerError)
 }
 

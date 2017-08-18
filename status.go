@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"log"
 	"net/http"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/stripe/sequins/log"
 )
 
 var statusTemplate *template.Template
@@ -101,7 +102,10 @@ func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
 
 	jsonBytes, err := json.Marshal(statuses)
 	if err != nil {
-		log.Printf("Error encoding response to JSON: %v", jsonBytes)
+		log.LogWithKVs(&log.KeyValue{
+			"error_message": "json-response-encoding-error",
+			"json":          fmt.Sprintf("%v", jsonBytes),
+		})
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -131,7 +135,11 @@ func (s *sequins) serveStatus(w http.ResponseWriter, r *http.Request) {
 		for _, p := range s.peers.Get() {
 			peerStatus, err := s.getPeerStatus(p, "")
 			if err != nil {
-				log.Printf("Error fetching status from peer %s: %s", p, err)
+				log.LogWithKVs(&log.KeyValue{
+					"error_message": "peers-status-fetch-error",
+					"peer":          p,
+					"traceback":     err,
+				})
 				continue
 			}
 
@@ -157,7 +165,10 @@ func (s *sequins) serveStatus(w http.ResponseWriter, r *http.Request) {
 	if acceptsJSON(r) {
 		jsonBytes, err := json.Marshal(status)
 		if err != nil {
-			log.Println("Error serving status:", err)
+			log.LogWithKVs(&log.KeyValue{
+				"error_message": "status-serve-error",
+				"traceback":     err,
+			})
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -167,7 +178,10 @@ func (s *sequins) serveStatus(w http.ResponseWriter, r *http.Request) {
 	} else {
 		err := statusTemplate.Execute(w, status)
 		if err != nil {
-			log.Println("Error rendering status:", err)
+			log.LogWithKVs(&log.KeyValue{
+				"error_message": "render-status-error",
+				"traceback":     err,
+			})
 		}
 	}
 }
@@ -180,7 +194,11 @@ func (db *db) serveStatus(w http.ResponseWriter, r *http.Request) {
 		for _, p := range db.sequins.peers.Get() {
 			peerStatus, err := db.sequins.getPeerStatus(p, db.name)
 			if err != nil {
-				log.Printf("Error fetching status from peer %s: %s", p, err)
+				log.LogWithKVs(&log.KeyValue{
+					"error_message": "fetch-status-error",
+					"peer":          p,
+					"traceback":     err,
+				})
 				continue
 			}
 
@@ -196,7 +214,10 @@ func (db *db) serveStatus(w http.ResponseWriter, r *http.Request) {
 	if acceptsJSON(r) {
 		jsonBytes, err := json.Marshal(s)
 		if err != nil {
-			log.Println("Error serving status:", err)
+			log.LogWithKVs(&log.KeyValue{
+				"error_message": "status-serve-error",
+				"traceback": err,
+			})
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -208,7 +229,10 @@ func (db *db) serveStatus(w http.ResponseWriter, r *http.Request) {
 		status.DBs[db.name] = s
 		err := statusTemplate.Execute(w, status)
 		if err != nil {
-			log.Println("Error rendering status:", err)
+			log.LogWithKVs(&log.KeyValue{
+				"error_message": "render-status-error",
+				"traceback": err,
+			})
 		}
 	}
 }

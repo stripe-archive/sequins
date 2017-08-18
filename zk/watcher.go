@@ -3,13 +3,13 @@ package zk
 import (
 	"errors"
 	"fmt"
-	"log"
 	"path"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/samuel/go-zookeeper/zk"
+	"github.com/stripe/sequins/log"
 )
 
 const (
@@ -84,7 +84,7 @@ func (w *Watcher) reconnect() error {
 	defer w.lock.Unlock()
 
 	servers := strings.Join(w.zkServers, ",")
-	log.Println("Connecting to zookeeper at", servers)
+	log.PrintlnWithKV("Connecting to zookeeper", "servers", servers)
 	conn, events, err = zk.Connect(w.zkServers, w.sessionTimeout)
 	if err != nil {
 		return err
@@ -189,7 +189,10 @@ Reconnect:
 
 			err := w.reconnect()
 			if err != nil {
-				log.Println("Error reconnecting to zookeeper:", err)
+				log.LogWithKVs(&log.KeyValue{
+					"error_message": "zookeeper-reconnection-error",
+					"traceback":     err,
+				})
 				continue Reconnect
 			}
 		} else {
@@ -200,7 +203,10 @@ Reconnect:
 		case <-w.shutdown:
 			break Reconnect
 		case err := <-w.errs:
-			log.Println("Disconnecting from zookeeper because of error:", err)
+			log.LogWithKVs(&log.KeyValue{
+				"error_message": "zookeeper-disconnect-error",
+				"traceback":     err,
+			})
 			w.cancelWatches()
 			continue Reconnect
 		}
@@ -436,7 +442,12 @@ func (w *Watcher) Close() {
 
 // sendErr sends the error over the channel, or discards it if the error is full.
 func sendErr(errs chan error, err error, path string, server string) {
-	log.Printf("Zookeeper error: err=%q, path=%q, server=%q", err, path, server)
+	log.LogWithKVs(&log.KeyValue{
+		"error_message": "zookeeper=error",
+		"traceback":     err,
+		"path":          path,
+		"server":        server,
+	})
 
 	select {
 	case errs <- err:

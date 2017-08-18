@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"time"
+	"github.com/stripe/sequins/log"
 )
 
 const proxyHeader = "X-Sequins-Proxied-To"
@@ -70,7 +70,11 @@ func (vs *version) proxy(r *http.Request, peers []string) (*http.Response, strin
 			req, err := vs.newProxyRequest(attemptCtx, r.URL.Path, peer)
 			if err != nil {
 				cancelAttempt()
-				log.Printf("Error initializing request to peer: %s", err)
+				log.LogWithKVs(&log.KeyValue{
+					"error_message": "peer-request-init-error",
+					"peer": peer,
+					"traceback": err,
+				})
 			} else {
 				cancels[peer] = cancelAttempt
 				outstanding += 1
@@ -84,7 +88,11 @@ func (vs *version) proxy(r *http.Request, peers []string) (*http.Response, strin
 		case res := <-responses:
 			outstanding -= 1
 			if res.err != nil {
-				log.Printf("Error proxying request to peer: %s", res.err)
+				log.LogWithKVs(&log.KeyValue{
+					"error_message": "peer-proxy-error",
+					"status_code": res.resp.StatusCode,
+					"traceback": res.err,
+				})
 				cancels[res.peer]()
 			} else {
 				// Cancel any other outstanding attempts.

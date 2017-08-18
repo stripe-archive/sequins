@@ -1,22 +1,27 @@
 package log
 
 import (
-	"log"
-	"bytes"
 	"fmt"
-	"strings"
+	"log"
 	"os"
+	"strings"
 )
 
-const SEQUINS_LOG_LINE  = "CANONICAL-SEQUINS-LINE: "
+const SEQUINS_LOG_LINE = "CANONICAL-SEQUINS-LINE"
 
-type KeyValue struct {
-	Key string
-	Value string
+type KeyValue map[string]interface{}
+
+func (x KeyValue) String() string {
+	s := make([]string, 0, len(x))
+	for k, v := range x {
+		s = append(s, fmt.Sprintf("%s=%q", k, v))
+	}
+
+	return fmt.Sprintf("%s: %s", SEQUINS_LOG_LINE, strings.Join(s, " "))
 }
 
-func Println(msg ...string) {
-	LogWithKV("msg", strings.Join(msg, " "))
+func Println(v ...interface{}) {
+	log.Println(KeyValue{"msg": fmt.Sprint(v...)})
 }
 
 func Printf(format string, v ...interface{}) {
@@ -24,44 +29,26 @@ func Printf(format string, v ...interface{}) {
 }
 
 func PrintlnWithKV(msg, key, value string) {
-
-	LogWithKVs([]*KeyValue{
-		&KeyValue{
-			Key: "msg",
-			Value: msg,
-		},
-		&KeyValue{
-			Key: key,
-			Value:value,
-		},
-	},
-	)
+	LogWithKVs(&KeyValue{
+		"msg": msg,
+		key:   value,
+	})
 }
 
 func Fatal(v ...interface{}) {
-	Println(fmt.Sprint(v...))
+	Println(v...)
 	os.Exit(1)
 }
 
-func FatalF(format string, v ...interface{}) {
+func Fatalf(format string, v ...interface{}) {
 	Printf(format, v)
 	os.Exit(1)
 }
-func LogWithKV(key, value string) {
-	kv := &KeyValue{
-		Key: key,
-	Value: value,
-	}
-	response := []*KeyValue{kv}
-	LogWithKVs(response)
+
+func LogWithKV(key string, value interface{}) {
+	log.Println(&KeyValue{key: value})
 }
 
-func LogWithKVs(data []*KeyValue) {
-	var buffer bytes.Buffer
-	buffer.WriteString(SEQUINS_LOG_LINE)
-	for _, kv := range data {
-		buffer.WriteString(fmt.Sprintf("%s=%s ", kv.Key, kv.Value))
-	}
-
-	log.Printf(buffer.String())
+func LogWithKVs(data *KeyValue) {
+	log.Println(data)
 }

@@ -147,15 +147,15 @@ func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 				res[name] = true
 			}
 		}
-
-		log.Printf("call_site=s3.ListFiles sequins_db=%q sequins_db_version=%q dataset_size=%d file_count=%d", db, version, datasetSize, numFiles)
-
 		return true
 	})
 
 	if err != nil {
 		return nil, s.s3error(err)
 	}
+
+	log.Printf("call_site=s3.ListFiles sequins_db=%q sequins_db_version=%q dataset_size=%d file_count=%d", db, version, datasetSize, numFiles)
+
 
 	sorted := make([]string, 0, len(res))
 	for name := range res {

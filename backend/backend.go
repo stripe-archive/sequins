@@ -98,7 +98,7 @@ func (lb *LocalBackend) ListFiles(db, version string) ([]string, error) {
 		}
 	}
 
-	log.Printf("call_site=files.ListFiles sequins_db=%q sequins_db_version=%q dataset_size=%q file_count=%q", db, version, datasetSize, numFiles)
+	log.Printf("call_site=files.ListFiles sequins_db=%q sequins_db_version=%q dataset_size=%q file_count=%q", db, version, string(datasetSize), string(numFiles))
 
 	return res, nil
 }

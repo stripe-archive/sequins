@@ -148,7 +148,7 @@ func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 			}
 		}
 
-		log.Printf("call_site=s3.ListFiles sequins_db=%q sequins_db_version=%q dataset_size=%q file_count=%q", db, version, string(datasetSize), string(numFiles))
+		log.Printf("call_site=s3.ListFiles sequins_db=%q sequins_db_version=%q dataset_size=%d file_count=%d", db, version, datasetSize, numFiles)
 
 		return true
 	})

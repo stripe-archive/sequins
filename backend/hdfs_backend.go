@@ -3,6 +3,7 @@ package backend
 import (
 	"fmt"
 	"io"
+	"log"
 	"path"
 	"strings"
 
@@ -69,13 +70,19 @@ func (h *HdfsBackend) ListFiles(db, version string) ([]string, error) {
 		return nil, err
 	}
 
+	datasetSize := int64(0)
+	numFiles := int64(len(infos))
+
 	var res []string
 	for _, info := range infos {
 		name := info.Name()
 		if !info.IsDir() && !strings.HasPrefix(name, "_") && !strings.HasPrefix(name, ".") {
 			res = append(res, path.Base(info.Name()))
 		}
+		datasetSize += info.Size()
 	}
+
+	log.Printf("call_site=hdfs.ListFiles sequins_db=%q sequins_db_version=%q dataset_size=%q file_count=%q", db, version, datasetSize, numFiles)
 
 	return res, nil
 }

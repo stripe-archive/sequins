@@ -238,7 +238,7 @@ func (w *Watcher) createEphemeral(node string) error {
 		_, err := w.conn.Create(node, []byte{}, zk.FlagEphemeral, defaultZkACL)
 		if err == nil {
 			break
-		} else if err != nil && err != zk.ErrNoNode {
+		} else if err != nil && err != zk.ErrNoNode && err != zk.ErrNodeExists {
 			return err
 		}
 

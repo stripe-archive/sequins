@@ -180,7 +180,8 @@ Reconnect:
 	for {
 		if !first {
 			// Wait before trying to reconnect again.
-			wait := time.NewTimer(w.sessionTimeout)
+			// Let's wait longer than the ZK client.
+			wait := time.NewTimer(w.sessionTimeout * 2)
 			select {
 			case <-w.shutdown:
 				break Reconnect
@@ -188,7 +189,7 @@ Reconnect:
 			}
 
 			err := w.reconnect()
-			if err != nil {
+			if err != nil && w.conn.State() == zk.StateDisconnected {
 				log.Println("Error reconnecting to zookeeper:", err)
 				continue Reconnect
 			}

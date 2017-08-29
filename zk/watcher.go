@@ -180,7 +180,8 @@ Reconnect:
 	for {
 		if !first {
 			// Wait before trying to reconnect again.
-			wait := time.NewTimer(w.sessionTimeout)
+			// Let's wait longer than the ZK client.
+			wait := time.NewTimer(w.sessionTimeout * 2)
 			select {
 			case <-w.shutdown:
 				break Reconnect
@@ -188,7 +189,7 @@ Reconnect:
 			}
 
 			err := w.reconnect()
-			if err != nil {
+			if err != nil && w.conn.State() == zk.StateDisconnected {
 				log.Println("Error reconnecting to zookeeper:", err)
 				continue Reconnect
 			}
@@ -237,7 +238,7 @@ func (w *Watcher) createEphemeral(node string) error {
 		_, err := w.conn.Create(node, []byte{}, zk.FlagEphemeral, defaultZkACL)
 		if err == nil {
 			break
-		} else if err != nil && err != zk.ErrNoNode {
+		} else if err != nil && err != zk.ErrNoNode && err != zk.ErrNodeExists {
 			return err
 		}
 
@@ -330,7 +331,6 @@ func (w *Watcher) watchChildren(node string, wn watchedNode) error {
 			case reconnecting = <-wn.cancel:
 				return
 			case ev := <-events:
-
 				if ev.Err != nil {
 					sendErr(w.errs, ev.Err, ev.Path, ev.Server)
 					<-wn.cancel

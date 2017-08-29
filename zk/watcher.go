@@ -331,9 +331,7 @@ func (w *Watcher) watchChildren(node string, wn watchedNode) error {
 			case reconnecting = <-wn.cancel:
 				return
 			case ev := <-events:
-
 				if ev.Err != nil {
-					log.Println("DEBUG: callsite=watcher.WatchChildren")
 					sendErr(w.errs, ev.Err, ev.Path, ev.Server)
 					<-wn.cancel
 					return

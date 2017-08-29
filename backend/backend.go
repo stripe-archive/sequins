@@ -3,6 +3,7 @@ package backend
 import (
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -86,6 +87,9 @@ func (lb *LocalBackend) ListFiles(db, version string) ([]string, error) {
 		return nil, err
 	}
 
+	datasetSize := int64(0)
+	numFiles := int64(len(infos))
+
 	var res []string
 	for _, info := range infos {
 		name := info.Name()
@@ -93,6 +97,8 @@ func (lb *LocalBackend) ListFiles(db, version string) ([]string, error) {
 			res = append(res, filepath.Base(info.Name()))
 		}
 	}
+
+	log.Printf("call_site=files.ListFiles sequins_db=%q sequins_db_version=%q dataset_size=%d file_count=%d", db, version, datasetSize, numFiles)
 
 	return res, nil
 }

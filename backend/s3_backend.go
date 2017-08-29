@@ -3,6 +3,7 @@ package backend
 import (
 	"fmt"
 	"io"
+	"log"
 	"path"
 	"sort"
 	"strings"
@@ -133,21 +134,28 @@ func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 		Prefix:    aws.String(versionPrefix),
 	}
 
+	datasetSize := int64(0)
+	numFiles := int64(0)
+
 	err := s.svc.ListObjectsPages(params, func(page *s3.ListObjectsOutput, isLastPage bool) bool {
 		for _, key := range page.Contents {
 			name := path.Base(*key.Key)
 			// S3 sometimes has keys that are the same as the "directory"
 			if strings.TrimSpace(name) != "" && !strings.HasPrefix(name, "_") && !strings.HasPrefix(name, ".") {
+				datasetSize += *key.Size
+				numFiles++
 				res[name] = true
 			}
 		}
-
 		return true
 	})
 
 	if err != nil {
 		return nil, s.s3error(err)
 	}
+
+	log.Printf("call_site=s3.ListFiles sequins_db=%q sequins_db_version=%q dataset_size=%d file_count=%d", db, version, datasetSize, numFiles)
+
 
 	sorted := make([]string, 0, len(res))
 	for name := range res {

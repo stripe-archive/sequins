@@ -43,10 +43,11 @@ type version struct {
 	built     bool
 	buildLock sync.Mutex
 
-	stats *statsd.Client
+	backfillQueueDepth *int64
+	stats              *statsd.Client
 }
 
-func newVersion(sequins *sequins, db *db, path, name string) (*version, error) {
+func newVersion(sequins *sequins, db *db, path, name string, backFillQueueDepth *int64) (*version, error) {
 	files, err := sequins.backend.ListFiles(db.name, name)
 	if err != nil {
 		return nil, err
@@ -66,7 +67,8 @@ func newVersion(sequins *sequins, db *db, path, name string) (*version, error) {
 		ready:  make(chan bool),
 		cancel: make(chan bool),
 
-		stats: sequins.stats,
+		backfillQueueDepth: backFillQueueDepth,
+		stats:              sequins.stats,
 	}
 
 	minReplication := 1

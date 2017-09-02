@@ -10,6 +10,8 @@ import (
 
 	"github.com/colinmarc/sequencefile"
 
+	"sync/atomic"
+
 	"github.com/stripe/sequins/blocks"
 )
 
@@ -69,6 +71,15 @@ func (vs *version) build() {
 
 	vs.partitions.UpdateLocal(partitions)
 	vs.built = true
+	count := atomic.AddInt64(vs.backfillQueueDepth, -1)
+	log.Println("DEBUG: Subtracting from queue", count)
+	if vs.stats != nil {
+		err := vs.stats.Gauge("backfill_queue_depth", float64(count), []string{}, 1)
+		if err != nil {
+			log.Println("backfill_queue_depth failure")
+			log.Print(err)
+		}
+	}
 }
 
 // addFiles adds the given files to the block store, selecting only the

@@ -82,7 +82,7 @@ func (db *db) backfillVersions() error {
 	for i := len(versions) - 1; i >= 0; i-- {
 		v := versions[i]
 
-		version, err := newVersion(db.sequins, db, db.localPath(v), v)
+		version, err := newVersion(db.sequins, db, db.localPath(v), v, db.backfillQueueDepth)
 		if err != nil {
 			log.Printf("Error initializing version %s of %s: %s", db.name, v, err)
 			continue
@@ -139,22 +139,21 @@ func (db *db) refresh() error {
 		// If the build succeeded or is in progress, this is a noop. If it errored
 		// before, this will retry.
 		go existingVersion.build()
+		count := atomic.AddInt64(db.backfillQueueDepth, 1)
+		log.Println("DEBUG: Adding to queue", count)
+		if db.stats != nil {
+			err := db.stats.Gauge("backfill_queue_depth", float64(count), []string{}, 1)
+			if err != nil {
+				log.Println("backfill_queue_depth failure")
+				log.Print(err)
+			}
+		}
 		return nil
 	}
 
-	vs, err := newVersion(db.sequins, db, db.localPath(latest), latest)
+	vs, err := newVersion(db.sequins, db, db.localPath(latest), latest, db.backfillQueueDepth)
 	if err != nil {
 		return err
-	}
-
-	count := atomic.AddInt64(db.backfillQueueDepth, 1)
-	log.Println("DEBUG: Adding to queue", count)
-	if db.stats != nil {
-		err := db.stats.Gauge("backfill_queue_depth", float64(count), []string{}, 1)
-		if err != nil {
-			log.Println("backfill_queue_depth failure")
-			log.Print(err)
-		}
 	}
 
 	db.switchVersion(vs)
@@ -173,9 +172,17 @@ func (db *db) switchVersion(version *version) bool {
 	// Build any partitions we're missing in the background.
 	go version.build()
 
+	count := atomic.AddInt64(db.backfillQueueDepth, 1)
+	log.Println("DEBUG: Adding to queue", count)
+	if db.stats != nil {
+		err := db.stats.Gauge("backfill_queue_depth", float64(count), []string{}, 1)
+		if err != nil {
+			log.Println("backfill_queue_depth failure")
+			log.Print(err)
+		}
+	}
 	// Start advertising our partitions to peers.
 	go version.partitions.Advertise()
-
 
 	// If the version is ready now, we can switch to it synchronously. This is
 	// important to do so that on startup, we fully initialize ready versions
@@ -185,16 +192,6 @@ func (db *db) switchVersion(version *version) bool {
 	case <-version.ready:
 		db.upgrade(version)
 		// Emit that we have downloaded this version.
-		count := atomic.AddInt64(db.backfillQueueDepth, -1)
-		log.Println("DEBUG: Subtracting from queue", count)
-		if db.stats != nil {
-			err := db.stats.Gauge("backfill_queue_depth", float64(count), []string{}, 1)
-			if err != nil {
-				log.Println("backfill_queue_depth failure")
-				log.Print(err)
-			}
-		}
-
 		return true
 	default:
 	}
@@ -208,15 +205,6 @@ func (db *db) switchVersion(version *version) bool {
 	// deleting it.
 	go func() {
 		<-version.ready
-		count := atomic.AddInt64(db.backfillQueueDepth, -1)
-		log.Println("DEBUG: Subtracting from queue", count)
-		if db.stats != nil {
-			err := db.stats.Gauge("backfill_queue_depth", float64(count), []string{}, 1)
-			if err != nil {
-				log.Println("backfill_queue_depth failure")
-				log.Print(err)
-			}
-		}
 		db.upgrade(version)
 	}()
 

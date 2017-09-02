@@ -8,7 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"github.com/DataDog/datadog-go/statsd"
 )
 
 var errNoVersions = errors.New("no versions available")
@@ -16,19 +19,22 @@ var errNoVersions = errors.New("no versions available")
 type db struct {
 	sequins *sequins
 
-	name        string
-	mux         *versionMux
-	refreshLock sync.Mutex
-	buildLock   sync.Mutex
-	upgradeLock sync.Mutex
-	cleanupLock sync.Mutex
+	name               string
+	mux                *versionMux
+	refreshLock        sync.Mutex
+	buildLock          sync.Mutex
+	upgradeLock        sync.Mutex
+	cleanupLock        sync.Mutex
+	backfillQueueDepth *int64
+	stats              *statsd.Client
 }
 
-func newDB(sequins *sequins, name string) *db {
+func newDB(sequins *sequins, name string, backfillQueueDepth *int64, stats *statsd.Client) *db {
 	db := &db{
 		sequins: sequins,
 		name:    name,
 		mux:     newVersionMux(sequins.config.Test.VersionRemoveTimeout.Duration),
+		stats:   stats,
 	}
 
 	return db
@@ -82,6 +88,16 @@ func (db *db) backfillVersions() error {
 			continue
 		}
 
+		count := atomic.AddInt64(db.backfillQueueDepth, 1)
+		log.Println("DEBUG: Adding to queue", count)
+		if db.stats != nil {
+			err := db.stats.Gauge("backfill_queue_depth", float64(count), []string{}, 1)
+			if err != nil {
+				log.Println("backfill_queue_depth failure")
+				log.Print(err)
+			}
+		}
+
 		if db.switchVersion(version) {
 			break
 		}
@@ -131,6 +147,16 @@ func (db *db) refresh() error {
 		return err
 	}
 
+	count := atomic.AddInt64(db.backfillQueueDepth, 1)
+	log.Println("DEBUG: Adding to queue", count)
+	if db.stats != nil {
+		err := db.stats.Gauge("backfill_queue_depth", float64(count), []string{}, 1)
+		if err != nil {
+			log.Println("backfill_queue_depth failure")
+			log.Print(err)
+		}
+	}
+
 	db.switchVersion(vs)
 	return nil
 }
@@ -150,6 +176,17 @@ func (db *db) switchVersion(version *version) bool {
 	// Start advertising our partitions to peers.
 	go version.partitions.Advertise()
 
+	// Emit that we have downloaded this version.
+	count := atomic.AddInt64(db.backfillQueueDepth, -1)
+	log.Println("DEBUG: Subtracting from queue", count)
+	if db.stats != nil {
+		err := db.stats.Gauge("backfill_queue_depth", float64(count), []string{}, 1)
+		if err != nil {
+			log.Println("backfill_queue_depth failure")
+			log.Print(err)
+		}
+	}
+
 	// If the version is ready now, we can switch to it synchronously. This is
 	// important to do so that on startup, we fully initialize ready versions
 	// before we start taking requests. For example, if our peers have a complete
@@ -157,6 +194,8 @@ func (db *db) switchVersion(version *version) bool {
 	select {
 	case <-version.ready:
 		db.upgrade(version)
+		count := atomic.AddInt64(db.backfillQueueDepth, -1)
+		log.Println("DEBUG: Suptracting from queue", count)
 		return true
 	default:
 	}

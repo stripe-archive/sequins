@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -259,31 +258,15 @@ func (s *sequins) refreshAll() {
 	for _, name := range dbs {
 		db := s.dbs[name]
 		if db == nil {
-			db = newDB(s, name)
+			db = newDB(s, name, &backfillCount, s.stats)
 
 			backfills.Add(1)
 			go func() {
+				db.backfillQueueDepth = &backfillCount
 				db.backfillVersions()
 				backfills.Done()
-				count := atomic.AddInt64(&backfillCount, -1)
-				log.Println("DEBUG: Suptracting from queue", count)
-				if s.stats != nil {
-					err := s.stats.Gauge("backfill_queue_depth", float64(count), []string{}, 1)
-					if err != nil {
-						log.Println("backfill_queue_depth failure")
-						log.Print(err)
-					}
-				}
 			}()
-			count := atomic.AddInt64(&backfillCount, 1)
-			log.Println("DEBUG: Adding to queue", count)
-			if s.stats != nil {
-				err := s.stats.Gauge("backfill_queue_depth", float64(count), []string{}, 1)
-				if err != nil {
-					log.Println("backfill_queue_depth failure")
-					log.Print(err)
-				}
-			}
+
 		} else {
 			go func() {
 				err := db.refresh()

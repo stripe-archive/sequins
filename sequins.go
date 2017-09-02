@@ -266,6 +266,7 @@ func (s *sequins) refreshAll() {
 				db.backfillVersions()
 				backfills.Done()
 				count := atomic.AddInt64(&backfillCount, -1)
+				log.Println("DEBUG: Suptracting from queue", count)
 				if s.stats != nil {
 					err := s.stats.Gauge("backfill_queue_depth", float64(count), []string{}, 1)
 					if err != nil {
@@ -275,6 +276,7 @@ func (s *sequins) refreshAll() {
 				}
 			}()
 			count := atomic.AddInt64(&backfillCount, 1)
+			log.Println("DEBUG: Adding to queue", count)
 			if s.stats != nil {
 				err := s.stats.Gauge("backfill_queue_depth", float64(count), []string{}, 1)
 				if err != nil {

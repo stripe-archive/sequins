@@ -194,8 +194,6 @@ func (db *db) switchVersion(version *version) bool {
 	select {
 	case <-version.ready:
 		db.upgrade(version)
-		count := atomic.AddInt64(db.backfillQueueDepth, -1)
-		log.Println("DEBUG: Suptracting from queue", count)
 		return true
 	default:
 	}

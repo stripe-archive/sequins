@@ -267,12 +267,20 @@ func (s *sequins) refreshAll() {
 				backfills.Done()
 				count := atomic.AddInt64(&backfillCount, -1)
 				if s.stats != nil {
-					s.stats.Gauge("backfill_queue_depth", float64(count), nil, 1)
+					err := s.stats.Gauge("backfill_queue_depth", float64(count), []string{}, 1)
+					if err != nil {
+						log.Println("backfill_queue_depth failure")
+						log.Print(err)
+					}
 				}
 			}()
 			count := atomic.AddInt64(&backfillCount, 1)
 			if s.stats != nil {
-				s.stats.Gauge("backfill_queue_depth", float64(count), nil, 1)
+				err := s.stats.Gauge("backfill_queue_depth", float64(count), []string{}, 1)
+				if err != nil {
+					log.Println("backfill_queue_depth failure")
+					log.Print(err)
+				}
 			}
 		} else {
 			go func() {

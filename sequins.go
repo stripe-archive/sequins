@@ -254,7 +254,7 @@ func (s *sequins) refreshAll() {
 	s.dbsLock.RLock()
 
 	newDBs := make(map[string]*db)
-	var backfillCount uint64 = 0
+	var backfillCount int64 = 0
 	var backfills sync.WaitGroup
 	for _, name := range dbs {
 		db := s.dbs[name]
@@ -265,12 +265,12 @@ func (s *sequins) refreshAll() {
 			go func() {
 				db.backfillVersions()
 				backfills.Done()
-				count := atomic.AddUint64(&backfillCount, -1)
+				count := atomic.AddInt64(&backfillCount, -1)
 				if s.stats != nil {
 					s.stats.Gauge("backfill_queue_depth", float64(count), nil, 1)
 				}
 			}()
-			count := atomic.AddUint64(&backfillCount, 1)
+			count := atomic.AddInt64(&backfillCount, 1)
 			if s.stats != nil {
 				s.stats.Gauge("backfill_queue_depth", float64(count), nil, 1)
 			}

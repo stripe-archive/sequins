@@ -12,17 +12,17 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/nightlyone/lockfile"
-	"github.com/tylerb/graceful"
-
 	"github.com/stripe/sequins/backend"
 	"github.com/stripe/sequins/multilock"
 	"github.com/stripe/sequins/sharding"
 	"github.com/stripe/sequins/zk"
+	"github.com/tylerb/graceful"
 )
 
 var errDirLocked = errors.New("failed to acquire lock")
@@ -254,6 +254,7 @@ func (s *sequins) refreshAll() {
 	s.dbsLock.RLock()
 
 	newDBs := make(map[string]*db)
+	var backfillCount uint64 = 0
 	var backfills sync.WaitGroup
 	for _, name := range dbs {
 		db := s.dbs[name]
@@ -264,7 +265,15 @@ func (s *sequins) refreshAll() {
 			go func() {
 				db.backfillVersions()
 				backfills.Done()
+				count := atomic.AddUint64(&backfillCount, -1)
+				if s.stats != nil {
+					s.stats.Gauge("backfill_queue_depth", float64(count), nil, 1)
+				}
 			}()
+			count := atomic.AddUint64(&backfillCount, 1)
+			if s.stats != nil {
+				s.stats.Gauge("backfill_queue_depth", float64(count), nil, 1)
+			}
 		} else {
 			go func() {
 				err := db.refresh()

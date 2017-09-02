@@ -27,6 +27,15 @@ func (vs *version) build() {
 	vs.buildLock.Lock()
 	defer vs.buildLock.Unlock()
 	if vs.built {
+		count := atomic.AddInt64(vs.backfillQueueDepth, -1)
+		log.Println("DEBUG: Subtracting from queue", count)
+		if vs.stats != nil {
+			err := vs.stats.Gauge("backfill_queue_depth", float64(count), []string{}, 1)
+			if err != nil {
+				log.Println("backfill_queue_depth failure")
+				log.Print(err)
+			}
+		}
 		return
 	}
 
@@ -43,6 +52,15 @@ func (vs *version) build() {
 	partitions := vs.partitions.NeededLocal()
 	if len(partitions) == 0 {
 		vs.built = true
+		count := atomic.AddInt64(vs.backfillQueueDepth, -1)
+		log.Println("DEBUG: Subtracting from queue", count)
+		if vs.stats != nil {
+			err := vs.stats.Gauge("backfill_queue_depth", float64(count), []string{}, 1)
+			if err != nil {
+				log.Println("backfill_queue_depth failure")
+				log.Print(err)
+			}
+		}
 		return
 	}
 
@@ -55,6 +73,15 @@ func (vs *version) build() {
 	if err != nil && !os.IsExist(err) {
 		log.Printf("Error initializing version %s of %s: %s", vs.name, vs.db.name, err)
 		vs.setState(versionError)
+		count := atomic.AddInt64(vs.backfillQueueDepth, -1)
+		log.Println("DEBUG: Subtracting from queue", count)
+		if vs.stats != nil {
+			err := vs.stats.Gauge("backfill_queue_depth", float64(count), []string{}, 1)
+			if err != nil {
+				log.Println("backfill_queue_depth failure")
+				log.Print(err)
+			}
+		}
 		return
 	}
 
@@ -66,6 +93,15 @@ func (vs *version) build() {
 		}
 
 		vs.blockStore.Revert()
+		count := atomic.AddInt64(vs.backfillQueueDepth, -1)
+		log.Println("DEBUG: Subtracting from queue", count)
+		if vs.stats != nil {
+			err := vs.stats.Gauge("backfill_queue_depth", float64(count), []string{}, 1)
+			if err != nil {
+				log.Println("backfill_queue_depth failure")
+				log.Print(err)
+			}
+		}
 		return
 	}
 

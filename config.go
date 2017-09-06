@@ -146,27 +146,27 @@ func defaultConfig() sequinsConfig {
 	}
 }
 
-func loadConfig(searchPath string) (sequinsConfig, error) {
+func loadConfig(config *sequinsConfig, searchPath string) error {
+
 	if searchPath == "" {
 		searchPath = defaultSearchPath
 	}
 
-	config := defaultConfig()
 	paths := filepath.SplitList(searchPath)
 	for _, path := range paths {
-		md, err := toml.DecodeFile(path, &config)
+		md, err := toml.DecodeFile(path, config)
 		if os.IsNotExist(err) {
 			continue
 		} else if err != nil {
-			return config, err
+			return  err
 		} else if len(md.Undecoded()) > 0 {
-			return config, fmt.Errorf("found unrecognized properties: %v", md.Undecoded())
+			return fmt.Errorf("found unrecognized properties: %v", md.Undecoded())
 		}
 
-		return config, nil
+		return nil
 	}
 
-	return config, errNoConfig
+	return errNoConfig
 }
 
 func validateConfig(config sequinsConfig) (sequinsConfig, error) {

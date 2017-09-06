@@ -16,7 +16,8 @@ import (
 var commentedDefaultRegex = regexp.MustCompile(`# (\w+ = .+)\n(?:#.*\n)*\n*`)
 
 func loadAndValidateConfig(path string) (sequinsConfig, error) {
-	config, err := loadConfig(path)
+	config := defaultConfig()
+	 err := loadConfig(&config, path)
 	if err != nil {
 		return config, err
 	}
@@ -205,4 +206,16 @@ func TestConfigLocalStoreWithinRoot(t *testing.T) {
 
 	_, err := loadAndValidateConfig(path)
 	assert.Error(t, err, "it should throw an error if the local store is within the source root")
+}
+
+func TestLoadConfigs(t *testing.T ) {
+	path1 := createTestConfig(t, `
+	source = "/path/1"
+	local_store = "/foo/bar/baz"`)
+	path2 := createTestConfig(t, `
+	source = "/path/2"`)
+	config := loadConfigs([]string{path1, path2})
+
+	assert.Equal(t, "/path/2" ,config.Source)
+	assert.Equal(t, "/foo/bar/baz", config.LocalStore)
 }

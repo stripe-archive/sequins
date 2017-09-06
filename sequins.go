@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/nightlyone/lockfile"
+	gozk "github.com/samuel/go-zookeeper/zk"
 	"github.com/tylerb/graceful"
 
 	"github.com/stripe/sequins/backend"
@@ -159,11 +161,52 @@ func (s *sequins) initCluster() error {
 	routableIpAddress := net.JoinHostPort(ip, port)
 	routableAddress := net.JoinHostPort(hostname, port)
 	shardID := s.config.Sharding.ShardID
+
+	var lock *gozk.Lock
 	if shardID == "" {
-		shardID = routableAddress
+		fp := filepath.Join(s.config.LocalStore, "self_assigned_id")
+		_, err := os.Stat(fp)
+		if err != nil {
+			if os.IsNotExist(err) {
+				log.Print("No self-assigned ID file found")
+
+				lock := zkWatcher.CreateIDAssignmentLock()
+				lock.Lock()
+
+				peersNotJoined := sharding.WatchPeersNoJoin(zkWatcher)
+				peersNotJoined.WaitToConverge(s.config.Sharding.TimeToConverge.Duration)
+
+				shardID, err = peersNotJoined.SmallestMin()
+				if err != nil {
+					lock.Unlock()
+					log.Fatalf("Error running SmallestMin: %q", err)
+				}
+				log.Printf("Identified %q as smallest missing shardID", shardID)
+
+				err := ioutil.WriteFile(fp, []byte(shardID), 0600)
+				if err != nil {
+					lock.Unlock()
+					log.Fatalf("Could not write shardID to file: %q", err)
+				}
+			} else {
+				log.Fatalf("Could not check %q exists: %q", fp, err)
+			}
+		} else {
+			log.Print("Self-assigned ID file found. Attemtping to read.")
+			bytes, err := ioutil.ReadFile(fp)
+			if err != nil {
+				log.Fatalf("Could not read %q: %q", fp, err)
+			}
+			shardID = string(bytes)
+			log.Printf("Extracted shardID %q from file", shardID)
+		}
 	}
 
+	log.Printf("Using %q as shardID", shardID)
 	peers := sharding.WatchPeers(zkWatcher, shardID, routableIpAddress)
+	if lock != nil {
+		lock.Unlock()
+	}
 	peers.WaitToConverge(s.config.Sharding.TimeToConverge.Duration)
 
 	s.address = routableAddress

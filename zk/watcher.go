@@ -216,9 +216,6 @@ func (w *Watcher) CreateIDAssignmentLock() *zk.Lock {
 	w.lock.RLock()
 	defer w.lock.RUnlock()
 
-	w.hooksLock.Lock()
-	defer w.hooksLock.Unlock()
-
 	return zk.NewLock(w.conn, node, zk.WorldACL(zk.PermAll))
 }
 

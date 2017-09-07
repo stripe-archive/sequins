@@ -35,7 +35,7 @@ type peer struct {
 	address string
 }
 
-func (p *Peers) SmallestMin() (string, error) {
+func (p *Peers) SmallestAvailableShardID() (string, error) {
 	if len(p.peers) == 0 {
 		return "1", nil
 	}

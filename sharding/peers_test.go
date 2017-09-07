@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestPeers_SmallestMin(t *testing.T) {
+func TestSmallestAvailableShardID(t *testing.T) {
 	t.Parallel()
 
 	peers := &Peers{
@@ -19,7 +19,7 @@ func TestPeers_SmallestMin(t *testing.T) {
 			}: true,
 		},
 	}
-	result, err := peers.SmallestMin()
+	result, err := peers.SmallestAvailableShardID()
 	assert.NoError(t, err)
 	assert.Equal(t, "1", result)
 
@@ -33,7 +33,7 @@ func TestPeers_SmallestMin(t *testing.T) {
 			}: true,
 		},
 	}
-	result, err = peers.SmallestMin()
+	result, err = peers.SmallestAvailableShardID()
 	assert.NoError(t, err)
 	assert.Equal(t, "2", result)
 
@@ -47,7 +47,7 @@ func TestPeers_SmallestMin(t *testing.T) {
 			}: true,
 		},
 	}
-	result, err = peers.SmallestMin()
+	result, err = peers.SmallestAvailableShardID()
 	assert.NoError(t, err)
 	assert.Equal(t, "3", result)
 
@@ -64,7 +64,7 @@ func TestPeers_SmallestMin(t *testing.T) {
 			}: true,
 		},
 	}
-	result, err = peers.SmallestMin()
+	result, err = peers.SmallestAvailableShardID()
 	assert.NoError(t, err)
 	assert.Equal(t, "2", result)
 }

@@ -135,9 +135,9 @@ func (s *sequins) joinCluster(zkWatcher *zk.Watcher, routableIpAddress string) (
 				peersNotJoined := sharding.WatchPeersNoJoin(zkWatcher)
 				peersNotJoined.WaitToConverge(s.config.Sharding.TimeToConverge.Duration)
 
-				shardID, err = peersNotJoined.SmallestMin()
+				shardID, err = peersNotJoined.SmallestAvailableShardID()
 				if err != nil {
-					return nil, fmt.Errorf("Error running SmallestMin: %q", err)
+					return nil, fmt.Errorf("Error running SmallestAvailableShardID: %q", err)
 				}
 				log.Printf("Identified %q as smallest missing shardID", shardID)
 

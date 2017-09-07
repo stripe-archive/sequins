@@ -67,4 +67,11 @@ func TestSmallestAvailableShardID(t *testing.T) {
 	result, err = peers.SmallestAvailableShardID()
 	assert.NoError(t, err)
 	assert.Equal(t, "2", result)
+
+	peers = &Peers{
+		peers: map[peer]bool{},
+	}
+	result, err = peers.SmallestAvailableShardID()
+	assert.NoError(t, err)
+	assert.Equal(t, "1", result)
 }

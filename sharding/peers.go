@@ -36,10 +36,6 @@ type peer struct {
 }
 
 func (p *Peers) SmallestAvailableShardID() (string, error) {
-	if len(p.peers) == 0 {
-		return "1", nil
-	}
-
 	peerList := make([]int, len(p.peers), len(p.peers))
 	i := 0
 	for peer := range p.peers {
@@ -53,10 +49,6 @@ func (p *Peers) SmallestAvailableShardID() (string, error) {
 	}
 
 	sort.Ints(peerList)
-
-	if peerList[0] != 1 {
-		return "1", nil
-	}
 
 	prevNum := 0
 	for _, num := range peerList {

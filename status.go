@@ -77,6 +77,10 @@ func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
 
 	s.dbsLock.RUnlock()
 
+	if s.config.Sharding.Enabled {
+		w.Header().Set("X-Sequins-Shard-ID", s.peers.ShardID)
+	}
+
 	allNodesAvailable := true
 	statuses := make(map[string]map[string]versionState)
 

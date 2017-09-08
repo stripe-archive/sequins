@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"path"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -31,6 +33,46 @@ type Peers struct {
 type peer struct {
 	shardID string
 	address string
+}
+
+func (p *Peers) SmallestAvailableShardID() (string, error) {
+	peerList := make([]int, len(p.peers), len(p.peers))
+	i := 0
+	for peer := range p.peers {
+		num, err := strconv.Atoi(peer.shardID)
+		if err != nil {
+			return "", fmt.Errorf("Can't convert shardID %q to int", peer.shardID)
+		}
+
+		peerList[i] = num
+		i++
+	}
+
+	sort.Ints(peerList)
+
+	prevNum := 0
+	for _, num := range peerList {
+		if num != prevNum+1 {
+			return fmt.Sprint(prevNum + 1), nil
+		}
+
+		prevNum = num
+	}
+
+	return fmt.Sprint(prevNum + 1), nil
+}
+
+func WatchPeersNoJoin(zkWatcher *zk.Watcher) *Peers {
+	p := &Peers{
+		peers: make(map[peer]bool),
+		ring:  consistent.New(),
+		resetConvergenceTimer: make(chan bool),
+	}
+
+	updates, disconnected := zkWatcher.WatchChildren("nodes")
+	go p.sync(updates, disconnected)
+
+	return p
 }
 
 func WatchPeers(zkWatcher *zk.Watcher, shardID, address string) *Peers {

@@ -210,6 +210,15 @@ Reconnect:
 	w.cancelWatches()
 }
 
+func (w *Watcher) CreateIDAssignmentLock() *zk.Lock {
+	node := path.Join(w.prefix, "id_assignment_lock")
+
+	w.lock.RLock()
+	defer w.lock.RUnlock()
+
+	return zk.NewLock(w.conn, node, zk.WorldACL(zk.PermAll))
+}
+
 // CreateEphemeral creates an ephemeral node on the zookeeper cluster. Any
 // needed parent nodes are also created, as permanent nodes. The ephemeral is
 // then recreated any time the Watcher reconnects.

@@ -10,12 +10,12 @@ each database:
 
 The information presented represents the whole cluster in the distributed case,
 and should be the same no matter which node you ask. You can also ask for a
-specific db, by visiting `/<db>` (in this example: `localhost:9590/flights`).
+specific db, by visiting `/<db>` (in this example: `localhost:9599/flights`).
 
 Finally, you can get a JSON representation of the same information by fetching
 with `Accept: application/json`:
 
-    $ http localhost:9590 'Accept:application/json'
+    $ http localhost:9599 'Accept:application/json'
     {
         "dbs": {
             "flights": {

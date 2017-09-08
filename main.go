@@ -23,25 +23,32 @@ var (
 	bind       = kingpin.Flag("bind", "Address to bind to. Overrides the config option of the same name.").Short('b').PlaceHolder("ADDRESS").String()
 	source     = kingpin.Flag("source", "Where the sequencefiles are. Overrides the config option of the same name.").Short('r').PlaceHolder("URI").String()
 	localStore = kingpin.Flag("local-store", "Where to store local data. Overrides the config option of the same name.").Short('l').PlaceHolder("PATH").String()
-	configPath = kingpin.Flag("config", "The config file to use. By default, either sequins.conf in the local directory or /etc/sequins.conf will be used.").PlaceHolder("PATH").String()
+	configPath = kingpin.Flag("config", "The config file to use. By default, either sequins.conf in the local directory or /etc/sequins.conf will be used.").PlaceHolder("PATH").Strings()
 	debugBind  = kingpin.Flag("debug-bind", "Address to bind to for pprof and expvars. Overrides the config option of the same name.").PlaceHolder("ADDRESS").String()
 )
+
+func loadConfigs(configs []string) sequinsConfig {
+	config := defaultConfig()
+
+	if len(configs) > 0 {
+		for _, configPath := range configs {
+			var err error
+			err = loadConfig(&config, configPath)
+			if err != nil {
+				log.Fatal("Error loading config: ", err)
+			}
+		}
+	} else {
+		log.Fatal("No config file found! Please see the \"Getting Started\" guide for instructions: http://sequins.io/manual.")
+	}
+	return config
+}
 
 func main() {
 	kingpin.Version("sequins version " + sequinsVersion)
 	kingpin.Parse()
 
-	config, err := loadConfig(*configPath)
-	if err == errNoConfig {
-		// If --source was specified, we can just use that and the default config.
-		if *source != "" {
-			config = defaultConfig()
-		} else {
-			log.Fatal("No config file found! Please see the \"Getting Started\" guide for instructions: http://sequins.io/manual.")
-		}
-	} else if err != nil {
-		log.Fatal("Error loading config: ", err)
-	}
+	config := loadConfigs(*configPath)
 
 	if *source != "" {
 		parsed, err := url.Parse(*source)
@@ -83,7 +90,8 @@ func main() {
 		config.Debug.Bind = *debugBind
 	}
 
-	config, err = validateConfig(config)
+
+	config, err := validateConfig(config)
 	if err != nil {
 		log.Fatalf("Configuration error: %s\n", err)
 	}

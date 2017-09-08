@@ -2,7 +2,9 @@
 
 The sequins configuration is in the [toml format][toml]. Sequins will look for
 a `sequins.conf` file in the local directory, and then `/etc/sequins.conf` if
-that doesn't exist.
+that doesn't exist. Sequins also supports using multiple configuration files
+and will merge them. The last configuration file defined will take precedent
+with merge conflicts.
 
 Below is a full list of the configuration properties. Some configuration
 properties are nested under headers, like `[s3]`. See the `sequins.conf.example`

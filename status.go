@@ -77,12 +77,10 @@ func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
 
 	s.dbsLock.RUnlock()
 
-	allNodesAvailable := true
-	statuses := make(map[string]map[string]versionState)
-
 	// Iterate through all of the nodes of the local databases and ensure
 	// that the versions they own are all marked as available. A single
 	// version being in an unvailable state results in an error response.
+	statuses := make(map[string]map[string]versionState)
 	for dbKey, dbValue := range status.DBs {
 		for versionKey, versionValue := range dbValue.Versions {
 			for _, nodeValue := range versionValue.Nodes {
@@ -92,10 +90,23 @@ func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
 				}
 
 				statuses[dbKey][versionKey] = nodeValue.State
-				if nodeValue.State != versionAvailable {
-					allNodesAvailable = false
-				}
 			}
+		}
+	}
+
+	// Iterate through all of the nodes and ensure that the latest version
+	// is available. Determine the latest version by sorting them first.
+	latestVersionsAvailable := true
+	for _, versions := range statuses {
+		sortedVersions := make([]string, 0, len(versions))
+		for version := range versions {
+			sortedVersions = append(sortedVersions, version)
+		}
+		sort.Strings(sortedVersions)
+
+		if versions[sortedVersions[0]] != versionAvailable {
+			latestVersionsAvailable = false
+			break
 		}
 	}
 
@@ -107,7 +118,7 @@ func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if allNodesAvailable {
+	if latestVersionsAvailable {
 		w.WriteHeader(http.StatusOK)
 	} else {
 		w.WriteHeader(http.StatusNotFound)

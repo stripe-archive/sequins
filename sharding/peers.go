@@ -20,7 +20,7 @@ const peerSelf = "(self)"
 // Peers represents a remote list of peers, synced with zookeeper. It's also
 // responsible for advertising this particular node's existence.
 type Peers struct {
-	shardID string
+	ShardID string
 	address string
 
 	peers map[peer]bool
@@ -77,14 +77,14 @@ func WatchPeersNoJoin(zkWatcher *zk.Watcher) *Peers {
 
 func WatchPeers(zkWatcher *zk.Watcher, shardID, address string) *Peers {
 	p := &Peers{
-		shardID: shardID,
+		ShardID: shardID,
 		address: address,
 		peers:   make(map[peer]bool),
 		ring:    consistent.New(),
 		resetConvergenceTimer: make(chan bool),
 	}
 
-	node := path.Join("nodes", fmt.Sprintf("%s@%s", p.shardID, p.address))
+	node := path.Join("nodes", fmt.Sprintf("%s@%s", p.ShardID, p.address))
 	zkWatcher.CreateEphemeral(node)
 
 	updates, disconnected := zkWatcher.WatchChildren("nodes")
@@ -150,7 +150,7 @@ func (p *Peers) updatePeers(addrs []string) {
 
 	log.Println("Peers: ", disp)
 
-	shards[p.shardID] = true
+	shards[p.ShardID] = true
 	allShards := make([]string, 0, len(shards))
 	for shard := range shards {
 		allShards = append(allShards, shard)
@@ -207,7 +207,7 @@ func (p *Peers) pick(partitionId string, n int) []string {
 		}
 	}
 
-	if shards[p.shardID] {
+	if shards[p.ShardID] {
 		addrs = append(addrs, peerSelf)
 	}
 

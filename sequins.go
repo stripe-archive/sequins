@@ -21,10 +21,12 @@ import (
 	"github.com/tylerb/graceful"
 
 	"github.com/stripe/sequins/backend"
-	"github.com/stripe/sequins/multilock"
 	"github.com/stripe/sequins/sharding"
+	"github.com/stripe/sequins/workqueue"
 	"github.com/stripe/sequins/zk"
 )
+
+const defaultMaxLoads = 10
 
 var errDirLocked = errors.New("failed to acquire lock")
 
@@ -41,7 +43,7 @@ type sequins struct {
 	zkWatcher *zk.Watcher
 
 	refreshLock   sync.Mutex
-	buildLock     *multilock.Multilock
+	workQueue     *workqueue.WorkQueue
 	refreshTicker *time.Ticker
 	sighups       chan os.Signal
 
@@ -85,9 +87,10 @@ func (s *sequins) init() error {
 
 	// This lock limits load parallelism across all dbs.
 	maxLoads := s.config.MaxParallelLoads
-	if maxLoads != 0 {
-		s.buildLock = multilock.New(maxLoads)
+	if maxLoads == 0 {
+		maxLoads = defaultMaxLoads
 	}
+	s.workQueue = workqueue.NewWorkQueue(maxLoads)
 
 	// Trigger loads before we start up.
 	s.refreshAll()

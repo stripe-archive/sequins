@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/colinmarc/sequencefile"
@@ -31,12 +33,6 @@ func (vs *version) build() {
 	// Then the db-wide lock, and check that a newer version didn't obsolete us.
 	vs.db.buildLock.Lock()
 	defer vs.db.buildLock.Unlock()
-
-	// Finally, grab one of the global build locks (if the lock exists).
-	if vs.sequins.buildLock != nil {
-		vs.sequins.buildLock.Lock()
-		defer vs.sequins.buildLock.Unlock()
-	}
 
 	partitions := vs.partitions.NeededLocal()
 	if len(partitions) == 0 {
@@ -79,27 +75,62 @@ func (vs *version) addFiles(partitions map[int]bool) error {
 		return nil
 	}
 
-	// TODO: parallelize files?
-	for i, file := range vs.files {
-		if vs.stats != nil {
-			remaining := float64(len(vs.files) - i - 1)
-			tags := []string{fmt.Sprintf("sequins_db:%s", vs.db.name)}
-			vs.stats.Gauge("s3.queue_depth", remaining, tags, 1)
-		}
-
-		select {
-		case <-vs.cancel:
-			return errCanceled
-		default:
-		}
-
-		err := vs.addFile(file, partitions)
-		if err != nil {
-			return err
-		}
+	var tags []string
+	var remaining int32
+	if vs.stats != nil {
+		tags = []string{fmt.Sprintf("sequins_db:%s", vs.db.name)}
+		atomic.StoreInt32(&remaining, int32(len(vs.files)))
+		vs.stats.Gauge("s3.queue_depth", float64(len(vs.files)), tags, 1)
 	}
 
-	return vs.blockStore.Save(vs.partitions.SelectedLocal())
+	wg := &sync.WaitGroup{}
+	wg.Add(len(vs.files))
+	errs := make(chan error, len(vs.files))
+	for _, file := range vs.files {
+		// Ensure that `file` we reference below is the `file` we observed in this loop iteration.
+		file := file
+		f := func() {
+			defer wg.Done()
+			if vs.stats != nil {
+				defer func() {
+					vs.stats.Gauge("s3.queue_depth", float64(atomic.AddInt32(&remaining, -1)), tags, 1)
+				}()
+			}
+			defer func() {
+				if r := recover(); r != nil {
+					errs <- fmt.Errorf("panic in addFiles[%q] task: %v", file, r)
+				}
+			}()
+
+			select {
+			case <-vs.cancel:
+				return
+			default:
+			}
+
+			err := vs.addFile(file, partitions)
+			if err != nil {
+				errs <- fmt.Errorf("addFiles[%q]: %v", file, err)
+				return
+			}
+		}
+		vs.sequins.workQueue.Schedule(f)
+	}
+
+	c := make(chan interface{}, 1)
+	go func() {
+		wg.Wait()
+		close(c)
+	}()
+
+	select {
+	case <-vs.cancel:
+		return errCanceled
+	case err := <-errs:
+		return err
+	case <-c:
+		return vs.blockStore.Save(vs.partitions.SelectedLocal())
+	}
 }
 
 func (vs *version) addFile(file string, partitions map[int]bool) error {

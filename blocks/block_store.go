@@ -72,6 +72,9 @@ func NewFromManifest(path string) (*BlockStore, Manifest, error) {
 
 // Add adds a single key/value pair to the block store.
 func (store *BlockStore) Add(key, value []byte) error {
+	store.blockMapLock.Lock()
+	defer store.blockMapLock.Unlock()
+
 	partition, _ := KeyPartition(key, store.numPartitions)
 
 	block, ok := store.newBlocks[partition]
@@ -85,6 +88,8 @@ func (store *BlockStore) Add(key, value []byte) error {
 		store.newBlocks[partition] = block
 	}
 
+	// We assume that sparkey isn't thread-safe, and therefore synchronize access to it under our
+	// existing `blockMapLock` mutex.
 	err = block.add(key, value)
 	if err != nil {
 		return err

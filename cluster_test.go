@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -27,7 +28,6 @@ type testVersion string
 
 const dbName = "db"
 const (
-	start     testVersion = "START"
 	noVersion testVersion = "NONE"
 	v1        testVersion = "v1"
 	v2        testVersion = "v2"
@@ -56,6 +56,7 @@ type testSequins struct {
 	testClient          *http.Client
 	expectedProgression []testVersion
 
+	cmdError    chan error
 	process     *exec.Cmd
 	log         *os.File
 	progression chan testVersion
@@ -78,7 +79,7 @@ func newTestCluster(t *testing.T) *testCluster {
 	// We have a specific transport to the client, so it doesn't try to reuse
 	// connections between tests
 	var testClient = &http.Client{
-		Timeout:   500 * time.Millisecond,
+		Timeout:   5000 * time.Millisecond,
 		Transport: &http.Transport{},
 	}
 
@@ -189,9 +190,17 @@ func (tc *testCluster) removeAvailableVersion(version testVersion) {
 }
 
 func (tc *testCluster) startTest() {
+	var wg sync.WaitGroup
+	wg.Add(len(tc.sequinses))
+
 	for _, ts := range tc.sequinses {
-		ts.startTest()
+		go func(ts *testSequins) {
+			defer wg.Done()
+			ts.startTest()
+		}(ts)
 	}
+
+	wg.Wait()
 }
 
 func (tc *testCluster) assertProgression() {
@@ -246,10 +255,12 @@ func (ts *testSequins) removeAvailableVersion(version testVersion) {
 }
 
 func (ts *testSequins) startTest() {
-	versions := make(chan testVersion)
+	ts.start()
 
 	go func() {
-		lastVersion := start
+		lastVersion := noVersion
+		bootingUp := true
+
 		for {
 			now := time.Now()
 			key := babyNames[rand.Intn(len(babyNames))].key
@@ -276,7 +287,7 @@ func (ts *testSequins) startTest() {
 				if ok && netErr.Timeout() {
 					version = lastVersion
 				} else {
-					if lastVersion != down && lastVersion != start {
+					if lastVersion != down {
 						ts.T.Logf("%s (lastVersion: %s)", err, lastVersion)
 					}
 
@@ -284,8 +295,14 @@ func (ts *testSequins) startTest() {
 				}
 			}
 
+			if bootingUp && version == down {
+				version = lastVersion
+			} else {
+				bootingUp = false
+			}
+
 			if version != lastVersion {
-				versions <- version
+				ts.progression <- version
 				lastVersion = version
 			}
 
@@ -294,32 +311,34 @@ func (ts *testSequins) startTest() {
 			time.Sleep((250 * time.Millisecond) - time.Now().Sub(now))
 		}
 	}()
-
-	if ts.process == nil {
-		go func() {
-			// Wait for the process to register as down, then start it.
-			first := <-versions
-			require.Equal(ts.T, down, first, "setup: sequins process should start as down")
-
-			ts.start()
-			ts.progression <- first
-			for v := range versions {
-				ts.progression <- v
-			}
-		}()
-	}
 }
-
 func (ts *testSequins) start() {
-	log, err := ioutil.TempFile("", "sequins-test-cluster-")
-	require.NoError(ts.T, err, "setup: creating log")
+	for i := 0; i < 3; i++ {
+		ts.setup()
 
-	ts.log = log
-	ts.process = exec.Command(ts.binary, "--config", ts.configPath)
-	ts.process.Stdout = log
-	ts.process.Stderr = log
+		log, err := ioutil.TempFile("", "sequins-test-cluster-")
+		require.NoError(ts.T, err, "setup: creating log")
 
-	ts.process.Start()
+		ts.log = log
+		ts.process = exec.Command(ts.binary, "--config", ts.configPath)
+		ts.process.Stdout = log
+		ts.process.Stderr = log
+
+		ts.process.Start()
+		ts.cmdError = make(chan error, 1)
+		go func(cmdError chan error) {
+			cmdError <- ts.process.Wait()
+		}(ts.cmdError)
+		select {
+		case err = <-ts.cmdError:
+			ts.config.Bind = fmt.Sprintf("localhost:%d", zktest.RandomPort())
+			ts.name = ts.config.Bind
+		case <-time.After(time.Second * 1):
+			return
+		}
+	}
+
+	ts.T.Fatal("Sequins did not start up after 3 tries")
 }
 
 func (ts *testSequins) hup() {
@@ -328,7 +347,7 @@ func (ts *testSequins) hup() {
 
 func (ts *testSequins) stop() {
 	ts.process.Process.Signal(syscall.SIGTERM)
-	ts.process.Process.Wait()
+	<-ts.cmdError
 }
 
 func (ts *testSequins) assertProgression() {
@@ -381,9 +400,8 @@ func TestClusterEmptySingleNode(t *testing.T) {
 
 	tc.addSequinses(1)
 	tc.makeVersionAvailable(v3)
-	tc.expectProgression(down, noVersion, v3)
+	tc.expectProgression(v3)
 
-	tc.setup()
 	tc.startTest()
 	tc.assertProgression()
 }
@@ -401,9 +419,7 @@ func TestClusterUpgradingSingleNode(t *testing.T) {
 
 	tc.addSequinses(1)
 	tc.makeVersionAvailable(v1)
-	tc.expectProgression(down, noVersion, v1, v2, v3)
-
-	tc.setup()
+	tc.expectProgression(v1, v2, v3)
 	tc.startTest()
 
 	time.Sleep(expectTimeout)
@@ -430,9 +446,7 @@ func TestClusterEmpty(t *testing.T) {
 
 	tc.addSequinses(3, minRepl(2))
 	tc.makeVersionAvailable(v3)
-	tc.expectProgression(down, noVersion, v3)
-
-	tc.setup()
+	tc.expectProgression(v3)
 	tc.startTest()
 	tc.assertProgression()
 }
@@ -450,9 +464,7 @@ func TestLargeClusterEmpty(t *testing.T) {
 
 	tc.addSequinses(30, minRepl(2))
 	tc.makeVersionAvailable(v3)
-	tc.expectProgression(down, noVersion, v3)
-
-	tc.setup()
+	tc.expectProgression(v3)
 	tc.startTest()
 	tc.assertProgression()
 }
@@ -470,9 +482,7 @@ func TestClusterUpgrading(t *testing.T) {
 
 	tc.addSequinses(3, minRepl(2))
 	tc.makeVersionAvailable(v1)
-	tc.expectProgression(down, noVersion, v1, v2, v3)
-
-	tc.setup()
+	tc.expectProgression(v1, v2, v3)
 	tc.startTest()
 
 	time.Sleep(expectTimeout)
@@ -498,10 +508,9 @@ func TestClusterDelayedUpgrade(t *testing.T) {
 	defer tc.tearDown()
 
 	tc.addSequinses(3, minRepl(2))
-	tc.expectProgression(down, noVersion, v1, v2)
+	tc.expectProgression(v1, v2)
 
 	tc.makeVersionAvailable(v1)
-	tc.setup()
 	tc.startTest()
 
 	time.Sleep(expectTimeout)
@@ -515,7 +524,7 @@ func TestClusterDelayedUpgrade(t *testing.T) {
 }
 
 // TestClusterNoDowngrade tests that a cluster will never downgrade to an older
-// version, even if the newer one is available.
+// version, even if the newer one is unavailable.
 func TestClusterNoDowngrade(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping cluster test in short mode.")
@@ -526,10 +535,9 @@ func TestClusterNoDowngrade(t *testing.T) {
 	defer tc.tearDown()
 
 	tc.addSequinses(3, minRepl(2))
-	tc.expectProgression(down, noVersion, v3)
+	tc.expectProgression(v3)
 
 	tc.makeVersionAvailable(v3)
-	tc.setup()
 	tc.startTest()
 
 	time.Sleep(expectTimeout)
@@ -552,17 +560,15 @@ func TestClusterLateJoin(t *testing.T) {
 	defer tc.tearDown()
 
 	tc.addSequinses(3, minRepl(2))
-	tc.expectProgression(down, noVersion, v3)
+	tc.expectProgression(v3)
 
 	tc.makeVersionAvailable(v3)
-	tc.setup()
 	tc.startTest()
 	time.Sleep(expectTimeout)
 
 	s := tc.addSequins(minRepl(2))
 	s.makeVersionAvailable(v3)
-	s.setup()
-	s.expectProgression(down, v3)
+	s.expectProgression(v3)
 	s.startTest()
 
 	tc.assertProgression()
@@ -590,12 +596,11 @@ func TestClusterNodeWithoutData(t *testing.T) {
 
 	// Because it's behind, it's expected that the first node will flap when it
 	// proxies requests and gets v2 from peers.
-	// tc.sequinses[0].expectProgression(down, noVersion, v1, v3)
-	tc.sequinses[1].expectProgression(down, noVersion, v1, v2, v3)
-	tc.sequinses[2].expectProgression(down, noVersion, v1, v2, v3)
+	// tc.sequinses[0].expectProgression(v1, v3)
+	tc.sequinses[1].expectProgression(v1, v2, v3)
+	tc.sequinses[2].expectProgression(v1, v2, v3)
 
 	tc.makeVersionAvailable(v1)
-	tc.setup()
 	tc.startTest()
 
 	time.Sleep(expectTimeout)
@@ -623,9 +628,7 @@ func TestClusterRollingRestart(t *testing.T) {
 
 	tc.addSequinses(3, minRepl(2))
 	tc.makeVersionAvailable(v3)
-	tc.expectProgression(down, noVersion, v3, down, v3)
-
-	tc.setup()
+	tc.expectProgression(v3, down, v3)
 	tc.startTest()
 	time.Sleep(expectTimeout)
 
@@ -652,11 +655,9 @@ func TestClusterNodeVacation(t *testing.T) {
 
 	tc.addSequinses(3, minRepl(2))
 	tc.makeVersionAvailable(v2)
-	tc.sequinses[0].expectProgression(down, noVersion, v2, down, v3)
-	tc.sequinses[1].expectProgression(down, noVersion, v2, v3)
-	tc.sequinses[2].expectProgression(down, noVersion, v2, v3)
-
-	tc.setup()
+	tc.sequinses[0].expectProgression(v2, down, v3)
+	tc.sequinses[1].expectProgression(v2, v3)
+	tc.sequinses[2].expectProgression(v2, v3)
 	tc.startTest()
 	time.Sleep(expectTimeout)
 
@@ -683,17 +684,17 @@ func testCrash(t *testing.T, testCase crashTest) {
 	defer tc.tearDown()
 
 	tc.addSequinses(3, repl(2), minRepl(testCase.MinReplication))
+
 	// Keep one sequins permanently hanging
 	tc.sequinses[1].config.Test.Hang = hangAfterRead{
 		Version: "v2",
 		File:    "part-00003",
 	}
 
-	// Version 1: Everything is fine.
 	tc.makeVersionAvailable(v1)
-	tc.expectProgression(down, noVersion, v1)
-	tc.setup()
+	tc.expectProgression(v1)
 	tc.startTest()
+
 	tc.assertProgression()
 
 	tc.makeVersionAvailable(v2)
@@ -712,7 +713,6 @@ func testCrash(t *testing.T, testCase crashTest) {
 	// When nodes come back up, we should be fine.
 	tc.sequinses[1].stop()
 	tc.sequinses[1].config.Test.Hang = hangAfterRead{}
-	tc.sequinses[1].setup()
 	tc.sequinses[1].start()
 	tc.sequinses[2].start()
 
@@ -777,9 +777,7 @@ func testMinReplication(t *testing.T, mrepl int, progression testVersion) {
 
 	tc.addSequinses(4, repl(3), minRepl(mrepl))
 	tc.makeVersionAvailable(v1)
-	tc.expectProgression(down, noVersion, v1)
-
-	tc.setup()
+	tc.expectProgression(v1)
 	tc.startTest()
 	tc.assertProgression()
 

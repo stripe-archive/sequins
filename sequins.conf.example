@@ -67,6 +67,9 @@ source = "hdfs://namenode:8020/path/to/sequins"
 # variables AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY will be used, or IAM
 # instance role credentials if they are available.
 
+# max_retries = 3
+# Number of times to try an S3 download before returning an error.
+
 [sharding]
 
 # enabled = false

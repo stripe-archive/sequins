@@ -68,6 +68,9 @@ test: $(TEST_SOURCES)
 	# as well (sync.Pool doesn't ever share objects under -race).
 	$(CGO_PREAMBLE) go test -timeout 30s ./blocks -run TestBlockParallelReads
 
+bench: $(TEST_SOURCES)
+	$(CGO_PREAMBLE) go test -race -timeout 2m ./blocks -bench=./blocks -run BenchmarkBlockStoreNoCompression BenchmarkBlockStoreCompression
+
 vet:
 	$(CGO_PREAMBLE) go vet $(shell go list ./... | grep -v vendor)
 

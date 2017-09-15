@@ -131,7 +131,7 @@ func (tc *testCluster) addSequins(opts ...configOption) *testSequins {
 	config.Sharding.TimeToConverge = duration{100 * time.Millisecond}
 	config.Sharding.ProxyTimeout = duration{600 * time.Millisecond}
 	config.Sharding.AdvertisedHostname = "localhost"
-	config.Sharding.ShardID = strconv.Itoa(len(tc.sequinses))
+	config.Sharding.ShardID = strconv.Itoa(len(tc.sequinses) + 1)
 	config.ZK.Servers = []string{fmt.Sprintf("localhost:%d", tc.zk.Servers[0].Port)}
 	config.Test.AllowLocalCluster = true
 

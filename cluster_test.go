@@ -107,6 +107,12 @@ func minRepl(r int) configOption {
 	}
 }
 
+func noShardID() configOption {
+	return func(config *sequinsConfig) {
+		config.Sharding.ShardID = ""
+	}
+}
+
 func (tc *testCluster) addSequins(opts ...configOption) *testSequins {
 	port := zktest.RandomPort()
 	path := filepath.Join(tc.source, fmt.Sprintf("node-%d", port))
@@ -812,5 +818,123 @@ func TestClusterMin(t *testing.T) {
 			t.Parallel()
 			testMinReplication(t, testCase.MinReplication, testCase.Progression)
 		})
+	}
+}
+
+func (ts *testSequins) getShardID(t *testing.T) string {
+	url := fmt.Sprintf("http://%s/healthcheck", ts.name)
+
+	resp, err := ts.testClient.Get(url)
+	assert.NoError(t, err)
+	defer resp.Body.Close()
+
+	return resp.Header.Get("X-Sequins-Shard-ID")
+}
+
+func TestClusterAutoAssignSingleID(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+	t.Parallel()
+
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	s1 := tc.addSequins(noShardID())
+	tc.makeVersionAvailable(v3)
+	tc.startTest()
+	time.Sleep(expectTimeout)
+
+	shardID := s1.getShardID(t)
+	assert.Equal(t, "1", shardID)
+}
+
+// Test shardID auto-assignment when spinning up nodes one at a time.
+func TestClusterAutoAssignMultipleIDs(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+	t.Parallel()
+
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	for i := 1; i <= 3; i++ {
+		s := tc.addSequins(noShardID())
+		s.makeVersionAvailable(v3)
+		s.startTest()
+		time.Sleep(expectTimeout)
+	}
+
+	for i, s := range tc.sequinses {
+		shardID := fmt.Sprintf("%d", i+1)
+		assert.Equal(t, shardID, s.getShardID(t))
+	}
+}
+
+// Test shardID auto-assignment when the nodes start at the same time.
+func TestClusterAutoAssignParallelIDs(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+	t.Parallel()
+
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	tc.addSequinses(3, noShardID())
+	tc.makeVersionAvailable(v3)
+	tc.startTest()
+	time.Sleep(expectTimeout * 3)
+
+	for i := 1; i <= 3; i++ {
+		shardID := fmt.Sprintf("%d", i)
+
+		found := false
+		for _, s := range tc.sequinses {
+			if s.getShardID(t) == shardID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "None of the nodes had shardID %q", shardID)
+	}
+}
+
+// Down each node in a cluster one at a time and then ensure shardID auto-assignment will use
+// the newly unused shardID.
+func TestClusterAutoAssignUnusedID(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+	t.Parallel()
+
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	tc.addSequinses(3)
+
+	tc.makeVersionAvailable(v3)
+	tc.startTest()
+	time.Sleep(expectTimeout)
+
+	// This doesn't actual test anything valuable. If these fail then that means we've probably changed from
+	// 1-indexed to 0-indexed Sequins IDs.
+	for i, s := range tc.sequinses {
+		shardID := fmt.Sprintf("%d", i+1)
+		assert.Equal(t, shardID, s.getShardID(t), "Sanity check for pre-configured ID failed")
+	}
+
+	for i, s := range tc.sequinses {
+		shardID := fmt.Sprintf("%d", i+1)
+		assert.Equal(t, shardID, s.getShardID(t))
+
+		s.stop()
+
+		newS := tc.addSequins(noShardID())
+		newS.makeVersionAvailable(v3)
+		newS.startTest()
+		time.Sleep(expectTimeout)
+		assert.Equal(t, shardID, newS.getShardID(t))
 	}
 }

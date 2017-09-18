@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -19,6 +20,30 @@ var (
 	errWrongPartition = errors.New("the file is cleanly partitioned, but doesn't contain a partition we want")
 	errCanceled       = errors.New("build canceled")
 )
+
+func compressionString(c sequencefile.Compression) string {
+	switch c {
+	case sequencefile.NoCompression:
+		return "none"
+	case sequencefile.RecordCompression:
+		return "record"
+	case sequencefile.BlockCompression:
+		return "block"
+	default:
+		return strconv.Itoa(int(c))
+	}
+}
+
+func compressionCodecString(c sequencefile.CompressionCodec) string {
+	switch c {
+	case sequencefile.GzipCompression:
+		return "gzip"
+	case sequencefile.SnappyCompression:
+		return "snappy"
+	default:
+		return strconv.Itoa(int(c))
+	}
+}
 
 func (vs *version) build() {
 	// Welcome to the sequins museum of lock acquisition. First, we grab the lock
@@ -157,6 +182,10 @@ func (vs *version) addFile(file string, partitions map[int]bool) error {
 	if err != nil {
 		return fmt.Errorf("reading header from %s: %s", disp, err)
 	}
+	log.Printf(
+		"sequencefile header: db=%q version=%q file=%q sequencefile_version=%d compression=%q compression_codec=%q compression_codec_class_name=%q key_class_name=%q value_class_name=%q metadata=%q",
+		vs.db.name, vs.name, file, sf.Header.Version, compressionString(sf.Header.Compression), compressionCodecString(sf.Header.CompressionCodec),
+		sf.Header.CompressionCodecClassName, sf.Header.KeyClassName, sf.Header.ValueClassName, fmt.Sprintf("%v", sf.Header.Metadata))
 
 	err = vs.addFileKeys(sf, partitions)
 	if err == errWrongPartition {

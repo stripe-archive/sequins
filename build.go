@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"regexp"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -114,6 +115,18 @@ func (vs *version) addFiles(partitions map[int]bool) error {
 	for _, file := range vs.files {
 		// Ensure that `file` we reference below is the `file` we observed in this loop iteration.
 		file := file
+
+		re := regexp.MustCompile(`^part-r-(\d+)-\d+$`)
+		matches := re.FindStringSubmatch(file)
+		if matches != nil {
+			part, err := strconv.Atoi(matches[1])
+			if err == nil && !partitions[part] {
+				disp := vs.sequins.backend.DisplayPath(vs.db.name, vs.name, file)
+				log.Printf("Pre-skipping %s because we know it has no relevant partitions\n", disp)
+				continue
+			}
+		}
+
 		f := func() {
 			defer wg.Done()
 			if vs.stats != nil {
@@ -250,7 +263,8 @@ func (vs *version) addFileKeys(reader *sequencefile.Reader, partitions map[int]b
 			continue
 		}
 
-		err = vs.blockStore.Add(key, value)
+		_ = value
+		//err = vs.blockStore.Add(key, value)
 		if err != nil {
 			return err
 		}

@@ -47,6 +47,8 @@ type sequins struct {
 	refreshTicker *time.Ticker
 	sighups       chan os.Signal
 
+	unpause chan bool
+
 	stats *statsd.Client
 
 	storeLock lockfile.Lockfile
@@ -71,6 +73,8 @@ func (s *sequins) init() error {
 		statsdClient.Tags = append(statsdClient.Tags, fmt.Sprintf("sequins:%s", s.config.Sharding.ClusterName))
 		s.stats = statsdClient
 	}
+
+	s.unpause = make(chan bool, 1)
 
 	if s.config.Sharding.Enabled {
 		err := s.initCluster()
@@ -368,6 +372,17 @@ func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if r.URL.Path == "/healthcheck" || r.URL.Path == "/healthz" {
 		s.serveHealth(w, r)
+		return
+	}
+
+	if r.URL.Path == "/pause" {
+		s.config.PauseOnBuildingToAvailable = true
+		return
+	}
+
+	if r.URL.Path == "/unpause" {
+		s.config.PauseOnBuildingToAvailable = false
+		s.unpause <- true
 		return
 	}
 

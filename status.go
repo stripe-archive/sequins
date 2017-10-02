@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"time"
@@ -31,11 +32,18 @@ func init() {
 }
 
 type status struct {
-	DBs map[string]dbStatus `json:"dbs"`
+	DBs   map[string]dbStatus `json:"dbs"`
+	Peers []peerStatus        `json:"peers"`
 }
 
 type dbStatus struct {
 	Versions map[string]versionStatus `json:"versions,omitempty"`
+}
+
+type peerStatus struct {
+	Self    bool   `json:"self"`
+	Address string `json:"address"`
+	ShardID string `json:"shard_id"`
 }
 
 type versionStatus struct {
@@ -68,14 +76,37 @@ const (
 )
 
 func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
+	status := status{
+		DBs:   make(map[string]dbStatus),
+		Peers: make([]peerStatus, 0),
+	}
+
 	s.dbsLock.RLock()
 
-	status := status{DBs: make(map[string]dbStatus)}
 	for name, db := range s.dbs {
 		status.DBs[name] = copyDBStatus(db.status())
 	}
 
 	s.dbsLock.RUnlock()
+
+	s.peers.Lock.Lock()
+
+	for peer := range s.peers.Peers {
+		ps := peerStatus{
+			Address: peer.Address,
+			ShardID: peer.ShardID,
+			Self:    false,
+		}
+		status.Peers = append(status.Peers, ps)
+	}
+
+	status.Peers = append(status.Peers, peerStatus{
+		Address: s.peers.Address,
+		ShardID: s.peers.ShardID,
+		Self:    true,
+	})
+
+	s.peers.Lock.Unlock()
 
 	if s.config.Sharding.Enabled {
 		w.Header().Set("X-Sequins-Shard-ID", s.peers.ShardID)
@@ -120,14 +151,36 @@ func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *sequins) serveStatus(w http.ResponseWriter, r *http.Request) {
-	s.dbsLock.RLock()
+	status := status{
+		DBs:   make(map[string]dbStatus),
+		Peers: make([]peerStatus, 0),
+	}
 
-	status := status{DBs: make(map[string]dbStatus)}
+	s.dbsLock.RLock()
 	for name, db := range s.dbs {
 		status.DBs[name] = copyDBStatus(db.status())
 	}
 
 	s.dbsLock.RUnlock()
+
+	s.peers.Lock.Lock()
+
+	for peer := range s.peers.Peers {
+		ps := peerStatus{
+			Address: peer.Address,
+			ShardID: peer.ShardID,
+			Self:    false,
+		}
+		status.Peers = append(status.Peers, ps)
+	}
+
+	status.Peers = append(status.Peers, peerStatus{
+		Address: s.peers.Address,
+		ShardID: s.peers.ShardID,
+		Self:    true,
+	})
+
+	s.peers.Lock.Unlock()
 
 	// By default, serve our peers' statuses merged with ours. We take
 	// extra care not to mutate local status structs.
@@ -382,8 +435,21 @@ func (vs *version) status() versionStatus {
 }
 
 func (vs *version) setState(state versionState) {
+	if state == versionAvailable && vs.state != versionAvailable {
+		s := vs.db.sequins
+		if s.config.PauseOnBuildingToAvailable {
+			log.Printf("Sleeping for setState on %s/%s %s -> %s", vs.db.name, vs.name, vs.state, state)
+			debug.PrintStack()
+			<-s.unpause
+			log.Printf("Done sleeping!")
+		}
+	}
+
 	vs.stateLock.Lock()
 	defer vs.stateLock.Unlock()
+
+	log.Printf("Switching from %s -> %s", vs.state, state)
+	log.Printf("setState on %s/%s %s -> %s", vs.db.name, vs.name, vs.state, state)
 
 	if vs.state != versionError {
 		vs.state = state

@@ -26,9 +26,9 @@ type db struct {
 
 func newDB(sequins *sequins, name string) *db {
 	db := &db{
-		sequins: sequins,
-		name:    name,
-		mux:     newVersionMux(sequins.config.Test.VersionRemoveTimeout.Duration),
+		sequins:   sequins,
+		name:      name,
+		mux:       newVersionMux(sequins.config.Test.VersionRemoveTimeout.Duration),
 	}
 
 	return db

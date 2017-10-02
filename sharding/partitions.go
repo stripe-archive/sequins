@@ -216,7 +216,7 @@ func (p *Partitions) updateRemote(nodes []string) {
 		parts := strings.SplitN(node, "@", 2)
 		partition, _ := strconv.Atoi(parts[0])
 		host := parts[1]
-		if host != p.peers.address {
+		if host != p.peers.Address {
 			remote[partition] = append(remote[partition], host)
 		}
 	}
@@ -253,7 +253,7 @@ func (p *Partitions) updateReplicationStatus() {
 // partitionZKNode returns the node to write out to advertize that we have the
 // given partition.
 func (p *Partitions) partitionZKNode(partition int) string {
-	return path.Join(p.zkPath, fmt.Sprintf("%05d@%s", partition, p.peers.address))
+	return path.Join(p.zkPath, fmt.Sprintf("%05d@%s", partition, p.peers.Address))
 }
 
 // partitionId returns a string id for the given partition, to be used for the

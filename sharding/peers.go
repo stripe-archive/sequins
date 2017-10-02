@@ -21,27 +21,27 @@ const peerSelf = "(self)"
 // responsible for advertising this particular node's existence.
 type Peers struct {
 	ShardID string
-	address string
+	Address string
 
-	peers map[peer]bool
+	Peers map[peer]bool
 	ring  *consistent.Consistent
-	lock  sync.RWMutex
+	Lock  sync.RWMutex
 
 	resetConvergenceTimer chan bool
 }
 
 type peer struct {
-	shardID string
-	address string
+	ShardID string
+	Address string
 }
 
 func (p *Peers) SmallestAvailableShardID() (string, error) {
-	peerList := make([]int, len(p.peers), len(p.peers))
+	peerList := make([]int, len(p.Peers), len(p.Peers))
 	i := 0
-	for peer := range p.peers {
-		num, err := strconv.Atoi(peer.shardID)
+	for peer := range p.Peers {
+		num, err := strconv.Atoi(peer.ShardID)
 		if err != nil {
-			return "", fmt.Errorf("Can't convert shardID %q to int", peer.shardID)
+			return "", fmt.Errorf("Can't convert shardID %q to int", peer.ShardID)
 		}
 
 		peerList[i] = num
@@ -64,8 +64,8 @@ func (p *Peers) SmallestAvailableShardID() (string, error) {
 
 func WatchPeersNoJoin(zkWatcher *zk.Watcher) *Peers {
 	p := &Peers{
-		peers: make(map[peer]bool),
-		ring:  consistent.New(),
+		Peers:                 make(map[peer]bool),
+		ring:                  consistent.New(),
 		resetConvergenceTimer: make(chan bool),
 	}
 
@@ -77,14 +77,14 @@ func WatchPeersNoJoin(zkWatcher *zk.Watcher) *Peers {
 
 func WatchPeers(zkWatcher *zk.Watcher, shardID, address string) *Peers {
 	p := &Peers{
-		ShardID: shardID,
-		address: address,
-		peers:   make(map[peer]bool),
-		ring:    consistent.New(),
+		ShardID:               shardID,
+		Address:               address,
+		Peers:                 make(map[peer]bool),
+		ring:                  consistent.New(),
 		resetConvergenceTimer: make(chan bool),
 	}
 
-	node := path.Join("nodes", fmt.Sprintf("%s@%s", p.ShardID, p.address))
+	node := path.Join("nodes", fmt.Sprintf("%s@%s", p.ShardID, p.Address))
 	zkWatcher.CreateEphemeral(node)
 
 	updates, disconnected := zkWatcher.WatchChildren("nodes")
@@ -115,8 +115,8 @@ func (p *Peers) sync(updates chan []string, disconnected chan bool) {
 }
 
 func (p *Peers) updatePeers(addrs []string) {
-	p.lock.Lock()
-	defer p.lock.Unlock()
+	p.Lock.Lock()
+	defer p.Lock.Unlock()
 
 	// Log any new peers.
 	newPeers := make(map[peer]bool)
@@ -127,13 +127,13 @@ func (p *Peers) updatePeers(addrs []string) {
 		id := parts[0]
 		addr := parts[1]
 
-		if addr == p.address {
+		if addr == p.Address {
 			continue
 		}
 
-		peer := peer{shardID: id, address: addr}
+		peer := peer{ShardID: id, Address: addr}
 		disp = append(disp, peer.display())
-		if !p.peers[peer] {
+		if !p.Peers[peer] {
 			log.Println("New peer:", peer.display())
 		}
 
@@ -142,7 +142,7 @@ func (p *Peers) updatePeers(addrs []string) {
 	}
 
 	// Log for any lost peers.
-	for peer := range p.peers {
+	for peer := range p.Peers {
 		if !newPeers[peer] {
 			log.Println("Lost peer:", peer.display())
 		}
@@ -157,7 +157,7 @@ func (p *Peers) updatePeers(addrs []string) {
 	}
 
 	p.ring.Set(allShards)
-	p.peers = newPeers
+	p.Peers = newPeers
 }
 
 // WaitToConverge blocks until the list of peers has stabilized for dur.
@@ -177,12 +177,12 @@ func (p *Peers) WaitToConverge(dur time.Duration) {
 
 // Get returns the current list of peers.
 func (p *Peers) Get() []string {
-	p.lock.RLock()
-	defer p.lock.RUnlock()
+	p.Lock.RLock()
+	defer p.Lock.RUnlock()
 
-	addrs := make([]string, 0, len(p.peers))
-	for peer := range p.peers {
-		addrs = append(addrs, peer.address)
+	addrs := make([]string, 0, len(p.Peers))
+	for peer := range p.Peers {
+		addrs = append(addrs, peer.Address)
 	}
 
 	return addrs
@@ -191,8 +191,8 @@ func (p *Peers) Get() []string {
 // pick returns the list of peers who have a given partition. It returns at most
 // n entries.
 func (p *Peers) pick(partitionId string, n int) []string {
-	p.lock.RLock()
-	defer p.lock.RUnlock()
+	p.Lock.RLock()
+	defer p.Lock.RUnlock()
 
 	picked, _ := p.ring.GetN(partitionId, n)
 	shards := make(map[string]bool)
@@ -201,9 +201,9 @@ func (p *Peers) pick(partitionId string, n int) []string {
 	}
 
 	addrs := make([]string, 0, len(shards))
-	for peer := range p.peers {
-		if shards[peer.shardID] {
-			addrs = append(addrs, peer.address)
+	for peer := range p.Peers {
+		if shards[peer.ShardID] {
+			addrs = append(addrs, peer.Address)
 		}
 	}
 
@@ -215,9 +215,9 @@ func (p *Peers) pick(partitionId string, n int) []string {
 }
 
 func (p *peer) display() string {
-	if p.shardID == p.address {
-		return p.address
+	if p.ShardID == p.Address {
+		return p.Address
 	} else {
-		return fmt.Sprintf("%s (%s)", p.address, p.shardID)
+		return fmt.Sprintf("%s (%s)", p.Address, p.ShardID)
 	}
 }

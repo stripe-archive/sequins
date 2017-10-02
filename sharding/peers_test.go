@@ -10,12 +10,12 @@ func TestSmallestAvailableShardID(t *testing.T) {
 	t.Parallel()
 
 	peers := &Peers{
-		peers: map[peer]bool{
+		Peers: map[peer]bool{
 			peer{
-				shardID: "2",
+				ShardID: "2",
 			}: true,
 			peer{
-				shardID: "4",
+				ShardID: "4",
 			}: true,
 		},
 	}
@@ -24,12 +24,12 @@ func TestSmallestAvailableShardID(t *testing.T) {
 	assert.Equal(t, "1", result)
 
 	peers = &Peers{
-		peers: map[peer]bool{
+		Peers: map[peer]bool{
 			peer{
-				shardID: "1",
+				ShardID: "1",
 			}: true,
 			peer{
-				shardID: "3",
+				ShardID: "3",
 			}: true,
 		},
 	}
@@ -38,12 +38,12 @@ func TestSmallestAvailableShardID(t *testing.T) {
 	assert.Equal(t, "2", result)
 
 	peers = &Peers{
-		peers: map[peer]bool{
+		Peers: map[peer]bool{
 			peer{
-				shardID: "1",
+				ShardID: "1",
 			}: true,
 			peer{
-				shardID: "2",
+				ShardID: "2",
 			}: true,
 		},
 	}
@@ -52,15 +52,15 @@ func TestSmallestAvailableShardID(t *testing.T) {
 	assert.Equal(t, "3", result)
 
 	peers = &Peers{
-		peers: map[peer]bool{
+		Peers: map[peer]bool{
 			peer{
-				shardID: "1",
+				ShardID: "1",
 			}: true,
 			peer{
-				shardID: "4",
+				ShardID: "4",
 			}: true,
 			peer{
-				shardID: "5",
+				ShardID: "5",
 			}: true,
 		},
 	}
@@ -69,7 +69,7 @@ func TestSmallestAvailableShardID(t *testing.T) {
 	assert.Equal(t, "2", result)
 
 	peers = &Peers{
-		peers: map[peer]bool{},
+		Peers: map[peer]bool{},
 	}
 	result, err = peers.SmallestAvailableShardID()
 	assert.NoError(t, err)

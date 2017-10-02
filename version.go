@@ -69,6 +69,8 @@ func newVersion(sequins *sequins, db *db, path, name string) (*version, error) {
 		stats: sequins.stats,
 	}
 
+	db.mux.prepare(vs)
+
 	minReplication := 1
 	if sequins.config.Sharding.Enabled {
 		minReplication = sequins.config.Sharding.MinReplication

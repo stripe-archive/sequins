@@ -85,25 +85,33 @@ func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Sequins-Shard-ID", s.peers.ShardID)
 	}
 
-	allNodesAvailable := true
-	statuses := make(map[string]map[string]versionState)
+	hostname := "localhost"
+	if s.peers != nil {
+		hostname = s.address
+	}
 
-	// Iterate through all of the nodes of the local databases and ensure
-	// that the versions they own are all marked as available. A single
-	// version being in an unvailable state results in an error response.
-	for dbKey, dbValue := range status.DBs {
-		for versionKey, versionValue := range dbValue.Versions {
-			for _, nodeValue := range versionValue.Nodes {
-				_, ok := statuses[dbKey]
-				if !ok {
-					statuses[dbKey] = make(map[string]versionState)
-				}
-
-				statuses[dbKey][versionKey] = nodeValue.State
-				if nodeValue.State != versionActive && nodeValue.State != versionAvailable {
-					allNodesAvailable = false
-				}
+	statuses := make(map[string]map[string]nodeVersionStatus)
+	for dbName, db := range status.DBs {
+		for versionName, version := range db.Versions {
+			if _, ok := statuses[dbName]; !ok {
+				statuses[dbName] = make(map[string]nodeVersionStatus)
 			}
+			statuses[dbName][versionName] = version.Nodes[hostname]
+		}
+	}
+
+	// We return a 200 when any database has an ACTIVE or AVAILABLE version
+	versionsAvailable := false
+	for _, db := range statuses {
+		for _, version := range db {
+			if version.State == versionActive || version.State == versionAvailable {
+				versionsAvailable = true
+				break
+			}
+		}
+
+		if versionsAvailable {
+			break
 		}
 	}
 
@@ -115,7 +123,7 @@ func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if allNodesAvailable {
+	if versionsAvailable {
 		w.WriteHeader(http.StatusOK)
 	} else {
 		w.WriteHeader(http.StatusNotFound)

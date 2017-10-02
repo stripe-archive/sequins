@@ -39,7 +39,7 @@ type sequins struct {
 	dbsLock sync.RWMutex
 
 	address   string
-	peers     *sharding.Peers
+	Peers     *sharding.Peers
 	zkWatcher *zk.Watcher
 
 	refreshLock   sync.Mutex
@@ -217,7 +217,7 @@ func (s *sequins) initCluster() error {
 
 	s.address = routableAddress
 	s.zkWatcher = zkWatcher
-	s.peers = peers
+	s.Peers = peers
 	return nil
 }
 

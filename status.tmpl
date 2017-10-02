@@ -170,6 +170,12 @@
       <h1>Sequins!</h1>
     </div>
     <div id="wrapper">
+      <ul>
+        {{ range $_, $peer := .Peers }}
+        <li>{{$peer.Address}} ($peer.ShardID)</li>
+        {{ end }}
+      </ul>
+
       {{ range $dbName, $db := .DBs}}
       <div class="db">
         <h2 class="dbname">/{{ $dbName }} {{ if gt (len $.DBs) 1 }}<a href="/{{ $dbName }}">&rarr;</a>{{ end }}</h2>

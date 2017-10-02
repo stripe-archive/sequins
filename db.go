@@ -225,7 +225,7 @@ func (db *db) removeVersion(old *version, shouldWait bool) {
 
 	// If we don't have any peers, we never need to wait until the versions
 	// aren't being used.
-	if db.sequins.peers == nil {
+	if db.sequins.Peers == nil {
 		shouldWait = false
 	}
 

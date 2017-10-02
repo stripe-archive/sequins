@@ -14,10 +14,10 @@ import (
 // mapping to nodes, synced from zookeeper. It's also the source of truth for
 // which partitions this node has locally, as well as which partitions it should
 // have. Finally, it's responsible for advertising those partitions we do have
-// locally to other peers.
+// locally to other Peers.
 type Partitions struct {
 	// Ready is closed once all partitions are available, either locally or on
-	// peers.
+	// Peers.
 	Ready chan bool
 
 	peers     *Peers
@@ -109,7 +109,7 @@ func (p *Partitions) sync(updates chan []string) {
 	}
 }
 
-// FindPeers returns the list of peers who have the given partition available.
+// FindPeers returns the list of Peers who have the given partition available.
 func (p *Partitions) FindPeers(partition int) []string {
 	if p.peers == nil {
 		return nil
@@ -216,7 +216,7 @@ func (p *Partitions) updateRemote(nodes []string) {
 		parts := strings.SplitN(node, "@", 2)
 		partition, _ := strconv.Atoi(parts[0])
 		host := parts[1]
-		if host != p.peers.address {
+		if host != p.peers.Address {
 			remote[partition] = append(remote[partition], host)
 		}
 	}
@@ -253,7 +253,7 @@ func (p *Partitions) updateReplicationStatus() {
 // partitionZKNode returns the node to write out to advertize that we have the
 // given partition.
 func (p *Partitions) partitionZKNode(partition int) string {
-	return path.Join(p.zkPath, fmt.Sprintf("%05d@%s", partition, p.peers.address))
+	return path.Join(p.zkPath, fmt.Sprintf("%05d@%s", partition, p.peers.Address))
 }
 
 // partitionId returns a string id for the given partition, to be used for the

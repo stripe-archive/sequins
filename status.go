@@ -31,11 +31,18 @@ func init() {
 }
 
 type status struct {
-	DBs map[string]dbStatus `json:"dbs"`
+	DBs   map[string]dbStatus `json:"dbs"`
+	Peers []peerStatus        `json:"peers"`
 }
 
 type dbStatus struct {
 	Versions map[string]versionStatus `json:"versions,omitempty"`
+}
+
+type peerStatus struct {
+	Self    bool   `json:"self"`
+	Address string `json:"address"`
+	ShardID string `json:"shard_id"`
 }
 
 type versionStatus struct {
@@ -78,7 +85,7 @@ func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
 	s.dbsLock.RUnlock()
 
 	if s.config.Sharding.Enabled {
-		w.Header().Set("X-Sequins-Shard-ID", s.peers.ShardID)
+		w.Header().Set("X-Sequins-Shard-ID", s.Peers.ShardID)
 	}
 
 	allNodesAvailable := true
@@ -120,19 +127,40 @@ func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *sequins) serveStatus(w http.ResponseWriter, r *http.Request) {
-	s.dbsLock.RLock()
+	status := status{
+		DBs:   make(map[string]dbStatus),
+		Peers: make([]peerStatus, 0),
+	}
 
-	status := status{DBs: make(map[string]dbStatus)}
+	s.dbsLock.RLock()
 	for name, db := range s.dbs {
 		status.DBs[name] = copyDBStatus(db.status())
 	}
-
 	s.dbsLock.RUnlock()
+
+	s.Peers.Lock.Lock()
+
+	for peer := range s.Peers.Peers {
+		ps := peerStatus{
+			Address: peer.Address,
+			ShardID: peer.ShardID,
+			Self:    false,
+		}
+		status.Peers = append(status.Peers, ps)
+	}
+
+	status.Peers = append(status.Peers, peerStatus{
+		Address: s.Peers.Address,
+		ShardID: s.Peers.ShardID,
+		Self:    true,
+	})
+
+	s.Peers.Lock.Unlock()
 
 	// By default, serve our peers' statuses merged with ours. We take
 	// extra care not to mutate local status structs.
-	if r.URL.Query().Get("proxy") == "" && s.peers != nil {
-		for _, p := range s.peers.Get() {
+	if r.URL.Query().Get("proxy") == "" && s.Peers != nil {
+		for _, p := range s.Peers.Get() {
 			peerStatus, err := s.getPeerStatus(p, "")
 			if err != nil {
 				log.Printf("Error fetching status from peer %s: %s", p, err)
@@ -180,8 +208,8 @@ func (db *db) serveStatus(w http.ResponseWriter, r *http.Request) {
 	s := db.status()
 
 	// By default, serve our peers' statuses merged with ours.
-	if r.URL.Query().Get("proxy") == "" && db.sequins.peers != nil {
-		for _, p := range db.sequins.peers.Get() {
+	if r.URL.Query().Get("proxy") == "" && db.sequins.Peers != nil {
+		for _, p := range db.sequins.Peers.Get() {
 			peerStatus, err := db.sequins.getPeerStatus(p, db.name)
 			if err != nil {
 				log.Printf("Error fetching status from peer %s: %s", p, err)
@@ -330,7 +358,7 @@ func (db *db) status() dbStatus {
 	}
 
 	hostname := "localhost"
-	if db.sequins.peers != nil {
+	if db.sequins.Peers != nil {
 		hostname = db.sequins.address
 	}
 
@@ -373,7 +401,7 @@ func (vs *version) status() versionStatus {
 	}
 
 	hostname := "localhost"
-	if vs.sequins.peers != nil {
+	if vs.sequins.Peers != nil {
 		hostname = vs.sequins.address
 	}
 

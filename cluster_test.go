@@ -246,7 +246,7 @@ func (ts *testSequins) setup() {
 
 func (ts *testSequins) makeVersionAvailable(version testVersion) {
 	path := filepath.Join(ts.backendPath, dbName, string(version))
-	err := directoryCopy(ts.T, path, "test/baby-names/1")
+	err := directoryCopy(ts.T, path, "test_databases/healthy/baby-names/1")
 	require.NoError(ts.T, err, "setup: make version available: %s", version)
 
 	f, err := os.Create(filepath.Join(path, "_SUCCESS"))

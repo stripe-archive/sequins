@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	"path/filepath"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -53,18 +52,19 @@ func setupS3(t *testing.T) *backend.S3Backend {
 	err := delS3Prefix(svc, bucket, "test/")
 	require.NoError(t, err, "should be able to delete old test files on s3")
 
-	infos, _ := ioutil.ReadDir("test/baby-names/1")
-	sourceDest := path.Join("test", "baby-names")
+	infos, _ := ioutil.ReadDir("test_databases/healthy/baby-names/1")
+	s3Dest := "test/baby-names"
+
 	for _, info := range infos {
-		err = putS3(svc, bucket, path.Join(sourceDest, "0", info.Name()), filepath.Join("test/baby-names/1", info.Name()))
-		require.NoError(t, err, "setup: putting %s", path.Join(sourceDest, "0", info.Name()))
-		err = putS3(svc, bucket, path.Join(sourceDest, "1", info.Name()), filepath.Join("test/baby-names/1", info.Name()))
-		require.NoError(t, err, "setup: putting %s", path.Join(sourceDest, "1", info.Name()))
+		err = putS3(svc, bucket, path.Join(s3Dest, "0", info.Name()), path.Join("test_databases/healthy/baby-names/1", info.Name()))
+		require.NoError(t, err, "setup: putting %s", path.Join(s3Dest, "0", info.Name()))
+		err = putS3(svc, bucket, path.Join(s3Dest, "1", info.Name()), path.Join("test_databases/healthy/baby-names/1", info.Name()))
+		require.NoError(t, err, "setup: putting %s", path.Join(s3Dest, "1", info.Name()))
 	}
 
-	err = putS3Blob(svc, bucket, "test/baby-names/0/_SUCCESS", nil)
+	err = putS3Blob(svc, bucket, path.Join(s3Dest, "/0/_SUCCESS"), nil)
 	require.NoError(t, err, "setup: putting _SUCCESS file")
-	err = putS3Blob(svc, bucket, "test/baby-names/foo", nil)
+	err = putS3Blob(svc, bucket, path.Join(s3Dest, "foo"), nil)
 	require.NoError(t, err, "setup: putting random file")
 
 	return testBackend

@@ -25,11 +25,11 @@ func setupHdfs(t *testing.T) *backend.HdfsBackend {
 		t.Fatal(err)
 	}
 
-	infos, _ := ioutil.ReadDir("test/baby-names/1")
+	infos, _ := ioutil.ReadDir("test_databases/healthy/baby-names/1")
 	sourceDest := path.Join("/", "_test_sequins", "baby-names")
 	for _, info := range infos {
-		putHDFS(client, path.Join(sourceDest, "0", info.Name()), filepath.Join("test/baby-names/1", info.Name()))
-		putHDFS(client, path.Join(sourceDest, "1", info.Name()), filepath.Join("test/baby-names/1", info.Name()))
+		putHDFS(client, path.Join(sourceDest, "0", info.Name()), filepath.Join("test_databases/healthy/baby-names/1", info.Name()))
+		putHDFS(client, path.Join(sourceDest, "1", info.Name()), filepath.Join("test_databases/healthy/baby-names/1", info.Name()))
 	}
 
 	client.CreateEmptyFile(path.Join(sourceDest, "0", "_SUCCESS"))

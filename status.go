@@ -21,6 +21,9 @@ var templateFns = template.FuncMap{
 	"castToFloat32": func(v int) float32 {
 		return float32(v)
 	},
+	"isListView": func(s status) bool {
+		return len(s.DBs) > 1
+	},
 }
 
 func init() {
@@ -61,7 +64,8 @@ type nodeVersionStatus struct {
 type versionState string
 
 const (
-	versionAvailable versionState = "AVAILABLE"
+	versionActive    versionState = "ACTIVE"
+	versionAvailable              = "AVAILABLE"
 	versionRemoving               = "REMOVING"
 	versionBuilding               = "BUILDING"
 	versionError                  = "ERROR"
@@ -96,7 +100,7 @@ func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
 				}
 
 				statuses[dbKey][versionKey] = nodeValue.State
-				if nodeValue.State != versionAvailable {
+				if nodeValue.State != versionActive && nodeValue.State != versionAvailable {
 					allNodesAvailable = false
 				}
 			}
@@ -284,7 +288,7 @@ func copyDBStatus(status dbStatus) dbStatus {
 func calculateReplicationStats(vst versionStatus) versionStatus {
 	replication := make(map[int]int)
 	for _, node := range vst.Nodes {
-		if node.State == versionAvailable || node.State == versionRemoving {
+		if node.State == versionActive || node.State == versionAvailable || node.State == versionRemoving {
 			for _, p := range node.Partitions {
 				replication[p] += 1
 			}
@@ -387,7 +391,7 @@ func (vs *version) setState(state versionState) {
 
 	if vs.state != versionError {
 		vs.state = state
-		if state == versionAvailable {
+		if state == versionAvailable || state == versionActive {
 			vs.available = time.Now()
 
 			if vs.stats != nil {

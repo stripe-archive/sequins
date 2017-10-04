@@ -3,16 +3,18 @@
     <style type="text/css">
       body {
         font-family: monospace;
+        color: #32325d;
         font-size: 12px;
         margin: 0px;
-        background-color: whitesmoke;
+        background-color: #f6f9fc;
       }
 
       div#header {
         width: 100%;
-        background-color: #2b83ba;
-        padding: 7px 20px;
-        color: white;
+        background-color: #525f7f;
+        padding: 12px 20px;
+        color: #f6f9fc;
+        box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08)
       }
 
       div#header > h1 {
@@ -24,11 +26,11 @@
       }
 
       div.db {
-        padding: 10px;
+        padding: 20px;
         margin: 0 auto 20px auto;
         display: table;
         background-color: white;
-        box-shadow: 5px 5px 10px 0px rgba(0,0,0,0.15);
+        box-shadow: 0 7px 14px rgba(50, 50, 93, 0.10), 0 3px 6px rgba(0, 0, 0, 0.08);
       }
 
       h2.dbname > a {
@@ -42,7 +44,7 @@
       }
 
       div.version {
-        border-top: 1px solid lightgray;
+        border-top: 1px solid #e6ebf1;
         padding: 10px 5px 10px 10px;
         display: block;
       }
@@ -53,12 +55,31 @@
 
       span.versionname {
         font-size: 20px;
+        font-weight: bold;
+      }
+
+      span.versionstate {
+        float: right;
+        font-size: 16px;
+        font-weight: bold;
+        padding-top: 0px;
+      }
+
+      span.versionstate > span.count {
+        margin-left: 10px;
+      }
+
+      span.versionstate > span.label {
+        padding: 0px 4px;
+        border-radius: 4px;
+        color: white;
+        margin-left: 4px;
       }
 
       span.versionpath {
-        font-size: 10px;
+        font-size: 12px;
         padding-left: 20px;
-        color: #888888;
+        color: #8898aa;
       }
 
       div.versionwrapper > div {
@@ -76,23 +97,60 @@
       }
 
       div.nodeerror {
-        color: #FF0000;
+        color: #fa755a;
       }
 
-      div.nodestatus {
+      div.nodename {
+        display: inline-block;
+        font-weight: bold;
+      }
+
+      div.nodestate {
+        display: inline-block;
+        padding: 2px;
+        border-radius: 4px;
+        font-weight: bold;
+        color: white;
+      }
+
+      .active {
+        background-color: #3ecf8e;
+      }
+
+      .available {
+        background-color: #aff1b6;
+      }
+
+      .removing {
+        background-color: #ffcca5;
+      }
+
+      .building {
+        background-color: #f5be58;
+      }
+
+      .error {
+        background-color: #fa755a;
+      }
+
+      div.nodetimestamp {
         font-size: 10px;
-        padding-left: 20px;
-        color: #888888;
+        color: #8898aa;
       }
 
       div.nodemap {
         margin-left: 7px;
       }
 
+      div.versionname {
+        font-size: 20px;
+        font-weight: bold;
+      }
+
       div.versioninfo {
         padding-top: 10px;
         margin-top: 5px;
-        border-top: 1px solid whitesmoke;
+        border-top: 1px solid #e6ebf1;
       }
 
       div.versioninfo > li {
@@ -115,36 +173,38 @@
             var version = db.versions[versionName];
 
             var id = "nodemap_canvas_" + dbName + "_" + versionName,
-                canvas = document.getElementById(id),
-                ctx = canvas.getContext("2d");
+              canvas = document.getElementById(id),
+              ctx = canvas.getContext("2d");
 
             // This makes lines less fuzzy.
             ctx.translate(0.5, 0.5);
 
             var numPartitions = version["num_partitions"],
-                replication = [];
+              replication = [];
 
             // Size the canvas to the nodes.
             canvas.height = 0;
             var totalHeight = canvas.height = canvas.parentElement.parentElement.clientHeight,
-                totalWidth = canvas.width = 400;
+              totalWidth = canvas.width = 400;
 
             // The size and width of each box.
             var nodeHeight =  Math.floor(totalHeight / (Object.keys(version.nodes).length)),
-                partitionWidth = Math.floor(totalWidth / numPartitions);
+              partitionWidth = Math.floor(totalWidth / numPartitions);
 
             var n = 0;
             for (nodeName in version.nodes) {
-              var node = version.nodes[nodeName]
+              var node = version.nodes[nodeName];
 
-              if (node.state === "AVAILABLE") {
-                ctx.fillStyle = "rgb(153,213,148)";
+              if (node.state === "ACTIVE") {
+                ctx.fillStyle = "#3ecf8e";
+              } else if (node.state === "AVAILABLE") {
+                ctx.fillStyle = "#aff1b6";
               } else if (node.state === "BUILDING") {
-                ctx.fillStyle = "rgb(255,255,191)";
+                ctx.fillStyle = "#f5be58";
               } else if (node.state === "REMOVING") {
-                ctx.fillStyle = "rgb(166,166,166)";
+                ctx.fillStyle = "#ffcca5";
               } else if (node.state === "ERROR") {
-                ctx.fillStyle = "rgb(252,141,89)"
+                ctx.fillStyle = "#fa755a";
               }
 
               node.partitions.forEach(function(p) {
@@ -162,67 +222,108 @@
           }
         }
       };
+
+      var countNodeStatuses = function() {
+        var dbs = {{ marshal . }};
+        var elements = document.getElementsByClassName('versionstate');
+        [].forEach.call(elements, function (elem) {
+          var dbName = elem.getAttribute('data-dbName');
+          var versionName = elem.getAttribute('data-versionName');
+
+          var statusCounts = {};
+          var nodes = dbs.dbs[dbName].versions[versionName].nodes;
+          Object.values(nodes).forEach(function (node) {
+            if (node.state in statusCounts) {
+              statusCounts[node.state]++;
+            } else {
+              statusCounts[node.state] = 1;
+            }
+          });
+
+          for (status in statusCounts) {
+            var count = document.createElement('span');
+            count.innerHTML = statusCounts[status].toString() + 'x';
+            count.classList.add('count');
+            elem.appendChild(count);
+
+            var label = document.createElement('span');
+            label.innerHTML = status;
+            label.classList.add('label');
+            label.classList.add(status);
+            elem.appendChild(label);
+          }
+        });
+      };
     </script>
   </head>
 
-  <body onload="drawMaps();">
+  <body {{ if not (isListView $) }} onload="drawMaps();" {{ else }} onload="countNodeStatuses();" {{ end }}>
     <div id="header">
       <h1>Sequins!</h1>
     </div>
+
     <div id="wrapper">
       {{ range $dbName, $db := .DBs}}
-      <div class="db">
-        <h2 class="dbname">/{{ $dbName }} {{ if gt (len $.DBs) 1 }}<a href="/{{ $dbName }}">&rarr;</a>{{ end }}</h2>
-        {{ range $versionName, $version := $db.Versions }}
-        <div class="version">
-          <span class="versionname">/{{ $versionName }}</span><span class="versionpath">({{ $version.Path }})</span>
-          <div class="versionwrapper">
-            <div class="nodes">
-              {{ range $nodeName, $node := $version.Nodes }}
-              <div class="node {{ if $node.Current }}nodecurrent{{else}}nodenotcurrent{{end}}{{ if eq $node.State "ERROR" }} nodeerror{{end}}">
-                <div class="nodename">{{$nodeName}}</div>
-                <div class="nodestatus">
-                {{ if eq $node.State "BUILDING" }}
-                  (building since {{ $node.CreatedAt }})
-                {{ else if eq $node.State "ERROR" }}
-                  (errored)
-                {{ else }}
-                  (available since {{ $node.AvailableAt }})
-                {{ end }}
+        <div class="db">
+          <h2 class="dbname">/{{ $dbName }} {{ if (isListView $) }}<a href="/{{ $dbName }}">&rarr;</a>{{ end }}</h2>
+          {{ range $versionName, $version := $db.Versions }}
+
+          <div class="version">
+            <span class="versionname">/{{ $versionName }}</span>
+
+            {{ if (isListView $) }}
+              <span class="versionstate" data-dbName="{{ $dbName }}" data-versionName="{{ $versionName }}">
+              </span>
+            {{ else }}
+              <span class="versionpath">{{ $version.Path }}</span>
+            {{ end }}
+
+            {{ if not (isListView $) }}
+              <div class="versionwrapper">
+                <div class="nodes">
+                  {{ range $nodeName, $node := $version.Nodes }}
+                    <div class="node {{ if $node.Current }}nodecurrent{{else}}nodenotcurrent{{end}}{{ if eq $node.State "ERROR" }} nodeerror{{end}}">
+                      <div class="nodename">{{$nodeName}}</div>
+                      <div class="nodestate {{ $node.State }}">{{ $node.State }}</div>
+                      <div class="nodetimestamp">
+                        {{ if eq $node.State "BUILDING" }}
+                          building since <b>{{ $node.CreatedAt }}</b>
+                        {{ else if (eq $node.State "ACTIVE" "AVAILABLE" "REMOVING") }}
+                          available since <b>{{ $node.AvailableAt }}</b>
+                        {{ end }}
+                      </div>
+                    </div>
+                  {{ end }}
+                </div>
+
+                <div class="nodemap">
+                  <canvas class="nodemap_canvas" id="nodemap_canvas_{{ $dbName }}_{{ $versionName }}"></canvas>
                 </div>
               </div>
-              {{ end }}
-            </div>
-            <div class="nodemap">
-              <canvas class="nodemap_canvas" id="nodemap_canvas_{{ $dbName }}_{{ $versionName }}"></canvas>
-            </div>
-          </div>
-          <div class="versioninfo">
-            <li>Overreplicated:
+            {{ end }}
+
+            <div class="versioninfo">
+              Overreplicated:
               <span class="versioninfovalue{{ if ne $version.OverreplicatedPartitions 0 }} highlight{{ end }}">
-              {{ $version.OverreplicatedPartitions }}/{{ $version.NumPartitions }}
+                {{ $version.OverreplicatedPartitions }}/{{ $version.NumPartitions }}
               </span>
-            </li>
-            | <li>Underreplicated:
-                <span class="versioninfovalue{{ if ne $version.UnderreplicatedPartitions 0 }} highlight{{ end }}">
-                  {{ $version.UnderreplicatedPartitions }}/{{ $version.NumPartitions }}
-                </span>
-              </li>
-            | <li>Missing:
-                <span class="versioninfovalue{{ if ne $version.MissingPartitions 0 }} highlight{{ end }}">
-                  {{ $version.MissingPartitions }}/{{ $version.NumPartitions }}
-                </span>
-              </li>
-            | <li>Average replication:
-                <span class="versioninfovalue{{ if ne $version.AverageReplication (castToFloat32 $version.TargetReplication) }} highlight{{ end }}">
-                  {{ $version.AverageReplication }}/{{ $version.TargetReplication }}
-                </span>
-              </li>
-            </ul>
+              | Underreplicated:
+              <span class="versioninfovalue{{ if ne $version.UnderreplicatedPartitions 0 }} highlight{{ end }}">
+                {{ $version.UnderreplicatedPartitions }}/{{ $version.NumPartitions }}
+              </span>
+              | Missing:
+              <span class="versioninfovalue{{ if ne $version.MissingPartitions 0 }} highlight{{ end }}">
+                {{ $version.MissingPartitions }}/{{ $version.NumPartitions }}
+              </span>
+              | Average replication:
+              <span class="versioninfovalue{{ if ne $version.AverageReplication (castToFloat32 $version.TargetReplication) }} highlight{{ end }}">
+                {{ $version.AverageReplication }}/{{ $version.TargetReplication }}
+              </span>
+            </div>
+
           </div>
-        </div>
         {{ end}}
-      </div>
+        </div>
       {{ end }}
     </div>
   </body>

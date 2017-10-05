@@ -30,9 +30,9 @@ type tuple struct {
 var babyNames []tuple
 
 func init() {
-	infos, _ := ioutil.ReadDir("test/baby-names/1")
+	infos, _ := ioutil.ReadDir("test_databases/healthy/baby-names/1")
 	for _, info := range infos {
-		f, _ := os.Open(filepath.Join("test/baby-names/1", info.Name()))
+		f, _ := os.Open(filepath.Join("test_databases/healthy/baby-names/1", info.Name()))
 		defer f.Close()
 
 		r := sequencefile.NewReader(f)
@@ -166,7 +166,7 @@ func TestSequins(t *testing.T) {
 	require.NoError(t, err, "setup")
 
 	dst := filepath.Join(scratch, "baby-names", "1")
-	require.NoError(t, directoryCopy(t, dst, "test/baby-names/1"), "setup: copy data")
+	require.NoError(t, directoryCopy(t, dst, "test_databases/healthy/baby-names/1"), "setup: copy data")
 
 	backend := backend.NewLocalBackend(scratch)
 	ts := getSequins(t, backend, "")
@@ -231,7 +231,7 @@ func TestInvalidVersionSequins(t *testing.T) {
 	require.NoError(t, err, "setup")
 
 	dst := filepath.Join(scratch, "baby-names", "{ invalid_version }")
-	require.NoError(t, directoryCopy(t, dst, "test/baby-names/1"), "setup: copy data")
+	require.NoError(t, directoryCopy(t, dst, "test_databases/healthy/baby-names/1"), "setup: copy data")
 
 	backend := backend.NewLocalBackend(scratch)
 	ts := getSequins(t, backend, "")
@@ -345,7 +345,7 @@ func createTestIndex(t *testing.T, scratch string, i int) {
 	t.Logf("Creating test version %d\n", i)
 	path := fmt.Sprintf("%s/data/baby-names/%d", scratch, i)
 
-	require.NoError(t, directoryCopy(t, path, "test/baby-names/1"))
+	require.NoError(t, directoryCopy(t, path, "test_databases/healthy/baby-names/1"))
 	_, err := os.Create(filepath.Join(path, "_SUCCESS"))
 	require.NoError(t, err)
 }

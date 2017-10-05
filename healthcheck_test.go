@@ -20,9 +20,9 @@ func TestGoodHealthCheck(t *testing.T) {
 		t.Fatalf("can't create temp dir. %q", err)
 	}
 	config.LocalStore = dir
-	config.Source = "test"
+	config.Source = "test_databases/healthy"
 
-	s := localSetup("test", config)
+	s := localSetup("test_databases/healthy", config)
 
 	err = s.init()
 	require.NoError(t, err, "sequins should initialize without problems")
@@ -50,9 +50,9 @@ func TestBadHealthCheck(t *testing.T) {
 		t.Fatalf("can't create temp dir. %q", err)
 	}
 	config.LocalStore = dir
-	config.Source = "test_bad"
+	config.Source = "test_databases/unhealthy"
 
-	s := localSetup("test_bad", config)
+	s := localSetup("test_databases/unhealthy", config)
 
 	err = s.init()
 	require.NoError(t, err, "sequins should initialize without problems")

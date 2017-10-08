@@ -105,3 +105,11 @@ func (bw *blockWriter) close() {
 func (bw *blockWriter) delete() {
 	os.Remove(bw.path)
 }
+
+type Adder struct {
+	bw *blockWriter
+}
+
+func (a *Adder) Add(key, value []byte) error {
+	return a.bw.add(key, value)
+}

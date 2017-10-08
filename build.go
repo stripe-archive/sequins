@@ -13,6 +13,8 @@ import (
 
 	"github.com/colinmarc/sequencefile"
 
+	"regexp"
+
 	"github.com/stripe/sequins/blocks"
 )
 
@@ -158,7 +160,51 @@ func (vs *version) addFiles(partitions map[int]bool) error {
 	}
 }
 
+var rePartFile = regexp.MustCompile(`^part-r-(\d+)-\d+$`)
+
+func (vs *version) partitionForFile(file string) int {
+	matches := rePartFile.FindStringSubmatch(file)
+	if matches == nil {
+		return -1
+	}
+	partition, err := strconv.Atoi(matches[1])
+	if err != nil {
+		return -1
+	}
+	return partition
+}
+
+func (vs *version) addWholePartition(reader *sequencefile.Reader, partition int) error {
+	block, err := vs.blockStore.AddPartition(partition)
+	if err != nil {
+		return err
+	}
+	for reader.Scan() {
+		key, value, err := unwrapKeyValue(reader)
+		if err != nil {
+			return err
+		}
+		err = block.Add(key, value)
+		if err != nil {
+			return err
+		}
+	}
+	if reader.Err() != nil {
+		return reader.Err()
+	}
+	return nil
+}
+
 func (vs *version) addFile(file string, partitions map[int]bool) error {
+	disp := vs.sequins.backend.DisplayPath(vs.db.name, vs.name, file)
+	partition := vs.partitionForFile(file)
+	if partition == -1 {
+		log.Printf("Can't match partition from %s\n", disp)
+	} else if !partitions[partition] {
+		log.Printf("Pre-skipping %s\n", disp)
+		return nil
+	}
+
 	if vs.stats != nil {
 		start := time.Now()
 		defer func() {
@@ -168,9 +214,7 @@ func (vs *version) addFile(file string, partitions map[int]bool) error {
 		}()
 	}
 
-	disp := vs.sequins.backend.DisplayPath(vs.db.name, vs.name, file)
 	log.Println("Reading records from", disp)
-
 	stream, err := vs.sequins.backend.Open(vs.db.name, vs.name, file)
 	if err != nil {
 		return fmt.Errorf("reading %s: %s", disp, err)
@@ -187,7 +231,12 @@ func (vs *version) addFile(file string, partitions map[int]bool) error {
 		vs.db.name, vs.name, file, sf.Header.Version, compressionString(sf.Header.Compression), compressionCodecString(sf.Header.CompressionCodec),
 		sf.Header.CompressionCodecClassName, sf.Header.KeyClassName, sf.Header.ValueClassName, fmt.Sprintf("%v", sf.Header.Metadata))
 
-	err = vs.addFileKeys(sf, partitions)
+	if partition == -1 {
+		err = vs.addFileKeys(sf, partitions)
+	} else {
+		err = vs.addWholePartition(sf, partition)
+	}
+
 	if err == errWrongPartition {
 		log.Println("Skipping", disp, "because it contains no relevant partitions")
 	} else if err != nil {

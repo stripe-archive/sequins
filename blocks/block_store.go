@@ -2,6 +2,7 @@ package blocks
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -96,6 +97,23 @@ func (store *BlockStore) Add(key, value []byte) error {
 	}
 
 	return nil
+}
+
+func (store *BlockStore) AddPartition(partition int) (*Adder, error) {
+	store.blockMapLock.Lock()
+	defer store.blockMapLock.Unlock()
+
+	_, found := store.newBlocks[partition]
+	if found {
+		return nil, fmt.Errorf("Already have partition %d for %s", partition, store.path)
+	}
+
+	block, err := newBlock(store.path, partition, store.compression, store.blockSize)
+	if err != nil {
+		return nil, err
+	}
+	store.newBlocks[partition] = block
+	return &Adder{block}, nil
 }
 
 // Save saves flushes any newly created blocks, and writes a manifest file to

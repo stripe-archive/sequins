@@ -250,7 +250,8 @@ func (vs *version) addFileKeys(reader *sequencefile.Reader, partitions map[int]b
 			continue
 		}
 
-		err = vs.blockStore.Add(key, value)
+		_ = value
+		//err = vs.blockStore.Add(key, value)
 		if err != nil {
 			return err
 		}

@@ -1,7 +1,12 @@
 os:
   - linux
 language: go
-go: 1.8.3
+go:
+  - 1.8
+  - 1.9
+  - 1.8.3
+  - 1.9.1
+  - tip
 sudo: false
 before_install:
 - wget http://apache.claz.org/zookeeper/zookeeper-3.4.6/zookeeper-3.4.6.tar.gz

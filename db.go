@@ -202,7 +202,7 @@ func (db *db) upgrade(version *version) {
 
 	log.Printf("Switching to version %s of %s!", version.name, db.name)
 	db.mux.upgrade(version)
-	version.setState(versionAvailable)
+	version.setState(versionActive)
 
 	// Close the current version, and any older versions that were
 	// also being prepared (effectively preempting them).

@@ -121,7 +121,7 @@ func (s *S3Backend) listDirs(dir, after string) ([]string, error) {
 	return res, nil
 }
 
-func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
+func (s *S3Backend) ListFiles(db, version string) ([]string, int64, error) {
 	versionPrefix := path.Join(s.path, db, version)
 
 	// We use a set here because S3 sometimes returns duplicate keys.
@@ -151,11 +151,10 @@ func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 	})
 
 	if err != nil {
-		return nil, s.s3error(err)
+		return nil, -1, s.s3error(err)
 	}
 
 	log.Printf("call_site=s3.ListFiles sequins_db=%q sequins_db_version=%q dataset_size=%d file_count=%d", db, version, datasetSize, numFiles)
-
 
 	sorted := make([]string, 0, len(res))
 	for name := range res {
@@ -163,7 +162,7 @@ func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 	}
 
 	sort.Strings(sorted)
-	return sorted, nil
+	return sorted, datasetSize, nil
 }
 
 func (s *S3Backend) Open(db, version, file string) (io.ReadCloser, error) {

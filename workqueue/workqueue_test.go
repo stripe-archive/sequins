@@ -17,7 +17,7 @@ func TestWorkQueue(t *testing.T) {
 			wg.Done()
 			<-c
 			wg.Done()
-		})
+		}, 0)
 	}
 
 	// Wait for first 8 workers to run (and block on `c`).
@@ -37,7 +37,7 @@ func TestWorkQueueRecover(t *testing.T) {
 	for i := 0; i < 8; i++ {
 		w.Schedule(func() {
 			panic("womp")
-		})
+		}, 0)
 	}
 	for i := 0; i < 8; i++ {
 		wg.Done()
@@ -46,4 +46,29 @@ func TestWorkQueueRecover(t *testing.T) {
 	// If the recover logic was broken, we'd expect all of the work queue's goroutines to be dead,
 	// so our second set of work items wouldn't run and `wg.Wait()` would time out.
 	wg.Wait()
+}
+
+func TestWorkQueuePriority(t *testing.T) {
+	w := NewWorkQueue(1)
+	wg := &sync.WaitGroup{}
+	w.Schedule(func() {
+		wg.Done()
+	}, 0)
+
+	// The queue is blocked, so anything additional we add should be prioritized.
+	priorities := []int64{17, 23, 2, -5, 3, 15, -11}
+	var out []int64
+	for _, p := range priorities {
+		p := p
+		w.Schedule(func() {
+			out = append(out, p)
+			wg.Done()
+		}, p)
+	}
+
+	// Now let everything run.
+	wg.Add(1 + len(priorities))
+	wg.Wait()
+
+	assert.Equal(t, []int64{23, 17, 15, 3, 2, -5, -11}, out)
 }

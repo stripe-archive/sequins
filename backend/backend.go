@@ -21,7 +21,8 @@ type Backend interface {
 
 	// ListFiles returns a sorted list of all valid-looking data files for a db
 	// and version. It excludes files that begin with '_' or '.'.
-	ListFiles(db, version string) ([]string, error)
+	// It also returns the total size of the dataset.
+	ListFiles(db, version string) ([]string, int64, error)
 
 	// Open returns an io.ReadCloser for a given file from a specific version
 	// of a db.
@@ -81,10 +82,10 @@ func (lb *LocalBackend) ListVersions(db, after string, checkForSuccess bool) ([]
 	return res, nil
 }
 
-func (lb *LocalBackend) ListFiles(db, version string) ([]string, error) {
+func (lb *LocalBackend) ListFiles(db, version string) ([]string, int64, error) {
 	infos, err := ioutil.ReadDir(filepath.Join(lb.path, db, version))
 	if err != nil {
-		return nil, err
+		return nil, -1, err
 	}
 
 	datasetSize := int64(0)
@@ -100,7 +101,7 @@ func (lb *LocalBackend) ListFiles(db, version string) ([]string, error) {
 
 	log.Printf("call_site=files.ListFiles sequins_db=%q sequins_db_version=%q dataset_size=%d file_count=%d", db, version, datasetSize, numFiles)
 
-	return res, nil
+	return res, datasetSize, nil
 }
 
 func (lb *LocalBackend) Open(db, version, file string) (io.ReadCloser, error) {

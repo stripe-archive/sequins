@@ -75,9 +75,10 @@ func TestHdfsBackend(t *testing.T) {
 	require.NoError(t, err, "it should be able to list versions with a _SUCCESS file")
 	assert.Equal(t, []string{"0"}, versions, "the list of versions with a _SUCCESS file should be correct")
 
-	files, err := h.ListFiles("baby-names", "0")
+	files, size, err := h.ListFiles("baby-names", "0")
 	require.NoError(t, err, "it should be able to list files")
 	assert.Equal(t, 5, len(files), "the list of files should be correct")
+	assert.Equal(t, int64(2375), size, "the dataset size should be correct")
 
 	tearDownHdfs(t)
 }

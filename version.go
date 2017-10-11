@@ -32,6 +32,7 @@ type version struct {
 	partitions    *sharding.Partitions
 	numPartitions int
 	files         []string
+	size          int64
 
 	state     versionState
 	created   time.Time
@@ -47,7 +48,7 @@ type version struct {
 }
 
 func newVersion(sequins *sequins, db *db, path, name string) (*version, error) {
-	files, err := sequins.backend.ListFiles(db.name, name)
+	files, size, err := sequins.backend.ListFiles(db.name, name)
 	if err != nil {
 		return nil, err
 	}
@@ -59,6 +60,7 @@ func newVersion(sequins *sequins, db *db, path, name string) (*version, error) {
 		name:          name,
 		files:         files,
 		numPartitions: len(files),
+		size:          size,
 
 		created: time.Now(),
 		state:   versionBuilding,

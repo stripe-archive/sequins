@@ -139,7 +139,11 @@ func (vs *version) addFiles(partitions map[int]bool) error {
 				return
 			}
 		}
-		vs.sequins.workQueue.Schedule(f)
+		if vs.sequins.config.PrioritizeSmallDatasets {
+			vs.sequins.workQueue.Schedule(f, -vs.size)
+		} else {
+			vs.sequins.workQueue.Schedule(f, 0)
+		}
 	}
 
 	c := make(chan interface{}, 1)

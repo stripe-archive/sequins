@@ -19,14 +19,15 @@ const defaultSearchPath = "sequins.conf:/etc/sequins.conf"
 var errNoConfig = errors.New("no config file found")
 
 type sequinsConfig struct {
-	Source             string   `toml:"source"`
-	Bind               string   `toml:"bind"`
-	MaxParallelLoads   int      `toml:"max_parallel_loads"`
-	ThrottleLoads      duration `toml:"throttle_loads"`
-	LocalStore         string   `toml:"local_store"`
-	RefreshPeriod      duration `toml:"refresh_period"`
-	RequireSuccessFile bool     `toml:"require_success_file"`
-	ContentType        string   `toml:"content_type"`
+	Source                  string   `toml:"source"`
+	Bind                    string   `toml:"bind"`
+	MaxParallelLoads        int      `toml:"max_parallel_loads"`
+	PrioritizeSmallDatasets bool     `toml:"prioritize_small_datasets"`
+	ThrottleLoads           duration `toml:"throttle_loads"`
+	LocalStore              string   `toml:"local_store"`
+	RefreshPeriod           duration `toml:"refresh_period"`
+	RequireSuccessFile      bool     `toml:"require_success_file"`
+	ContentType             string   `toml:"content_type"`
 
 	Storage  storageConfig  `toml:"storage"`
 	S3       s3Config       `toml:"s3"`
@@ -93,13 +94,14 @@ type datadogConfig struct {
 
 func defaultConfig() sequinsConfig {
 	return sequinsConfig{
-		Source:             "",
-		Bind:               "0.0.0.0:9599",
-		LocalStore:         "/var/sequins/",
-		MaxParallelLoads:   0,
-		RefreshPeriod:      duration{time.Duration(0)},
-		RequireSuccessFile: false,
-		ContentType:        "",
+		Source:                  "",
+		Bind:                    "0.0.0.0:9599",
+		LocalStore:              "/var/sequins/",
+		MaxParallelLoads:        0,
+		PrioritizeSmallDatasets: false,
+		RefreshPeriod:           duration{time.Duration(0)},
+		RequireSuccessFile:      false,
+		ContentType:             "",
 		Storage: storageConfig{
 			Compression: blocks.SnappyCompression,
 			BlockSize:   4096,

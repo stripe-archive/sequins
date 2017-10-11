@@ -64,10 +64,10 @@ func (h *HdfsBackend) ListVersions(db, after string, checkForSuccess bool) ([]st
 	return res, nil
 }
 
-func (h *HdfsBackend) ListFiles(db, version string) ([]string, error) {
+func (h *HdfsBackend) ListFiles(db, version string) ([]string, int64, error) {
 	infos, err := h.client.ReadDir(path.Join(h.path, db, version))
 	if err != nil {
-		return nil, err
+		return nil, -1, err
 	}
 
 	datasetSize := int64(0)
@@ -84,7 +84,7 @@ func (h *HdfsBackend) ListFiles(db, version string) ([]string, error) {
 
 	log.Printf("call_site=hdfs.ListFiles sequins_db=%q sequins_db_version=%q dataset_size=%d file_count=%d", db, version, datasetSize, numFiles)
 
-	return res, nil
+	return res, datasetSize, nil
 }
 
 func (h *HdfsBackend) Open(db, version, file string) (io.ReadCloser, error) {

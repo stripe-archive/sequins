@@ -70,32 +70,33 @@ func NewFromManifest(path string) (*BlockStore, Manifest, error) {
 	return store, manifest, nil
 }
 
-// Add adds a single key/value pair to the block store.
-func (store *BlockStore) Add(key, value []byte) error {
+// Get the block for new data
+func (store *BlockStore) newBlock(partition int) (*blockWriter, error) {
 	store.blockMapLock.Lock()
 	defer store.blockMapLock.Unlock()
 
-	partition, _ := KeyPartition(key, store.numPartitions)
-
-	block, ok := store.newBlocks[partition]
-	var err error
-	if !ok {
-		block, err = newBlock(store.path, partition, store.compression, store.blockSize)
-		if err != nil {
-			return err
-		}
-
-		store.newBlocks[partition] = block
+	block, found := store.newBlocks[partition]
+	if found {
+		return block, nil
 	}
 
-	// We assume that sparkey isn't thread-safe, and therefore synchronize access to it under our
-	// existing `blockMapLock` mutex.
-	err = block.add(key, value)
+	block, err := newBlock(store.path, partition, store.compression, store.blockSize)
+	if err != nil {
+		return nil, err
+	}
+	store.newBlocks[partition] = block
+	return block, nil
+}
+
+// Add adds a single key/value pair to the block store.
+func (store *BlockStore) Add(key, value []byte) error {
+	partition, _ := KeyPartition(key, store.numPartitions)
+	block, err := store.newBlock(partition)
 	if err != nil {
 		return err
 	}
 
-	return nil
+	return block.add(key, value)
 }
 
 // Save saves flushes any newly created blocks, and writes a manifest file to

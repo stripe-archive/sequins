@@ -290,7 +290,7 @@ func calculateReplicationStats(vst versionStatus) versionStatus {
 	for _, node := range vst.Nodes {
 		if node.State == versionActive || node.State == versionAvailable || node.State == versionRemoving {
 			for _, p := range node.Partitions {
-				replication[p] += 1
+				replication[p]++
 			}
 		}
 	}
@@ -300,11 +300,11 @@ func calculateReplicationStats(vst versionStatus) versionStatus {
 		r := replication[p]
 		total += r
 		if r == 0 {
-			vst.MissingPartitions += 1
+			vst.MissingPartitions++
 		} else if r < vst.TargetReplication {
-			vst.UnderreplicatedPartitions += 1
+			vst.UnderreplicatedPartitions++
 		} else if r > vst.TargetReplication {
-			vst.OverreplicatedPartitions += 1
+			vst.OverreplicatedPartitions++
 		}
 	}
 
@@ -355,9 +355,10 @@ func (vs *version) status() versionStatus {
 	defer vs.stateLock.Unlock()
 
 	st := versionStatus{
-		Path:          vs.sequins.backend.DisplayPath(vs.db.name, vs.name),
-		NumPartitions: vs.numPartitions,
-		Nodes:         make(map[string]nodeVersionStatus),
+		Path:              vs.sequins.backend.DisplayPath(vs.db.name, vs.name),
+		NumPartitions:     vs.numPartitions,
+		Nodes:             make(map[string]nodeVersionStatus),
+		TargetReplication: vs.sequins.config.Sharding.MinReplication,
 	}
 
 	partitions := make([]int, 0, len(vs.partitions.SelectedLocal()))

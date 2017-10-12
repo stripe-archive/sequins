@@ -117,7 +117,11 @@ func (vs *version) serveNotFound(w http.ResponseWriter) {
 
 func (vs *version) serveError(w http.ResponseWriter, key string, err error) {
 	log.Printf("Error fetching value for /%s/%s: %s\n", vs.db.name, key, err)
-	w.WriteHeader(http.StatusInternalServerError)
+	if err == errRequestCanceled {
+		w.WriteHeader(499)
+	} else {
+		w.WriteHeader(http.StatusInternalServerError)
+	}
 }
 
 func shuffle(vs []string) []string {

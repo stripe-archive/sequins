@@ -27,6 +27,7 @@ type sequinsStats struct {
 		status200 int64
 		status400 int64
 		status404 int64
+		status499 int64
 		status500 int64
 		status501 int64
 		status502 int64
@@ -120,6 +121,7 @@ func (s *sequinsStats) updateRequestStats() {
 			s.Qps.status200 = 0
 			s.Qps.status400 = 0
 			s.Qps.status404 = 0
+			s.Qps.status499 = 0
 			s.Qps.status500 = 0
 			s.Qps.status501 = 0
 			s.Qps.status502 = 0
@@ -135,6 +137,8 @@ func (s *sequinsStats) updateRequestStats() {
 				s.Qps.status400++
 			case 404:
 				s.Qps.status404++
+			case 499:
+				s.Qps.status499++
 			case 500:
 				s.Qps.status500++
 			case 501:
@@ -159,6 +163,7 @@ func (s *sequinsStats) snapshotRequestStats() {
 	s.Qps.ByStatus["200"] = s.Qps.status200
 	s.Qps.ByStatus["400"] = s.Qps.status400
 	s.Qps.ByStatus["404"] = s.Qps.status404
+	s.Qps.ByStatus["499"] = s.Qps.status499
 	s.Qps.ByStatus["500"] = s.Qps.status500
 	s.Qps.ByStatus["501"] = s.Qps.status501
 	s.Qps.ByStatus["502"] = s.Qps.status502

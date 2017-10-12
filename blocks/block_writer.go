@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/bsm/go-sparkey"
 	"github.com/pborman/uuid"
@@ -20,6 +21,8 @@ type blockWriter struct {
 	path          string
 	id            string
 	sparkeyWriter *sparkey.LogWriter
+
+	addLock sync.Mutex
 }
 
 func newBlock(storePath string, partition int, compression Compression, blockSize int) (*blockWriter, error) {
@@ -50,6 +53,9 @@ func newBlock(storePath string, partition int, compression Compression, blockSiz
 }
 
 func (bw *blockWriter) add(key, value []byte) error {
+	bw.addLock.Lock()
+	defer bw.addLock.Unlock()
+
 	// Update the count.
 	bw.count++
 

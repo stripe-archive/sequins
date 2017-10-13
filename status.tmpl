@@ -12,13 +12,35 @@
       div#header {
         width: 100%;
         background-color: #525f7f;
-        padding: 12px 20px;
+        padding: 12px 0px;
         color: #f6f9fc;
         box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08)
       }
 
-      div#header > h1 {
-        margin: 0;
+      div#header > span#logo {
+        font-size: 24px;
+        font-weight: bold;
+        margin-left: 20px;
+      }
+
+      div#header > span#docs {
+        float: right;
+        margin-right: 20px;
+        font-size: 14px;
+        line-height: 24px;
+      }
+
+      span#docs > a {
+        text-decoration: none;
+        color: white;
+        background-color: #6b7c93;
+        padding: 4px;
+        border-radius: 4px;
+      }
+
+      span#docs > a:hover {
+        background-color: white;
+        color: #6b7c93;
       }
 
       div#wrapper {
@@ -26,25 +48,26 @@
       }
 
       div.db {
+        min-width: 800px;
         padding: 20px;
         margin: 0 auto 20px auto;
         display: table;
         background-color: white;
-        box-shadow: 0 7px 14px rgba(50, 50, 93, 0.10), 0 3px 6px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
       }
 
-      h2.dbname > a {
+      h2.dbname > a.arrow {
         float: right;
         margin-right: 5px;
       }
 
-      a, a:visited, a:hover {
+      a.arrow, a.arrow:visited, a.arrow:hover {
         color: #2b83ba;
         text-decoration: none;
       }
 
       div.version {
-        border-top: 1px solid #e6ebf1;
+        border-top: 1px dashed #e6ebf1;
         padding: 10px 5px 10px 10px;
         display: block;
       }
@@ -54,7 +77,7 @@
       }
 
       span.versionname {
-        font-size: 20px;
+        font-size: 16px;
         font-weight: bold;
       }
 
@@ -76,9 +99,8 @@
         margin-left: 4px;
       }
 
-      span.versionpath {
+      div.versionpath {
         font-size: 12px;
-        padding-left: 20px;
         color: #8898aa;
       }
 
@@ -150,7 +172,6 @@
       div.versioninfo {
         padding-top: 10px;
         margin-top: 5px;
-        border-top: 1px solid #e6ebf1;
       }
 
       div.versioninfo > li {
@@ -259,71 +280,78 @@
 
   <body {{ if not (isListView $) }} onload="drawMaps();" {{ else }} onload="countNodeStatuses();" {{ end }}>
     <div id="header">
-      <h1>Sequins!</h1>
+      <span id="logo">
+        Sequins!
+      </span>
+
+      <span id="docs">
+        Docs:
+        <a href="http://sequins.io/manual/1-5-healthchecks-and-monitoring/#version-states">States</a>
+        <a href="http://sequins.io/manual/1-4-running-a-distributed-cluster/#replication">Replication</a>
+      </span>
     </div>
 
     <div id="wrapper">
       {{ range $dbName, $db := .DBs}}
-        <div class="db">
-          <h2 class="dbname">/{{ $dbName }} {{ if (isListView $) }}<a href="/{{ $dbName }}">&rarr;</a>{{ end }}</h2>
-          {{ range $versionName, $version := $db.Versions }}
-
-          <div class="version">
-            <span class="versionname">/{{ $versionName }}</span>
-
-            {{ if (isListView $) }}
-              <span class="versionstate" data-dbName="{{ $dbName }}" data-versionName="{{ $versionName }}">
-              </span>
-            {{ else }}
-              <span class="versionpath">{{ $version.Path }}</span>
-            {{ end }}
-
-            {{ if not (isListView $) }}
-              <div class="versionwrapper">
-                <div class="nodes">
-                  {{ range $nodeName, $node := $version.Nodes }}
-                    <div class="node {{ if $node.Current }}nodecurrent{{else}}nodenotcurrent{{end}}{{ if eq $node.State "ERROR" }} nodeerror{{end}}">
-                      <div class="nodename">{{$nodeName}}</div>
-                      <div class="nodestate {{ $node.State }}">{{ $node.State }}</div>
-                      <div class="nodetimestamp">
-                        {{ if eq $node.State "BUILDING" }}
-                          building since <b>{{ $node.CreatedAt }}</b>
-                        {{ else if (eq $node.State "ACTIVE" "AVAILABLE" "REMOVING") }}
-                          available since <b>{{ $node.AvailableAt }}</b>
-                        {{ end }}
-                      </div>
-                    </div>
-                  {{ end }}
-                </div>
-
-                <div class="nodemap">
-                  <canvas class="nodemap_canvas" id="nodemap_canvas_{{ $dbName }}_{{ $versionName }}"></canvas>
-                </div>
+        {{ if (isListView $) }}
+          <div class="db">
+            <h2 class="dbname">/{{ $dbName }} <a class="arrow" href="/{{ $dbName }}">&rarr;</a></h2>
+            {{ range $versionName, $version := $db.Versions }}
+              <div class="version">
+                <span class="versionname">/{{ $versionName }}</span>
+                <span class="versionstate" data-dbName="{{ $dbName }}" data-versionName="{{ $versionName }}"></span>
               </div>
             {{ end }}
-
-            <div class="versioninfo">
-              Overreplicated:
-              <span class="versioninfovalue{{ if ne $version.OverreplicatedPartitions 0 }} highlight{{ end }}">
-                {{ $version.OverreplicatedPartitions }}/{{ $version.NumPartitions }}
-              </span>
-              | Underreplicated:
-              <span class="versioninfovalue{{ if ne $version.UnderreplicatedPartitions 0 }} highlight{{ end }}">
-                {{ $version.UnderreplicatedPartitions }}/{{ $version.NumPartitions }}
-              </span>
-              | Missing:
-              <span class="versioninfovalue{{ if ne $version.MissingPartitions 0 }} highlight{{ end }}">
-                {{ $version.MissingPartitions }}/{{ $version.NumPartitions }}
-              </span>
-              | Average replication:
-              <span class="versioninfovalue{{ if ne $version.AverageReplication (castToFloat32 $version.TargetReplication) }} highlight{{ end }}">
-                {{ $version.AverageReplication }}/{{ $version.TargetReplication }}
-              </span>
-            </div>
-
           </div>
-        {{ end}}
-        </div>
+        {{ else }}
+          <div class="db">
+            <h2 class="dbname">/{{ $dbName }}</h2>
+            {{ range $versionName, $version := $db.Versions }}
+              <div class="version">
+                <span class="versionname">/{{ $versionName }}</span>
+                <div class="versionpath">{{ $version.Path }}</div>
+                <div class="versionwrapper">
+                  <div class="nodes">
+                    {{ range $nodeName, $node := $version.Nodes }}
+                      <div class="node {{ if $node.Current }}nodecurrent{{else}}nodenotcurrent{{end}}{{ if eq $node.State "ERROR" }} nodeerror{{end}}">
+                        <div class="nodename">{{$nodeName}}</div>
+                        <div class="nodestate {{ $node.State }}">{{ $node.State }}</div>
+                        <div class="nodetimestamp">
+                          {{ if eq $node.State "BUILDING" }}
+                            building since <b>{{ $node.CreatedAt }}</b>
+                          {{ else if (eq $node.State "ACTIVE" "AVAILABLE" "REMOVING") }}
+                            available since <b>{{ $node.AvailableAt }}</b>
+                          {{ end }}
+                        </div>
+                      </div>
+                    {{ end }}
+                  </div>
+                  <div class="nodemap">
+                    <canvas class="nodemap_canvas" id="nodemap_canvas_{{ $dbName }}_{{ $versionName }}"></canvas>
+                  </div>
+                </div>
+                <div class="versioninfo">
+                  Overreplicated:
+                  <span class="versioninfovalue{{ if ne $version.OverreplicatedPartitions 0 }} highlight{{ end }}">
+                    {{ $version.OverreplicatedPartitions }}/{{ $version.NumPartitions }}
+                  </span>
+                  | Underreplicated:
+                  <span class="versioninfovalue{{ if ne $version.UnderreplicatedPartitions 0 }} highlight{{ end }}">
+                    {{ $version.UnderreplicatedPartitions }}/{{ $version.NumPartitions }}
+                  </span>
+                  | Missing:
+                  <span class="versioninfovalue{{ if ne $version.MissingPartitions 0 }} highlight{{ end }}">
+                    {{ $version.MissingPartitions }}/{{ $version.NumPartitions }}
+                  </span>
+                  | Average replication:
+                  <span class="versioninfovalue{{ if ne $version.AverageReplication (castToFloat32 $version.TargetReplication) }} highlight{{ end }}">
+                    {{ $version.AverageReplication }}/{{ $version.TargetReplication }}
+                  </span>
+                </div>
+              </div>
+            {{ end}}
+          </div>
+        {{ end }}
       {{ end }}
     </div>
   </body>

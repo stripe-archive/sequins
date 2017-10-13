@@ -85,6 +85,11 @@ func (vs *version) serveProxied(w http.ResponseWriter, r *http.Request,
 		log.Printf("All peers timed out for /%s/%s (version %s)", vs.db.name, key, vs.name)
 		w.WriteHeader(http.StatusGatewayTimeout)
 		return
+	} else if err == errRequestCanceled {
+		// The connection was closed by the client. 499.
+		log.Printf("Connection closed by client for /%s/%s (version %s)", vs.db.name, key, vs.name)
+		w.WriteHeader(499)
+		return
 	} else if err != nil {
 		// Some other error. 500.
 		vs.serveError(w, key, err)
@@ -117,11 +122,7 @@ func (vs *version) serveNotFound(w http.ResponseWriter) {
 
 func (vs *version) serveError(w http.ResponseWriter, key string, err error) {
 	log.Printf("Error fetching value for /%s/%s: %s\n", vs.db.name, key, err)
-	if err == errRequestCanceled {
-		w.WriteHeader(499)
-	} else {
-		w.WriteHeader(http.StatusInternalServerError)
-	}
+	w.WriteHeader(http.StatusInternalServerError)
 }
 
 func shuffle(vs []string) []string {

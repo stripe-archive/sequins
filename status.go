@@ -24,6 +24,37 @@ var templateFns = template.FuncMap{
 	"isListView": func(s status) bool {
 		return len(s.DBs) > 1
 	},
+	"replicationKeys": func(v versionStatus) string {
+		maxKey := 0
+		for k := range v.ReplicationHistogram {
+			if k > maxKey {
+				maxKey = k
+			}
+		}
+
+		keys := make([]string, maxKey+1, maxKey+1)
+		for i := 0; i <= maxKey; i++ {
+			keys[i] = fmt.Sprintf("%dx", maxKey-i)
+		}
+
+		return strings.Join(keys, "/")
+	},
+	"replicationValues": func(v versionStatus) string {
+		maxKey := 0
+		for k := range v.ReplicationHistogram {
+			if k > maxKey {
+				maxKey = k
+			}
+		}
+
+		values := make([]string, maxKey+1, maxKey+1)
+		for i := 0; i <= maxKey; i++ {
+			value := v.ReplicationHistogram[maxKey-i]
+			values[i] = fmt.Sprintf("%v", value)
+		}
+
+		return strings.Join(values, "/")
+	},
 }
 
 func init() {
@@ -42,13 +73,11 @@ type dbStatus struct {
 }
 
 type versionStatus struct {
-	Path                      string  `json:"path"`
-	NumPartitions             int     `json:"num_partitions"`
-	UnderreplicatedPartitions int     `json:"underreplicated_partitions"`
-	OverreplicatedPartitions  int     `json:"overreplicated_partitions"`
-	MissingPartitions         int     `json:"missing_partitions"`
-	TargetReplication         int     `json:"target_replication"`
-	AverageReplication        float32 `json:"average_replication"`
+	Path                 string      `json:"path"`
+	NumPartitions        int         `json:"num_partitions"`
+	ReplicationHistogram map[int]int `json:"replication_histogram"`
+	TargetReplication    int         `json:"target_replication"`
+	AverageReplication   float32     `json:"average_replication"`
 
 	Nodes map[string]nodeVersionStatus `json:"nodes"`
 }
@@ -264,10 +293,11 @@ func mergeDBStatus(left, right dbStatus) dbStatus {
 	for v, vst := range right.Versions {
 		if _, ok := left.Versions[v]; !ok {
 			left.Versions[v] = versionStatus{
-				Nodes:             make(map[string]nodeVersionStatus),
-				Path:              vst.Path,
-				NumPartitions:     vst.NumPartitions,
-				TargetReplication: vst.TargetReplication,
+				Nodes:                make(map[string]nodeVersionStatus),
+				ReplicationHistogram: vst.ReplicationHistogram,
+				Path:                 vst.Path,
+				NumPartitions:        vst.NumPartitions,
+				TargetReplication:    vst.TargetReplication,
 			}
 		}
 
@@ -286,32 +316,25 @@ func copyDBStatus(status dbStatus) dbStatus {
 }
 
 func calculateReplicationStats(vst versionStatus) versionStatus {
-	replication := make(map[int]int)
+	partitionReplication := make(map[int]int)
 	for _, node := range vst.Nodes {
 		if node.State == versionActive || node.State == versionAvailable || node.State == versionRemoving {
 			for _, p := range node.Partitions {
-				replication[p]++
+				partitionReplication[p]++
 			}
 		}
 	}
 
-	total := 0
-	for p := 0; p < vst.NumPartitions; p++ {
-		r := replication[p]
-		total += r
-		if r == 0 {
-			vst.MissingPartitions++
-		} else if r < vst.TargetReplication {
-			vst.UnderreplicatedPartitions++
-		} else if r > vst.TargetReplication {
-			vst.OverreplicatedPartitions++
-		}
+	totalReplication := 0
+	for _, replication := range partitionReplication {
+		vst.ReplicationHistogram[replication]++
+		totalReplication += replication
 	}
 
 	if vst.NumPartitions == 0 {
 		vst.AverageReplication = 0
 	} else {
-		vst.AverageReplication = float32(total) / float32(vst.NumPartitions)
+		vst.AverageReplication = float32(totalReplication) / float32(vst.NumPartitions)
 	}
 
 	return vst
@@ -355,10 +378,11 @@ func (vs *version) status() versionStatus {
 	defer vs.stateLock.Unlock()
 
 	st := versionStatus{
-		Path:              vs.sequins.backend.DisplayPath(vs.db.name, vs.name),
-		NumPartitions:     vs.numPartitions,
-		Nodes:             make(map[string]nodeVersionStatus),
-		TargetReplication: vs.sequins.config.Sharding.MinReplication,
+		Nodes:                make(map[string]nodeVersionStatus),
+		NumPartitions:        vs.numPartitions,
+		Path:                 vs.sequins.backend.DisplayPath(vs.db.name, vs.name),
+		ReplicationHistogram: make(map[int]int),
+		TargetReplication:    vs.sequins.config.Sharding.MinReplication,
 	}
 
 	partitions := make([]int, 0, len(vs.partitions.SelectedLocal()))

@@ -177,10 +177,6 @@
       div.versioninfo > li {
         display: inline-block;
       }
-
-      span.versioninfovalue.highlight {
-        font-weight: bold;
-      }
     </style>
 
     <script type="text/javascript">
@@ -331,22 +327,11 @@
                   </div>
                 </div>
                 <div class="versioninfo">
-                  Overreplicated:
-                  <span class="versioninfovalue{{ if ne $version.OverreplicatedPartitions 0 }} highlight{{ end }}">
-                    {{ $version.OverreplicatedPartitions }}/{{ $version.NumPartitions }}
-                  </span>
-                  | Underreplicated:
-                  <span class="versioninfovalue{{ if ne $version.UnderreplicatedPartitions 0 }} highlight{{ end }}">
-                    {{ $version.UnderreplicatedPartitions }}/{{ $version.NumPartitions }}
-                  </span>
-                  | Missing:
-                  <span class="versioninfovalue{{ if ne $version.MissingPartitions 0 }} highlight{{ end }}">
-                    {{ $version.MissingPartitions }}/{{ $version.NumPartitions }}
-                  </span>
-                  | Average replication:
-                  <span class="versioninfovalue{{ if ne $version.AverageReplication (castToFloat32 $version.TargetReplication) }} highlight{{ end }}">
-                    {{ $version.AverageReplication }}/{{ $version.TargetReplication }}
-                  </span>
+                  Replication ({{ replicationKeys $version }}) of {{ $version.NumPartitions }}: <b>{{ replicationValues $version }}</b>
+                  <b>|</b>
+                  Target Replication: <b>{{ $version.TargetReplication }}</b>
+                  <b>|</b>
+                  Avg. Replication: <b>{{ $version.AverageReplication }}</b>
                 </div>
               </div>
             {{ end}}

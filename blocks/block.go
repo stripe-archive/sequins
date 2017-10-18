@@ -2,13 +2,12 @@ package blocks
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"sync"
-
-	"encoding/binary"
 
 	"github.com/bsm/go-sparkey"
 )

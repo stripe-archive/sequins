@@ -4,20 +4,19 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
+	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/colinmarc/sequencefile"
-
-	"io"
-	"regexp"
-	"strings"
-
 	"github.com/golang/snappy"
+
 	"github.com/stripe/sequins/blocks"
 )
 

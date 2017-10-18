@@ -85,6 +85,11 @@ func (vs *version) serveProxied(w http.ResponseWriter, r *http.Request,
 		log.Printf("All peers timed out for /%s/%s (version %s)", vs.db.name, key, vs.name)
 		w.WriteHeader(http.StatusGatewayTimeout)
 		return
+	} else if err == errRequestCanceled {
+		// The connection was closed by the client. 499.
+		log.Printf("Connection closed by client for /%s/%s (version %s)", vs.db.name, key, vs.name)
+		w.WriteHeader(499)
+		return
 	} else if err != nil {
 		// Some other error. 500.
 		vs.serveError(w, key, err)

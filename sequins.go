@@ -20,6 +20,7 @@ import (
 	"github.com/nightlyone/lockfile"
 	"github.com/tylerb/graceful"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/stripe/sequins/backend"
 	"github.com/stripe/sequins/sharding"
 	"github.com/stripe/sequins/workqueue"
@@ -281,6 +282,7 @@ func (s *sequins) shutdown() {
 
 func (s *sequins) listDBs() ([]string, error) {
 	dbs, err := s.backend.ListDBs()
+	spew.Dump(dbs)
 	if err != nil {
 		return nil, err
 	}

@@ -13,6 +13,11 @@ import (
 
 	"github.com/colinmarc/sequencefile"
 
+	"io"
+	"regexp"
+	"strings"
+
+	"github.com/golang/snappy"
 	"github.com/stripe/sequins/blocks"
 )
 
@@ -158,17 +163,65 @@ func (vs *version) addFiles(partitions map[int]bool) error {
 	}
 }
 
-func (vs *version) addFile(file string, partitions map[int]bool) error {
-	if vs.stats != nil {
-		start := time.Now()
-		defer func() {
-			duration := time.Since(start)
-			tags := []string{fmt.Sprintf("sequins_db:%s", vs.db.name)}
-			vs.stats.Timing("s3.download_duration", duration, tags, 1)
-		}()
+var reRawPart = regexp.MustCompile(`\d+`)
+
+func (vs *version) isRawFile(file string) (raw bool, partition int) {
+	if !strings.HasSuffix(file, ".spl") {
+		return false, 0
 	}
 
-	disp := vs.sequins.backend.DisplayPath(vs.db.name, vs.name, file)
+	match := reRawPart.FindString(file)
+	if match == "" {
+		return false, 0
+	}
+	part, err := strconv.Atoi(match)
+	if err != nil {
+		return false, 0
+	}
+
+	return true, part
+}
+
+func (vs *version) isAuxiliaryFile(file string) bool {
+	return strings.HasSuffix(file, ".spi.sz")
+}
+
+func (vs *version) addRawFile(file string, disp string, partition int) error {
+	adder, err := vs.blockStore.AddRawBlock(partition)
+	if err != nil {
+		return err
+	}
+	defer adder.Close()
+
+	log.Printf("Downloading raw log file %s\n", disp)
+	logStream, err := vs.sequins.backend.Open(vs.db.name, vs.name, file)
+	if err != nil {
+		return fmt.Errorf("reading %s: %s", disp, err)
+	}
+	defer logStream.Close()
+	_, err = io.Copy(adder.Log, logStream)
+	if err != nil {
+		return fmt.Errorf("reading %s: %s", disp, err)
+	}
+
+	index := strings.TrimSuffix(file, ".spl") + "spi.sz"
+	indexDisp := vs.sequins.backend.DisplayPath(vs.db.name, vs.name, index)
+	log.Printf("Downloading raw index file %s\n", indexDisp)
+	indexStream, err := vs.sequins.backend.Open(vs.db.name, vs.name, file)
+	if err != nil {
+		return fmt.Errorf("reading %s: %s", indexDisp, err)
+	}
+	defer indexStream.Close()
+	uncompressedIndexStream := snappy.NewReader(indexStream)
+	_, err = io.Copy(adder.Hash, uncompressedIndexStream)
+	if err != nil {
+		return fmt.Errorf("reading %s: %s", indexDisp, err)
+	}
+
+	return adder.Finish()
+}
+
+func (vs *version) addSequenceFile(file string, disp string, partitions map[int]bool) error {
 	log.Println("Reading records from", disp)
 
 	stream, err := vs.sequins.backend.Open(vs.db.name, vs.name, file)
@@ -192,6 +245,40 @@ func (vs *version) addFile(file string, partitions map[int]bool) error {
 		log.Println("Skipping", disp, "because it contains no relevant partitions")
 	} else if err != nil {
 		return fmt.Errorf("reading %s: %s", disp, err)
+	}
+
+	return nil
+}
+
+func (vs *version) addFile(file string, partitions map[int]bool) error {
+	disp := vs.sequins.backend.DisplayPath(vs.db.name, vs.name, file)
+
+	if vs.isAuxiliaryFile(file) {
+		return nil
+	}
+	raw, partition := vs.isRawFile(file)
+	if raw && !partitions[partition] {
+		log.Printf("Skipping raw file %s\n", disp)
+		return nil
+	}
+
+	if vs.stats != nil {
+		start := time.Now()
+		defer func() {
+			duration := time.Since(start)
+			tags := []string{fmt.Sprintf("sequins_db:%s", vs.db.name)}
+			vs.stats.Timing("s3.download_duration", duration, tags, 1)
+		}()
+	}
+
+	var err error
+	if raw {
+		err = vs.addRawFile(file, disp, partition)
+	} else {
+		err = vs.addSequenceFile(file, disp, partitions)
+	}
+	if err != nil {
+		return err
 	}
 
 	// Intentionally hang, for tests.

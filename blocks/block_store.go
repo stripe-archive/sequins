@@ -1,14 +1,15 @@
 package blocks
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 )
 
 var ErrNoManifest = errors.New("no manifest file found")
-var ErrMissingPartitions = errors.New("existing block store missing partitions")
 
 type Compression string
 
@@ -24,9 +25,10 @@ type BlockStore struct {
 	blockSize     int
 	numPartitions int
 
-	newBlocks map[int]*blockWriter
-	Blocks    []*Block
-	BlockMap  map[int][]*Block
+	newBlocks        map[int]*blockWriter
+	newSparkeyBlocks map[int][]*Block
+	Blocks           []*Block
+	BlockMap         map[int][]*Block
 
 	blockMapLock sync.RWMutex
 }
@@ -38,9 +40,11 @@ func New(path string, numPartitions int, compression Compression, blockSize int)
 		blockSize:     blockSize,
 		numPartitions: numPartitions,
 
-		newBlocks: make(map[int]*blockWriter),
-		Blocks:    make([]*Block, 0),
-		BlockMap:  make(map[int][]*Block),
+		newBlocks:        make(map[int]*blockWriter),
+		newSparkeyBlocks: make(map[int][]*Block),
+
+		Blocks:   make([]*Block, 0),
+		BlockMap: make(map[int][]*Block),
 	}
 }
 
@@ -115,8 +119,12 @@ func (store *BlockStore) Save(selectedPartitions map[int]bool) error {
 		store.Blocks = append(store.Blocks, savedBlock)
 		store.BlockMap[partition] = append(store.BlockMap[partition], savedBlock)
 	}
-
 	store.newBlocks = make(map[int]*blockWriter)
+
+	for _, blocks := range store.newSparkeyBlocks {
+		store.saveSparkeyBlocks(blocks)
+	}
+	store.newSparkeyBlocks = make(map[int][]*Block)
 
 	// Save the manifest.
 	var partitions []int
@@ -151,8 +159,15 @@ func (store *BlockStore) Revert() {
 		block.close()
 		block.delete()
 	}
-
 	store.newBlocks = make(map[int]*blockWriter)
+
+	for _, blocks := range store.newSparkeyBlocks {
+		for _, block := range blocks {
+			block.Delete()
+		}
+	}
+	store.newSparkeyBlocks = make(map[int][]*Block)
+
 	return
 }
 
@@ -208,9 +223,53 @@ func (store *BlockStore) Close() {
 	for _, newBlock := range store.newBlocks {
 		newBlock.close()
 	}
+	for _, blocks := range store.newSparkeyBlocks {
+		for _, block := range blocks {
+			block.Close()
+		}
+	}
 }
 
 // Delete removes any local data the BlockStore has stored.
 func (store *BlockStore) Delete() error {
 	return os.RemoveAll(store.path)
+}
+
+type blocks []*Block
+
+func (bs blocks) Len() int {
+	return len(bs)
+}
+func (bs blocks) Swap(i, j int) {
+	bs[i], bs[j] = bs[j], bs[i]
+}
+func (bs blocks) Less(i, j int) bool {
+	return bytes.Compare(bs[i].minKey, bs[j].minKey) < 0
+}
+
+func (store *BlockStore) saveSparkeyBlocks(bs blocks) {
+	// The blockMapLock is already held.
+	sort.Sort(bs)
+	for i, block := range bs {
+		if i > 0 {
+			bs[i-1].maxKey = block.minKey
+		}
+		partition := block.Partition
+		store.Blocks = append(store.Blocks, block)
+		store.BlockMap[partition] = append(store.BlockMap[partition], block)
+	}
+}
+
+// Adds an externally-created Sparkey log file and index file to this store.
+// The files will be moved into place, and will no longer exist in the original location.
+func (store *BlockStore) AddSparkeyBlock(logPath string, partition int) error {
+	block, err := newBlockFromSparkey(store.path, logPath, partition)
+	if err != nil {
+		return err
+	}
+
+	store.blockMapLock.Lock()
+	defer store.blockMapLock.Unlock()
+	store.newSparkeyBlocks[block.Partition] = append(store.newSparkeyBlocks[block.Partition], block)
+	return nil
 }

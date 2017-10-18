@@ -349,3 +349,63 @@ func createTestIndex(t *testing.T, scratch string, i int) {
 	_, err := os.Create(filepath.Join(path, "_SUCCESS"))
 	require.NoError(t, err)
 }
+
+func TestSparkeyInput(t *testing.T) {
+	scratch, err := ioutil.TempDir("", "sequins-")
+	require.NoError(t, err, "setup")
+
+	dst := filepath.Join(scratch, "sparkeydb", "1")
+	require.NoError(t, directoryCopy(t, dst, "test_databases/sparkey"), "setup: copy data")
+	backend := backend.NewLocalBackend(scratch)
+	ts := getSequins(t, backend, "")
+
+	knownKeys := map[string]string{
+		"Alice":   "Practice",
+		"Betty":   "White",
+		"Charlie": "Chaplin",
+		"Dylan":   "Thomas",
+	}
+	for k, v := range knownKeys {
+		req, _ := http.NewRequest("GET", fmt.Sprintf("/sparkeydb/%s", k), nil)
+		w := httptest.NewRecorder()
+		ts.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code, "fetching an existing key (%s) should 200", k)
+		assert.Equal(t, v, w.Body.String(), "fetching an existing key (%s) should return the value", k)
+		assert.Equal(t, "1", w.HeaderMap.Get(versionHeader), "when fetching an existing key, the sequins version header should be set")
+	}
+
+	req, _ := http.NewRequest("GET", "/sparkeydb/fake", nil)
+	w := httptest.NewRecorder()
+	ts.ServeHTTP(w, req)
+	assert.Equal(t, 404, w.Code, "fetching a nonexistent key should 404")
+	assert.Equal(t, "", w.Body.String(), "fetching a nonexistent key should return no body")
+	assert.Equal(t, "1", w.HeaderMap.Get(versionHeader), "when fetching a nonexistent key, the sequins version header should still be set")
+
+	req, _ = http.NewRequest("GET", "/otherdb/foo", nil)
+	w = httptest.NewRecorder()
+	ts.ServeHTTP(w, req)
+	assert.Equal(t, 404, w.Code, "fetching from a nonexistent db should 404")
+	assert.Equal(t, "", w.Body.String(), "fetching from a nonexistent db should return no body")
+	assert.Equal(t, "", w.HeaderMap.Get(versionHeader), "when fetching from a nonexistent db, the sequins version header shouldn't be set")
+
+	req, _ = http.NewRequest("GET", "/", nil)
+	req.Header.Set("Accept", "application/json")
+	w = httptest.NewRecorder()
+	ts.ServeHTTP(w, req)
+	status := status{}
+	err = json.Unmarshal(w.Body.Bytes(), &status)
+	require.NoError(t, err, "fetching global status should work and be valid")
+	assert.Equal(t, 200, w.Code, "fetching global status should work and be valid")
+	require.Equal(t, 1, len(status.DBs), "there should be a single db")
+	validateStatus(t, status.DBs["sparkeydb"], dst)
+
+	req, _ = http.NewRequest("GET", "/sparkeydb/", nil)
+	req.Header.Set("Accept", "application/json")
+	w = httptest.NewRecorder()
+	ts.ServeHTTP(w, req)
+	dbStatus := dbStatus{}
+	err = json.Unmarshal(w.Body.Bytes(), &dbStatus)
+	require.NoError(t, err, "fetching db status should work and be valid")
+	assert.Equal(t, 200, w.Code, "fetching db status should work and be valid")
+	validateStatus(t, dbStatus, dst)
+}

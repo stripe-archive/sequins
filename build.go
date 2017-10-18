@@ -4,14 +4,19 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/bsm/go-sparkey"
 	"github.com/colinmarc/sequencefile"
+	"github.com/golang/snappy"
 
 	"github.com/stripe/sequins/blocks"
 )
@@ -158,17 +163,124 @@ func (vs *version) addFiles(partitions map[int]bool) error {
 	}
 }
 
-func (vs *version) addFile(file string, partitions map[int]bool) error {
-	if vs.stats != nil {
-		start := time.Now()
-		defer func() {
-			duration := time.Since(start)
-			tags := []string{fmt.Sprintf("sequins_db:%s", vs.db.name)}
-			vs.stats.Timing("s3.download_duration", duration, tags, 1)
-		}()
+// Download a sparkey file into a local file
+func (vs *version) sparkeyDownload(src, dst, fileType string, transform func(io.Reader) io.Reader) error {
+	success := false
+
+	disp := vs.sequins.backend.DisplayPath(vs.db.name, vs.name, src)
+	log.Printf("downloading sparkey %s file %s\n", fileType, disp)
+
+	stream, err := vs.sequins.backend.Open(vs.db.name, vs.name, src)
+	if err != nil {
+		return fmt.Errorf("opening sparkey %s file for %s: %s", fileType, disp, err)
+	}
+	defer stream.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return fmt.Errorf("creating sparkey %s file for %s: %s", fileType, disp, err)
+	}
+	defer func() {
+		out.Close()
+		if !success {
+			os.Remove(dst)
+		}
+	}()
+
+	var trStream io.Reader = stream
+	if transform != nil {
+		trStream = transform(trStream)
 	}
 
-	disp := vs.sequins.backend.DisplayPath(vs.db.name, vs.name, file)
+	_, err = io.Copy(out, trStream)
+	if err != nil {
+		return fmt.Errorf("reading sparkey %s file %s: %s", fileType, disp, err)
+	}
+
+	success = true
+	return nil
+}
+
+// Add a Sparkey file to this version.
+//
+// Sequins supports a secondary input format: a directory of Sparkey files.
+//
+// The directory MUST contain Sparkey log files, with names ending in `.spl`. For each
+// log file, the directory MUST also contain a corresponding compressed Sparkey index
+// file, with the same name but an extension of `.spi.sz`.
+//
+// The log file MUST use Snappy compression. The index file MUST be compressed as framed
+// Snappy.
+//
+// The name of each Sparkey file MUST contain a sequence of digits. The first such sequence
+// will be taken as the partition number, eg: `part-r-00012-00034.spl` will have partition
+// number 12. The keys of the Sparkey files MUST be partitioned such that file `i` of `N`
+// total files contains a key `k` iff `k.asJavaString().hashCode() % N == i`. The keys in
+// each log file MUST be in sorted order.
+//
+// Multiple log files per partition are allowed. However, such log files must have non-
+// overlapping key ranges.
+//
+// The number of log files in a directory SHOULD NOT exceed 512, or zookeeper performance
+// may suffer. The size of a log file SHOULD NOT exceed 5 GiB, for reasons of load
+// balancing and download size.
+//
+// The directory SHOULD also contain a _SUCCESS file, for resistence against partial fetches,
+// see the `require_success_file` option.
+func (vs *version) addSparkeyFile(file string, disp string, partition int) error {
+	success := false
+
+	tmp, err := ioutil.TempFile(vs.path, ".sparkey")
+	if err != nil {
+		return fmt.Errorf("creating temporary sparkey file for %s: %s", disp, err)
+	}
+	logPath := sparkey.LogFileName(tmp.Name())
+	idxPath := sparkey.HashFileName(logPath)
+	defer func() {
+		os.Remove(tmp.Name())
+		if !success {
+			os.Remove(logPath)
+			os.Remove(idxPath)
+		}
+	}()
+
+	err = vs.sparkeyDownload(file, logPath, "log", nil)
+	if err != nil {
+		return err
+	}
+
+	idxSrc := strings.TrimSuffix(file, ".spl") + ".spi.sz"
+	err = vs.sparkeyDownload(idxSrc, idxPath, "index", func(r io.Reader) io.Reader {
+		return snappy.NewReader(r)
+	})
+	if err != nil {
+		return err
+	}
+
+	return vs.blockStore.AddSparkeyBlock(logPath, partition)
+}
+
+// Add a sequencefile to this version.
+//
+// Sequins' primary input format is a directory of sequencefiles. The key and value classes
+// of the sequencefiles MUST be either BytesWritable or TextWritable.
+//
+// The directory SHOULD also contain a _SUCCESS file, for resistence against partial fetches,
+// see the `require_success_file` option.
+//
+// The sequencefiles keys SHOULD be partitioned such that file `i` of `N` total files contains
+// a key `k` iff `k.asJavaString().hashCode() % N == i`. Other partitioning schemes will cause
+// each Sequins node to download more data than necessary.
+//
+// The number of sequencefiles in a directory SHOULD NOT exceed 512, or zookeeper performance
+// may suffer. The size of a sequencefile SHOULD NOT exceed 5 GiB, for reasons of load
+// balancing and download size.
+//
+// The sequencefiles MAY use compression.
+//
+// The names of the sequencefiles are not important, and no relationships between them are
+// assumed.
+func (vs *version) addSequenceFile(file string, disp string, partitions map[int]bool) error {
 	log.Println("Reading records from", disp)
 
 	stream, err := vs.sequins.backend.Open(vs.db.name, vs.name, file)
@@ -192,6 +304,38 @@ func (vs *version) addFile(file string, partitions map[int]bool) error {
 		log.Println("Skipping", disp, "because it contains no relevant partitions")
 	} else if err != nil {
 		return fmt.Errorf("reading %s: %s", disp, err)
+	}
+
+	return nil
+}
+
+func (vs *version) addFile(file string, partitions map[int]bool) error {
+	disp := vs.sequins.backend.DisplayPath(vs.db.name, vs.name, file)
+
+	raw, partition := isSparkeyFile(file)
+	if raw && !partitions[partition] {
+		// Since we already know the partition, we can skip this right away.
+		log.Printf("Skipping sparkey file %s\n", disp)
+		return nil
+	}
+
+	if vs.stats != nil {
+		start := time.Now()
+		defer func() {
+			duration := time.Since(start)
+			tags := []string{fmt.Sprintf("sequins_db:%s", vs.db.name)}
+			vs.stats.Timing("s3.download_duration", duration, tags, 1)
+		}()
+	}
+
+	var err error
+	if raw {
+		err = vs.addSparkeyFile(file, disp, partition)
+	} else {
+		err = vs.addSequenceFile(file, disp, partitions)
+	}
+	if err != nil {
+		return err
 	}
 
 	// Intentionally hang, for tests.

@@ -3,6 +3,9 @@ package main
 import (
 	"errors"
 	"log"
+	"regexp"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +20,7 @@ const versionHeader = "X-Sequins-Version"
 var (
 	errNoAvailablePeers   = errors.New("no available peers")
 	errProxiedIncorrectly = errors.New("this server doesn't have the requested partition")
+	errMixedFiles         = errors.New("Mixed Sparkey and Sequencefile directory")
 )
 
 // A version represents a single version of a particular sequins db: in
@@ -51,6 +55,10 @@ func newVersion(sequins *sequins, db *db, path, name string) (*version, error) {
 	if err != nil {
 		return nil, err
 	}
+	files, numPartitions, err := filterVersionFiles(files)
+	if err != nil {
+		return nil, err
+	}
 
 	vs := &version{
 		sequins:       sequins,
@@ -58,7 +66,7 @@ func newVersion(sequins *sequins, db *db, path, name string) (*version, error) {
 		path:          path,
 		name:          name,
 		files:         files,
-		numPartitions: len(files),
+		numPartitions: numPartitions,
 
 		created: time.Now(),
 		state:   versionBuilding,
@@ -75,7 +83,7 @@ func newVersion(sequins *sequins, db *db, path, name string) (*version, error) {
 	}
 
 	vs.partitions = sharding.WatchPartitions(sequins.zkWatcher, sequins.peers,
-		db.name, name, len(files), sequins.config.Sharding.Replication, minReplication)
+		db.name, name, vs.numPartitions, sequins.config.Sharding.Replication, minReplication)
 
 	err = vs.initBlockStore(path)
 	if err != nil {
@@ -141,4 +149,59 @@ func (vs *version) close() {
 
 func (vs *version) delete() error {
 	return vs.blockStore.Delete()
+}
+
+var reSparkeyPart = regexp.MustCompile(`\d+`)
+
+// Check if a file is a sparkey log file. If so, return (true, partition),
+// where partition is the file's partition. See addSparkeyFile().
+func isSparkeyFile(file string) (raw bool, partition int) {
+	if !strings.HasSuffix(file, ".spl") {
+		return false, 0
+	}
+
+	match := reSparkeyPart.FindString(file)
+	if match == "" {
+		return false, 0
+	}
+	part, err := strconv.Atoi(match)
+	if err != nil {
+		return false, 0
+	}
+
+	return true, part
+}
+
+// Identify auxiliary files, that should not be downloaded.
+func isAuxiliaryFile(file string) bool {
+	// Skip sparkey index files, we'll fetch them when we fetch the corresponding sparkey log file.
+	return strings.HasSuffix(file, ".spi.sz")
+}
+
+// Filter files, yielding only non-auxiliary files. Also yield the number of partitions found.
+func filterVersionFiles(files []string) (filtered []string, numPartitions int, err error) {
+	filtered = []string{}
+	partitions := map[int]bool{}
+	sparkeyStatus := map[bool]bool{}
+
+	for _, file := range files {
+		if isAuxiliaryFile(file) {
+			continue
+		}
+		filtered = append(filtered, file)
+
+		isSparkey, partition := isSparkeyFile(file)
+		sparkeyStatus[isSparkey] = true
+		if len(sparkeyStatus) > 1 {
+			return nil, 0, errMixedFiles
+		}
+
+		if isSparkey {
+			partitions[partition] = true
+		} else {
+			partitions[len(partitions)] = true
+		}
+	}
+
+	return filtered, len(partitions), nil
 }

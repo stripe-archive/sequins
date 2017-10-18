@@ -33,7 +33,7 @@ func newBlockPath(storePath string, partition int) (path, id string) {
 }
 
 func newBlock(storePath string, partition int, compression Compression, blockSize int) (*blockWriter, error) {
-	id, path := newBlockPath(storePath, partition)
+	path, id := newBlockPath(storePath, partition)
 	log.Println("Initializing block at", path)
 
 	c := sparkey.COMPRESSION_NONE

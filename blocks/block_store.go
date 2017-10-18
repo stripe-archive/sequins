@@ -24,9 +24,10 @@ type BlockStore struct {
 	blockSize     int
 	numPartitions int
 
-	newBlocks map[int]*blockWriter
-	Blocks    []*Block
-	BlockMap  map[int][]*Block
+	newBlocks    map[int]*blockWriter
+	newRawBlocks map[int]rawBlocks
+	Blocks       []*Block
+	BlockMap     map[int][]*Block
 
 	blockMapLock sync.RWMutex
 }
@@ -38,9 +39,11 @@ func New(path string, numPartitions int, compression Compression, blockSize int)
 		blockSize:     blockSize,
 		numPartitions: numPartitions,
 
-		newBlocks: make(map[int]*blockWriter),
-		Blocks:    make([]*Block, 0),
-		BlockMap:  make(map[int][]*Block),
+		newBlocks:    make(map[int]*blockWriter),
+		newRawBlocks: make(map[int]rawBlocks),
+
+		Blocks:   make([]*Block, 0),
+		BlockMap: make(map[int][]*Block),
 	}
 }
 
@@ -115,8 +118,12 @@ func (store *BlockStore) Save(selectedPartitions map[int]bool) error {
 		store.Blocks = append(store.Blocks, savedBlock)
 		store.BlockMap[partition] = append(store.BlockMap[partition], savedBlock)
 	}
-
 	store.newBlocks = make(map[int]*blockWriter)
+
+	for _, blocks := range store.newRawBlocks {
+		store.saveRawBlocks(blocks)
+	}
+	store.newRawBlocks = make(map[int]rawBlocks)
 
 	// Save the manifest.
 	var partitions []int
@@ -151,8 +158,15 @@ func (store *BlockStore) Revert() {
 		block.close()
 		block.delete()
 	}
-
 	store.newBlocks = make(map[int]*blockWriter)
+
+	for _, blocks := range store.newRawBlocks {
+		for _, block := range blocks {
+			block.Delete()
+		}
+	}
+	store.newRawBlocks = make(map[int]rawBlocks)
+
 	return
 }
 

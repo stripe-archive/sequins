@@ -50,14 +50,8 @@ respond to all requests[^1].
 However, as mentioned earlier, sequins sharding is static; it will not
 automatically correct the underreplication that results from a node
 disappearing. If a node is permanently down, this can leave you in a precarious
-position.
-
-Sequins provides a mechanism to deal with this in the form of the
-[shard_id](../x-1-configuration-reference/README.md#shardid) configuration
-property. The `shard_id`, unlike hostname, does not have to be unique per node.
-If you spin up a node with the same `shard_id`, it will replicate the exact same
-partitions. You can use this to replace an exploded node, or to spin up a new
-node in advance of decommissioning an old one.
+position. It's thus important to make sure to come up with your own strategy to
+rebalance data when new nodes replace old ones.
 
 [^1]: Of course, it's still important for clients to retry requests (and have timeouts).
 
@@ -98,7 +92,7 @@ In particular, if `min_replication` is the same as `replication`, a
 successful upgrade requires every single node to be up and running.
 
 Recommended settings for a stable cluster are therefore
-1 < `min_replication` < `replication` <= count(`shard_id`).
+1 < `min_replication` < `replication` <= `num_shards`.
 
 #### Version consistency
 

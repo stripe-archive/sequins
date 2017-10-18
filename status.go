@@ -110,15 +110,12 @@ func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
 
 	s.dbsLock.RUnlock()
 
-	if s.config.Sharding.Enabled {
-		w.Header().Set("X-Sequins-Shard-ID", s.peers.ShardID)
-	}
-
 	hostname := "localhost"
 	if s.peers != nil {
 		hostname = s.address
 	}
 
+	// Create a mapping of db -> version -> versionStatus for this node only
 	statuses := make(map[string]map[string]nodeVersionStatus)
 	for dbName, db := range status.DBs {
 		for versionName, version := range db.Versions {
@@ -390,7 +387,7 @@ func (vs *version) status() versionStatus {
 		NumPartitions:        vs.numPartitions,
 		Path:                 vs.sequins.backend.DisplayPath(vs.db.name, vs.name),
 		ReplicationHistogram: make(map[int]int),
-		TargetReplication:    vs.sequins.config.Sharding.MinReplication,
+		TargetReplication:    vs.sequins.config.Sharding.Replication,
 	}
 
 	partitions := make([]int, 0, len(vs.partitions.SelectedLocal()))

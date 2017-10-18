@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -9,7 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
+	"sort"
 	"sync"
 	"syscall"
 	"testing"
@@ -107,12 +108,6 @@ func minRepl(r int) configOption {
 	}
 }
 
-func noShardID() configOption {
-	return func(config *sequinsConfig) {
-		config.Sharding.ShardID = ""
-	}
-}
-
 func (tc *testCluster) addSequins(opts ...configOption) *testSequins {
 	port := zktest.RandomPort()
 	path := filepath.Join(tc.source, fmt.Sprintf("node-%d", port))
@@ -137,7 +132,6 @@ func (tc *testCluster) addSequins(opts ...configOption) *testSequins {
 	config.Sharding.TimeToConverge = duration{100 * time.Millisecond}
 	config.Sharding.ProxyTimeout = duration{600 * time.Millisecond}
 	config.Sharding.AdvertisedHostname = "localhost"
-	config.Sharding.ShardID = strconv.Itoa(len(tc.sequinses) + 1)
 	config.ZK.Servers = []string{fmt.Sprintf("localhost:%d", tc.zk.Servers[0].Port)}
 	config.Test.AllowLocalCluster = true
 
@@ -258,6 +252,28 @@ func (ts *testSequins) makeVersionAvailable(version testVersion) {
 func (ts *testSequins) removeAvailableVersion(version testVersion) {
 	path := filepath.Join(ts.backendPath, dbName, string(version))
 	os.RemoveAll(path)
+}
+
+func (ts *testSequins) getPartitions(version testVersion) []int {
+	url := fmt.Sprintf("http://%s/healthz", ts.name)
+	res, err := ts.testClient.Get(url)
+	require.NoError(ts, err)
+
+	body, err := ioutil.ReadAll(res.Body)
+	res.Body.Close()
+	require.NoError(ts, err)
+
+	var dbs map[string]map[testVersion]nodeVersionStatus
+	err = json.Unmarshal(body, &dbs)
+	require.NoError(ts, err)
+
+	partitions := make([]int, 0)
+	if status, ok := dbs[dbName][version]; ok {
+		partitions = status.Partitions
+		sort.Ints(partitions)
+	}
+
+	return partitions
 }
 
 func (ts *testSequins) startTest() {
@@ -797,7 +813,7 @@ func testMinReplication(t *testing.T, mrepl int, progression testVersion) {
 	tc.assertProgression()
 }
 
-// TestClusterMin tests that 1 < min_replication < replication < count(shard_id)
+// TestClusterMin tests that 1 < min_replication < replication < count(nodes)
 // allows upgrades even if a node goes down.
 func TestClusterMin(t *testing.T) {
 	if testing.Short() {
@@ -821,17 +837,9 @@ func TestClusterMin(t *testing.T) {
 	}
 }
 
-func (ts *testSequins) getShardID(t *testing.T) string {
-	url := fmt.Sprintf("http://%s/healthcheck", ts.name)
-
-	resp, err := ts.testClient.Get(url)
-	assert.NoError(t, err)
-	defer resp.Body.Close()
-
-	return resp.Header.Get("X-Sequins-Shard-ID")
-}
-
-func TestClusterAutoAssignSingleID(t *testing.T) {
+// TestClusterPartitionAssignment tests that the partitions are assigned to
+// nodes as expected since the assignments should be deterministic.
+func TestClusterPartitionAssignment(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping cluster test in short mode.")
 	}
@@ -840,101 +848,57 @@ func TestClusterAutoAssignSingleID(t *testing.T) {
 	tc := newTestCluster(t)
 	defer tc.tearDown()
 
-	s1 := tc.addSequins(noShardID())
-	tc.makeVersionAvailable(v3)
+	tc.addSequinses(5, repl(3))
+	tc.makeVersionAvailable(v1)
+	tc.expectProgression(v1)
 	tc.startTest()
 	time.Sleep(expectTimeout)
 
-	shardID := s1.getShardID(t)
-	assert.Equal(t, "1", shardID)
-}
-
-// Test shardID auto-assignment when spinning up nodes one at a time.
-func TestClusterAutoAssignMultipleIDs(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping cluster test in short mode.")
+	hosts := tc.sequinses
+	cmpHosts := func(i, j int) bool {
+		return hosts[i].name < hosts[j].name
 	}
-	t.Parallel()
+	sort.Slice(hosts, cmpHosts)
 
-	tc := newTestCluster(t)
-	defer tc.tearDown()
-
-	for i := 1; i <= 3; i++ {
-		s := tc.addSequins(noShardID())
-		s.makeVersionAvailable(v3)
-		s.startTest()
-		time.Sleep(expectTimeout)
+	expectedAssignments := [][]int{{0, 1, 3}, {0, 2, 3}, {0, 2, 4}, {1, 2, 4}, {1, 3, 4}}
+	oldAssignments := make(map[string][]int)
+	for i, host := range hosts {
+		oldAssignments[host.name] = host.getPartitions(v1)
+		require.Equal(t, expectedAssignments[i], oldAssignments[host.name], "partition assignment for node (%s) should be correct", host.name)
 	}
 
-	for i, s := range tc.sequinses {
-		shardID := fmt.Sprintf("%d", i+1)
-		assert.Equal(t, shardID, s.getShardID(t))
-	}
-}
+	// Test that adding a node results in the correct assignment for that
+	// node. Note that the current nodes should not change which partitions
+	// they own.
+	s := tc.addSequins(repl(3))
+	s.makeVersionAvailable(v1)
+	s.expectProgression(v1)
+	s.startTest()
+	time.Sleep(expectTimeout)
 
-// Test shardID auto-assignment when the nodes start at the same time.
-func TestClusterAutoAssignParallelIDs(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping cluster test in short mode.")
-	}
-	t.Parallel()
+	hosts = tc.sequinses
+	sort.Slice(hosts, cmpHosts)
 
-	tc := newTestCluster(t)
-	defer tc.tearDown()
-
-	tc.addSequinses(3, noShardID())
-	tc.makeVersionAvailable(v3)
-	tc.startTest()
-	time.Sleep(expectTimeout * 3)
-
-	for i := 1; i <= 3; i++ {
-		shardID := fmt.Sprintf("%d", i)
-
-		found := false
-		for _, s := range tc.sequinses {
-			if s.getShardID(t) == shardID {
-				found = true
-				break
-			}
+	expectedAssignments = [][]int{{0, 2, 4}, {0, 2, 4}, {0, 2, 4}, {1, 3}, {1, 3}, {1, 3}}
+	for i, host := range hosts {
+		if partitions, ok := oldAssignments[host.name]; ok {
+			require.Equal(t, partitions, host.getPartitions(v1), "partition assignment for existing node (%s) should be unaffected", host.name)
+		} else {
+			require.Equal(t, expectedAssignments[i], host.getPartitions(v1), "partition assignment for new node (%s) should be correct", host.name)
 		}
-		assert.True(t, found, "None of the nodes had shardID %q", shardID)
 	}
-}
 
-// Down each node in a cluster one at a time and then ensure shardID auto-assignment will use
-// the newly unused shardID.
-func TestClusterAutoAssignUnusedID(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping cluster test in short mode.")
-	}
-	t.Parallel()
-
-	tc := newTestCluster(t)
-	defer tc.tearDown()
-
-	tc.addSequinses(3)
-
-	tc.makeVersionAvailable(v3)
-	tc.startTest()
+	// Test that when making a new version available, the partition
+	// assignments for all nodes get updated correctly.
+	tc.makeVersionAvailable(v2)
+	tc.hup()
+	tc.expectProgression(v2)
 	time.Sleep(expectTimeout)
 
-	// This doesn't actual test anything valuable. If these fail then that means we've probably changed from
-	// 1-indexed to 0-indexed Sequins IDs.
-	for i, s := range tc.sequinses {
-		shardID := fmt.Sprintf("%d", i+1)
-		assert.Equal(t, shardID, s.getShardID(t), "Sanity check for pre-configured ID failed")
-	}
+	hosts = tc.sequinses
+	sort.Slice(hosts, cmpHosts)
 
-	for i, s := range tc.sequinses {
-		shardID := fmt.Sprintf("%d", i+1)
-		assert.Equal(t, shardID, s.getShardID(t))
-
-		s.stop()
-
-		newS := tc.addSequins(noShardID())
-		newS.makeVersionAvailable(v3)
-		newS.startTest()
-		time.Sleep(expectTimeout)
-		assert.Equal(t, shardID, newS.getShardID(t))
+	for i, host := range hosts {
+		require.Equal(t, expectedAssignments[i], host.getPartitions(v2), "partitions assignment for node (%s) should be correct", host.name)
 	}
 }

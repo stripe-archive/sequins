@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"os"
 	"sort"
+
+	"github.com/bsm/go-sparkey"
 )
 
 type rawBlocks []*Block
@@ -62,7 +64,7 @@ func (store *BlockStore) AddRawBlock(partition int) (adder *RawBlockAdder, err e
 	if err != nil {
 		return
 	}
-	adder.Hash, err = os.Create(path)
+	adder.Hash, err = os.Create(sparkey.HashFileName(path))
 	if err != nil {
 		return
 	}

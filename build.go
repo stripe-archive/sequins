@@ -204,10 +204,10 @@ func (vs *version) addRawFile(file string, disp string, partition int) error {
 		return fmt.Errorf("reading %s: %s", disp, err)
 	}
 
-	index := strings.TrimSuffix(file, ".spl") + "spi.sz"
+	index := strings.TrimSuffix(file, ".spl") + ".spi.sz"
 	indexDisp := vs.sequins.backend.DisplayPath(vs.db.name, vs.name, index)
 	log.Printf("Downloading raw index file %s\n", indexDisp)
-	indexStream, err := vs.sequins.backend.Open(vs.db.name, vs.name, file)
+	indexStream, err := vs.sequins.backend.Open(vs.db.name, vs.name, index)
 	if err != nil {
 		return fmt.Errorf("reading %s: %s", indexDisp, err)
 	}

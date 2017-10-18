@@ -55,10 +55,13 @@ func loadBlockFromRaw(path string, id string, partition int) (b *Block, err erro
 	if err != nil {
 		return
 	}
-	b.minKey, err = b.readMinKey()
-	if err != nil {
-		return
+	if b.Count > 0 {
+		b.minKey, err = b.readMinKey()
+		if err != nil {
+			return
+		}
 	}
+
 	return
 }
 
@@ -130,9 +133,16 @@ func (b *Block) manifest() BlockManifest {
 func (b *Block) readMinKey() ([]byte, error) {
 	iter, err := b.sparkeyReader.Log().Iterator()
 	if err != nil {
-		return []byte{}, err
+		return nil, err
 	}
 	defer iter.Close()
+	err = iter.Next()
+	if err != nil {
+		return nil, err
+	}
+	if iter.State() != sparkey.ITERATOR_ACTIVE {
+		return nil, err
+	}
 	return iter.Key()
 }
 

@@ -58,7 +58,6 @@ type shardingConfig struct {
 	ProxyStageTimeout  duration `toml:"proxy_stage_timeout"`
 	ClusterName        string   `toml:"cluster_name"`
 	AdvertisedHostname string   `toml:"advertised_hostname"`
-	ShardID            string   `toml:"shard_id"`
 }
 
 type zkConfig struct {
@@ -119,7 +118,6 @@ func defaultConfig() sequinsConfig {
 			ProxyStageTimeout:  duration{time.Duration(0)},
 			ClusterName:        "sequins",
 			AdvertisedHostname: "",
-			ShardID:            "",
 		},
 		ZK: zkConfig{
 			Servers:        []string{"localhost:2181"},

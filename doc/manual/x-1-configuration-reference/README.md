@@ -224,20 +224,10 @@ string | _see below_ (eg `"sequins1.example.com"`)
 
 This is the hostname sequins uses to advertise itself to peers in a cluster. It
 should be resolvable by those peers. If left unset, it will be set to the
-hostname of the server.
-
-### shard_id
-
-Type   | Default
-:----: | -------
-string | _see below_ (eg `"sequins1"`)
-
-The shard ID is used to determine which partitions the node is responsible for.
-By default, it is the same as `advertised_hostname`. Unlike the hostname,
-however, it doesn't have to be unique; two nodes can have the same shard_id, in
-which case they will download the same partitions. This can be useful if you
-don't have stable hostnames, but want to be able to rebuild a server to take the
-place of a dead or decomissioning one.
+hostname of the server. This is also used to determine which partitions the
+node is responsible for. Partitions are randomly assigned to nodes based on the
+sorted array of all hostnames, so if two nodes share the same hostname, they
+won't necessarily download the same partitions.
 
 ## [zk]
 

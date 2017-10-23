@@ -69,7 +69,7 @@ type status struct {
 }
 
 type dbStatus struct {
-	Versions map[string]versionStatus `json:"versions,omitempty"`
+	Versions map[string]versionStatus `json:"versions"`
 }
 
 type versionStatus struct {
@@ -283,7 +283,7 @@ func (s *sequins) getPeerStatus(peer string, db string) (status, error) {
 	if db == "" {
 		err = decoder.Decode(&status)
 	} else {
-		s := dbStatus{}
+		s := dbStatus{Versions: make(map[string]versionStatus)}
 		err = decoder.Decode(&s)
 		if err != nil {
 			return status, err

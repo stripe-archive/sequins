@@ -92,14 +92,14 @@ backfills them. To do that, it
 
  1. Decides which partitions it is responsible for offline, by:
 
-    a. Putting all the nodes it knows about, including itself, on a partition
-       ring
+    a. Creating an array of all partitions in sorted order * the replication
+       factor. (e.g. [1, 1, 1, 2, 2, 2, ...])
 
-    b. For a given partition, placing that on the partition ring and picking the
-       two (or whatever the replication factor is) nodes closest to that point,
-       counter clockwise.
+    b. Creating an array of all nodes it knows about in sorted order based on
+       their shard id.
 
-    c. If it itself is one of those nodes, then it is responsible for that partition.
+    c. For all of the partitions at index `idx`, if `idx % len(nodes)` is equal
+       to its position in the node array, we assign it that partition.
 
  2. Starts loading and preparing those partitions. As they become available, it
     writes an ephemeral node to the partition map, at

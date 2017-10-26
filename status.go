@@ -119,6 +119,7 @@ func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
 		hostname = s.address
 	}
 
+	// Create a mapping of db -> version -> versionStatus for this node only
 	statuses := make(map[string]map[string]nodeVersionStatus)
 	for dbName, db := range status.DBs {
 		for versionName, version := range db.Versions {
@@ -173,7 +174,7 @@ func (s *sequins) serveStatus(w http.ResponseWriter, r *http.Request) {
 	// By default, serve our peers' statuses merged with ours. We take
 	// extra care not to mutate local status structs.
 	if r.URL.Query().Get("proxy") == "" && s.peers != nil {
-		for _, p := range s.peers.Get() {
+		for _, p := range s.peers.GetAddresses() {
 			peerStatus, err := s.getPeerStatus(p, "")
 			if err != nil {
 				log.Printf("Error fetching status from peer %s: %s", p, err)
@@ -222,7 +223,7 @@ func (db *db) serveStatus(w http.ResponseWriter, r *http.Request) {
 
 	// By default, serve our peers' statuses merged with ours.
 	if r.URL.Query().Get("proxy") == "" && db.sequins.peers != nil {
-		for _, p := range db.sequins.peers.Get() {
+		for _, p := range db.sequins.peers.GetAddresses() {
 			peerStatus, err := db.sequins.getPeerStatus(p, db.name)
 			if err != nil {
 				log.Printf("Error fetching status from peer %s: %s", p, err)
@@ -390,7 +391,7 @@ func (vs *version) status() versionStatus {
 		NumPartitions:        vs.numPartitions,
 		Path:                 vs.sequins.backend.DisplayPath(vs.db.name, vs.name),
 		ReplicationHistogram: make(map[int]int),
-		TargetReplication:    vs.sequins.config.Sharding.MinReplication,
+		TargetReplication:    vs.sequins.config.Sharding.Replication,
 	}
 
 	partitions := make([]int, 0, len(vs.partitions.SelectedLocal()))

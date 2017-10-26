@@ -3,6 +3,7 @@ package sharding
 import (
 	"fmt"
 	"path"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -72,27 +73,32 @@ func WatchPartitions(zkWatcher *zk.Watcher, peers *Peers, db, version string, nu
 	return p
 }
 
-// pickLocal selects which partitions are local by iterating through
-// them all, and checking the hashring to see if this peer is one of the
-// replicas.
+// pickLocal selects which partitions are local by creating an array of partition IDs
+// in order, each repeated by the target replication, and sequentially assigning each
+// partition to a node.
 func (p *Partitions) pickLocal() {
-	selected := make(map[int]bool)
+	selected := make(map[int]bool, p.numPartitions)
 
-	for i := 0; i < p.numPartitions; i++ {
-		if p.peers != nil {
-			partitionId := p.partitionId(i)
-
-			replicas := p.peers.pick(partitionId, p.replication)
-			for _, replica := range replicas {
-				if replica == peerSelf {
-					selected[i] = true
-				}
-			}
-		} else {
+	if p.peers == nil {
+		for i := 0; i < p.numPartitions; i++ {
 			selected[i] = true
 		}
+	} else {
+		toAssign := make([]int, 0, p.numPartitions*p.replication)
+		for i := 0; i < p.numPartitions; i++ {
+			for j := 0; j < p.replication; j++ {
+				toAssign = append(toAssign, i)
+			}
+		}
+		nodes := append(p.peers.GetShardIds(), p.peers.ShardID)
+		sort.Strings(nodes)
+		for i, id := range toAssign {
+			assignee := i % len(nodes)
+			if nodes[assignee] == p.peers.ShardID {
+				selected[id] = true
+			}
+		}
 	}
-
 	p.selected = selected
 }
 

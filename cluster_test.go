@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"sync"
 	"syscall"
@@ -193,6 +195,28 @@ func (tc *testCluster) removeAvailableVersion(version testVersion) {
 	for _, ts := range tc.sequinses {
 		ts.removeAvailableVersion(version)
 	}
+}
+
+func (ts *testSequins) getPartitions(version testVersion) []int {
+	url := fmt.Sprintf("http://%s/healthcheck", ts.name)
+	res, err := ts.testClient.Get(url)
+	require.NoError(ts, err)
+
+	body, err := ioutil.ReadAll(res.Body)
+	res.Body.Close()
+	require.NoError(ts, err)
+
+	var dbs map[string]map[testVersion]nodeVersionStatus
+	err = json.Unmarshal(body, &dbs)
+	require.NoError(ts, err)
+
+	partitions := make([]int, 0)
+	if status, ok := dbs[dbName][version]; ok {
+		partitions = status.Partitions
+		sort.Ints(partitions)
+	}
+
+	return partitions
 }
 
 func (tc *testCluster) startTest() {
@@ -936,5 +960,74 @@ func TestClusterAutoAssignUnusedID(t *testing.T) {
 		newS.startTest()
 		time.Sleep(expectTimeout)
 		assert.Equal(t, shardID, newS.getShardID(t))
+	}
+}
+
+// TestClusterPartitionAssignment tests that the partitions are assigned to
+// nodes as expected since the assignments should be deterministic.
+func TestClusterPartitionAssignment(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+	t.Parallel()
+
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	tc.addSequinses(5, repl(3))
+	tc.makeVersionAvailable(v1)
+	tc.expectProgression(v1)
+	tc.startTest()
+	time.Sleep(expectTimeout)
+
+	hosts := tc.sequinses
+	cmpHosts := func(i, j int) bool {
+		return hosts[i].getShardID(t) < hosts[j].getShardID(t)
+	}
+	sort.Slice(hosts, cmpHosts)
+
+	expectedAssignments := [][]int{{0, 1, 3}, {0, 2, 3}, {0, 2, 4}, {1, 2, 4}, {1, 3, 4}}
+	oldAssignments := make(map[string][]int)
+	for i, host := range hosts {
+		id := host.getShardID(t)
+		oldAssignments[id] = host.getPartitions(v1)
+		require.Equal(t, expectedAssignments[i], oldAssignments[id], "partition assignment for node (%s) should be correct", id)
+	}
+
+	// Test that adding a node results in the correct assignment for that
+	// node. Note that the current nodes should not change which partitions
+	// they own.
+	s := tc.addSequins(repl(3))
+	s.makeVersionAvailable(v1)
+	s.expectProgression(v1)
+	s.startTest()
+	time.Sleep(expectTimeout)
+
+	hosts = tc.sequinses
+	sort.Slice(hosts, cmpHosts)
+
+	expectedAssignments = [][]int{{0, 2, 4}, {0, 2, 4}, {0, 2, 4}, {1, 3}, {1, 3}, {1, 3}}
+	for i, host := range hosts {
+		id := host.getShardID(t)
+		if partitions, ok := oldAssignments[id]; ok {
+			require.Equal(t, partitions, host.getPartitions(v1), "partition assignment for existing node (%s) should be unaffected", id)
+		} else {
+			require.Equal(t, expectedAssignments[i], host.getPartitions(v1), "partition assignment for new node (%s) should be correct", id)
+		}
+	}
+
+	// Test that when making a new version available, the partition
+	// assignments for all nodes get updated correctly.
+	tc.makeVersionAvailable(v2)
+	tc.hup()
+	tc.expectProgression(v2)
+	time.Sleep(expectTimeout)
+
+	hosts = tc.sequinses
+	sort.Slice(hosts, cmpHosts)
+
+	for i, host := range hosts {
+		id := host.getShardID(t)
+		require.Equal(t, expectedAssignments[i], host.getPartitions(v2), "partitions assignment for node (%s) should be correct", id)
 	}
 }

@@ -175,8 +175,8 @@ func (p *Peers) WaitToConverge(dur time.Duration) {
 	}
 }
 
-// Get returns the current list of peers.
-func (p *Peers) Get() []string {
+// GetAddresses returns the current list of peer addresses.
+func (p *Peers) GetAddresses() []string {
 	p.lock.RLock()
 	defer p.lock.RUnlock()
 
@@ -186,6 +186,19 @@ func (p *Peers) Get() []string {
 	}
 
 	return addrs
+}
+
+// GetShardIds returns the current list of shard ids.
+func (p *Peers) GetShardIds() []string {
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+
+	ids := make([]string, 0, len(p.peers))
+	for peer := range p.peers {
+		ids = append(ids, peer.shardID)
+	}
+
+	return ids
 }
 
 // pick returns the list of peers who have a given partition. It returns at most

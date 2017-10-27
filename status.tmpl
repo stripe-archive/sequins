@@ -30,6 +30,15 @@
         line-height: 24px;
       }
 
+      span#logo > a:link, a:visited {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      span#logo > a:hover, a:active {
+        color: white;
+      }
+
       span#docs > a {
         text-decoration: none;
         color: white;
@@ -56,14 +65,13 @@
         box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
       }
 
-      h2.dbname > a.arrow {
-        float: right;
-        margin-right: 5px;
+      h2.dbname > a:link, a:visited {
+        color: inherit;
+        text-decoration: none;
       }
 
-      a.arrow, a.arrow:visited, a.arrow:hover {
-        color: #2b83ba;
-        text-decoration: none;
+      h2.dbname > a:hover, a:active {
+        color: #6772e5;
       }
 
       div.version {
@@ -277,7 +285,7 @@
   <body {{ if not (isListView $) }} onload="drawMaps();" {{ else }} onload="countNodeStatuses();" {{ end }}>
     <div id="header">
       <span id="logo">
-        Sequins!
+        <a href="/">Sequins!</a>
       </span>
 
       <span id="docs">
@@ -291,7 +299,7 @@
       {{ range $dbName, $db := .DBs}}
         {{ if (isListView $) }}
           <div class="db">
-            <h2 class="dbname">/{{ $dbName }} <a class="arrow" href="/{{ $dbName }}">&rarr;</a></h2>
+            <h2 class="dbname"><a href="/{{ $dbName }}">/{{ $dbName }} &rarr;</a></h2>
             {{ range $versionName, $version := $db.Versions }}
               <div class="version">
                 <span class="versionname">/{{ $versionName }}</span>

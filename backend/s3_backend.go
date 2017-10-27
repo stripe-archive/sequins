@@ -75,9 +75,13 @@ func (s *S3Backend) listDirs(dir, after string) ([]string, error) {
 		}
 		resp, err := s.svc.ListObjects(params)
 
+		log.Printf("call_site=s3.listDirs input=%+v", params)
+
 		if err != nil {
+			log.Printf("S3 error for input=%+v", err)
 			return nil, s.s3error(err)
 		} else if resp.CommonPrefixes == nil {
+			log.Printf("No common prefixes for input=%+v", params)
 			break
 		}
 
@@ -94,6 +98,7 @@ func (s *S3Backend) listDirs(dir, after string) ([]string, error) {
 				Prefix:    aws.String(prefix),
 			}
 			resp, err := s.svc.ListObjects(params)
+			log.Printf("call_site=s3.listDirs<CommonPrefixes> input=%+v err=%v resp=%+v", params, err, resp)
 			if err != nil {
 				return nil, err
 			}
@@ -108,6 +113,7 @@ func (s *S3Backend) listDirs(dir, after string) ([]string, error) {
 			if isDir {
 				res = append(res, path.Base(prefix))
 			}
+			log.Printf("call_site=s3.listDirs<CommonPrefixes> input=%+v isDir=%v res=%v", params, isDir, res)
 		}
 
 		if !*resp.IsTruncated || len(resp.CommonPrefixes) == 0 {
@@ -155,7 +161,6 @@ func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 	}
 
 	log.Printf("call_site=s3.ListFiles sequins_db=%q sequins_db_version=%q dataset_size=%d file_count=%d", db, version, datasetSize, numFiles)
-
 
 	sorted := make([]string, 0, len(res))
 	for name := range res {

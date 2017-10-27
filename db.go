@@ -36,6 +36,7 @@ func newDB(sequins *sequins, name string) *db {
 
 func (db *db) listVersions(after string) ([]string, error) {
 	versions, err := db.sequins.backend.ListVersions(db.name, after, db.sequins.config.RequireSuccessFile)
+	log.Printf("Found versions for %s after %s (%v): %v", db.name, after, db.sequins.config.RequireSuccessFile, versions)
 	if err != nil {
 		return nil, err
 	}
@@ -103,6 +104,7 @@ func (db *db) refresh() error {
 		after = currentVersion.name
 	}
 
+	log.Printf("Looking for versions of %s after %s", db.name, after)
 	versions, err := db.listVersions(after)
 	if err != nil {
 		return err

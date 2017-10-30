@@ -1,0 +1,23 @@
+.anchorjs-link {
+  text-decoration: none !important;
+}
+
+h1 .anchor-link {
+  display: none !important;
+}
+
+.gitbook-link {
+  display: none !important;
+}
+
+table td:first-child, table th:first-child {
+  width: 100px;
+}
+
+table code:before, table code:after {
+  letter-spacing: -1em !important;
+}
+
+.book.font-family-1 {
+    font-family: "Myriad Pro", Helvetica, Arial, sans-serif;
+}

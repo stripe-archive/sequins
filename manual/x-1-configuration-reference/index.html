@@ -1,0 +1,900 @@
+
+<!DOCTYPE HTML>
+<html lang="" >
+    <head>
+        <meta charset="UTF-8">
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <title>1. Configuration Reference · GitBook</title>
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="description" content="">
+        <meta name="generator" content="GitBook 3.2.3">
+        
+        
+        
+    
+    <link rel="stylesheet" href="../gitbook/style.css">
+
+    
+            
+                
+                <link rel="stylesheet" href="../gitbook/gitbook-plugin-highlight/website.css">
+                
+            
+                
+                <link rel="stylesheet" href="../gitbook/gitbook-plugin-search/search.css">
+                
+            
+                
+                <link rel="stylesheet" href="../gitbook/gitbook-plugin-fontsettings/website.css">
+                
+            
+        
+
+    
+
+    
+        
+        <link rel="stylesheet" href="../styles/website.css">
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+
+        
+    
+    
+    <meta name="HandheldFriendly" content="true"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <link rel="apple-touch-icon-precomposed" sizes="152x152" href="../gitbook/images/apple-touch-icon-precomposed-152.png">
+    <link rel="shortcut icon" href="../gitbook/images/favicon.ico" type="image/x-icon">
+
+    
+    
+    <link rel="prev" href="../2-2-sharding/" />
+    
+
+    </head>
+    <body>
+        
+<div class="book">
+    <div class="book-summary">
+        
+            
+<div id="book-search-input" role="search">
+    <input type="text" placeholder="Type to search" />
+</div>
+
+            
+                <nav role="navigation">
+                
+
+
+<ul class="summary">
+    
+    
+
+    
+
+    
+        
+        
+    
+        <li class="chapter " data-level="1.1" data-path="../">
+            
+                <a href="../">
+            
+                    
+                    Getting Started
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+        
+        <li class="header">Working with sequins</li>
+        
+        
+    
+        <li class="chapter " data-level="2.1" data-path="../1-1-basic-concepts/">
+            
+                <a href="../1-1-basic-concepts/">
+            
+                    
+                    Basic Concepts
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.2" data-path="../1-2-data-requirements/">
+            
+                <a href="../1-2-data-requirements/">
+            
+                    
+                    Data Requirements
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.3" data-path="../1-3-querying-sequins/">
+            
+                <a href="../1-3-querying-sequins/">
+            
+                    
+                    Querying Sequins
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.4" data-path="../1-4-running-a-distributed-cluster/">
+            
+                <a href="../1-4-running-a-distributed-cluster/">
+            
+                    
+                    Running a Distributed Cluster
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.5" data-path="../1-5-healthchecks-and-monitoring/">
+            
+                <a href="../1-5-healthchecks-and-monitoring/">
+            
+                    
+                    Healthchecks and Monitoring
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.6" data-path="../1-6-improving-performance/">
+            
+                <a href="../1-6-improving-performance/">
+            
+                    
+                    Improving Performance
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+        
+        <li class="header">Internals</li>
+        
+        
+    
+        <li class="chapter " data-level="3.1" data-path="../2-1-on-disk-format/">
+            
+                <a href="../2-1-on-disk-format/">
+            
+                    
+                    On-Disk Format
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="3.2" data-path="../2-2-sharding/">
+            
+                <a href="../2-2-sharding/">
+            
+                    
+                    Sharding
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+        
+        <li class="header">Appendix</li>
+        
+        
+    
+        <li class="chapter active" data-level="4.1" data-path="./">
+            
+                <a href="./">
+            
+                    
+                    1. Configuration Reference
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+
+    <li class="divider"></li>
+
+    <li>
+        <a href="https://www.gitbook.com" target="blank" class="gitbook-link">
+            Published with GitBook
+        </a>
+    </li>
+</ul>
+
+
+                </nav>
+            
+        
+    </div>
+
+    <div class="book-body">
+        
+            <div class="body-inner">
+                
+                    
+
+<div class="book-header" role="navigation">
+    
+
+    <!-- Title -->
+    <h1>
+        <i class="fa fa-circle-o-notch fa-spin"></i>
+        <a href=".." >1. Configuration Reference</a>
+    </h1>
+</div>
+
+
+
+
+                    <div class="page-wrapper" tabindex="-1" role="main">
+                        <div class="page-inner">
+                            
+<div id="book-search-results">
+    <div class="search-noresults">
+    
+                                <section class="normal markdown-section">
+                                
+                                <h1 id="configuration-reference">Configuration Reference</h1>
+<p>The sequins configuration is in the <a href="https://github.com/toml-lang/toml" target="_blank">toml format</a>. Sequins will look for
+a <code>sequins.conf</code> file in the local directory, and then <code>/etc/sequins.conf</code> if
+that doesn&apos;t exist.</p>
+<p>Below is a full list of the configuration properties. Some configuration
+properties are nested under headers, like <code>[s3]</code>. See the <code>sequins.conf.example</code>
+file that ships with releases (also on <a href="https://github.com/stripe/sequins/blob/master/sequins.conf.example" target="_blank">github</a>) for an example of
+the file layout.</p>
+<p>A few properties below are durations. These are strings with a shorthand unit,
+like <code>&quot;1s&quot;</code> or <code>&quot;20m&quot;</code>. Valid units are <code>ns</code>, <code>us</code> (or <code>&#xB5;s</code>), <code>ms</code>, <code>s</code>, <code>m</code>,
+and <code>h</code>.</p>
+<h2 id="top-level-properties">Top Level Properties</h2>
+<h3 id="source">source</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">string</td>
+<td><em>unset</em> (eg <code>&quot;hdfs://&lt;namenode&gt;:&lt;port&gt;/path/to/stuff&quot;</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>The url or directory where the sequencefiles are. This can be a local directory,
+an HDFS url of the form <code>hdfs://&lt;namenode&gt;:&lt;port&gt;/path/to/stuff</code>, or an S3 url
+of the form <code>s3://&lt;bucket&gt;/path/to/stuff</code>. This should be a a directory of
+directories of directories; each first level represents a &apos;database&apos;, and each
+subdirectory therein represents a &apos;version&apos; of that database. This must be set,
+but can be overriden from the command line with <code>--source</code>.</p>
+<h3 id="bind">bind</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">string</td>
+<td><code>&quot;0.0.0.0:9599&quot;</code></td>
+</tr>
+</tbody>
+</table>
+<p>The address to bind on. This can be overridden from the command line with
+<code>--bind</code>.</p>
+<h3 id="localstore">local_store</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">string</td>
+<td><code>&quot;/var/sequins&quot;</code></td>
+</tr>
+</tbody>
+</table>
+<p>This is where sequins will store its internal copy of all the data it ingests.
+This can be overriden from the command line with <code>--local-store.</code></p>
+<h3 id="maxparallelloads">max_parallel_loads</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">string</td>
+<td><em>unset</em> (eg <code>4</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>If this flag is set, sequins will only update this many databases at a time,
+minimizing disk usage while new data is being loaded. If you set this to 1, then
+loads will be completely serialized.</p>
+<h3 id="throttleloads">throttle_loads</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">string</td>
+<td><em>unset</em> (eg <code>&quot;800&#x3BC;s&quot;</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>If this flag is set, sequins will sleep this long between writes while loading
+data, artificially slowing down loads and reducing disk i/o. If you are using
+disks where the latency is extremely sensitive to activity, then loading large
+amounts of data can negatively impact your latency, and you may want to
+experiment with this setting.</p>
+<h3 id="refreshperiod">refresh_period</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">string</td>
+<td><em>unset</em> (eg <code>&quot;10m&quot;</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>If this flag is set, sequins will periodically download new data this often. If
+you enable this, you should also enable <code>require_success_file</code>, or sequins may
+start automatically downloading a partially-created set of files.</p>
+<h3 id="requiresuccessfile">require_success_file</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">bool</td>
+<td><code>false</code></td>
+</tr>
+</tbody>
+</table>
+<p>If this flag is set, sequins will only ingest data from directories that have a
+_SUCCESS file (which is produced by hadoop when it completes a job).</p>
+<h3 id="contenttype">content_type</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">string</td>
+<td><em>unset</em> (eg <code>&quot;application/json&quot;</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>If this is set, sequins will set this Content-Type header on responses.</p>
+<h2 id="storage">[storage]</h2>
+<h3 id="compression">compression</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">string</td>
+<td><code>&quot;snappy&quot;</code></td>
+</tr>
+</tbody>
+</table>
+<p>This can be either &apos;snappy&apos; or &apos;none&apos;, and defines how data is compressed on
+disk.</p>
+<h3 id="blocksize">block_size</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">int</td>
+<td>4096</td>
+</tr>
+</tbody>
+</table>
+<p>This controls the block size for on-disk compression.</p>
+<h3 id="s3">[s3]</h3>
+<h3 id="region">region</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">string</td>
+<td><em>unset</em> (eg <code>&quot;us-west-2&quot;</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>The S3 region for the bucket where your data is. If unset, and sequins is
+running on EC2, this will be set to the instance region.</p>
+<h3 id="accesskeyid">access_key_id</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">string</td>
+<td><em>see below</em> (eg <code>&quot;AKIAIOSFODNN7EXAMPLE&quot;</code>)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="secretaccesskey">secret_access_key</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">string</td>
+<td><em>see below</em> (eg <code>&quot;wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY&quot;</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>The access key and secret to use for S3. If unset, the env variables
+<code>AWS_ACCESS_KEY_ID</code> and <code>AWS_SECRET_ACCESS_KEY</code> will be used, or IAM instance
+role credentials if they are available.</p>
+<h2 id="sharding">[sharding]</h2>
+<h3 id="enabled">enabled</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">bool</td>
+<td><code>false</code></td>
+</tr>
+</tbody>
+</table>
+<p>If true, sequins will attempt to connect to zookeeper at the specified addresses
+(see <a href="#servers">zk.servers</a>), and coordinate with peer instances to shard datasets. For a
+complete description of the sharding algorithm, see the manual.</p>
+<h3 id="replication">replication</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">int</td>
+<td>2</td>
+</tr>
+</tbody>
+</table>
+<p>This is the number of replicas responsible for each partition.</p>
+<h3 id="minreplication">min_replication</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">int</td>
+<td>1</td>
+</tr>
+</tbody>
+</table>
+<p>This is the minimum number of replicas required for sequins to switch to
+a new version. Set this to a higher value to ensure data redundancy before
+upgrading.</p>
+<p>You probably don&apos;t want this to be equal to <code>replication</code>,
+or sequins will never upgrade versions if any node at all is down.</p>
+<h3 id="timetoconverge">time_to_converge</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">string</td>
+<td><code>&quot;10s&quot;</code></td>
+</tr>
+</tbody>
+</table>
+<p>Upon startup, sequins will wait this long for the set of known peers to
+stabilize.</p>
+<h3 id="proxytimeout">proxy_timeout</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">string</td>
+<td><code>&quot;100ms&quot;</code></td>
+</tr>
+</tbody>
+</table>
+<p>This is the total timeout (connect + request) for proxied requests to peers in a
+sequins cluster. You may want to increase this if you&apos;re running on particularly
+cold storage, or if there are other factors significantly increasing request
+time.</p>
+<h3 id="proxystagetimeout">proxy_stage_timeout</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">string</td>
+<td><em>see below</em> (eg <code>&quot;50ms&quot;</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>After this interval, sequins will try another peer concurrently with the first,
+as long as there are other peers available and the total time is less than
+<code>proxy_timeout</code>. If left unset, this defaults to the <code>proxy_timeout</code> divided by
+<code>replication_factor</code> - enough time for all peers to be tried within the total
+timeout.</p>
+<h3 id="clustername">cluster_name</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">string</td>
+<td><code>&quot;sequins&quot;</code></td>
+</tr>
+</tbody>
+</table>
+<p>This defines the root prefix to use for zookeeper state. If you are running
+multiple sequins clusters using the same zookeeper for coordination, you should
+change this so they can&apos;t conflict.</p>
+<h3 id="advertisedhostname">advertised_hostname</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">string</td>
+<td><em>see below</em> (eg <code>&quot;sequins1.example.com&quot;</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>This is the hostname sequins uses to advertise itself to peers in a cluster. It
+should be resolvable by those peers. If left unset, it will be set to the
+hostname of the server.</p>
+<h3 id="shardid">shard_id</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">string</td>
+<td><em>see below</em> (eg <code>&quot;sequins1&quot;</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>The shard ID is used to determine which partitions the node is responsible for.
+By default, it is the same as <code>advertised_hostname</code>. Unlike the hostname,
+however, it doesn&apos;t have to be unique; two nodes can have the same shard_id, in
+which case they will download the same partitions. This can be useful if you
+don&apos;t have stable hostnames, but want to be able to rebuild a server to take the
+place of a dead or decomissioning one.</p>
+<h2 id="zk">[zk]</h2>
+<h3 id="servers">servers</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">array of string</td>
+<td><code>[&quot;localhost:2181&quot;]</code></td>
+</tr>
+</tbody>
+</table>
+<p>If set and &apos;sharding.enabled&apos; is true, sequins will connect to zookeeper at the
+given addresses.</p>
+<h3 id="connecttimeout">connect_timeout</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">string</td>
+<td><code>&quot;1s&quot;</code></td>
+</tr>
+</tbody>
+</table>
+<p>This specifies how long to wait while connecting to zookeeper.</p>
+<h3 id="sessiontimeout">session_timeout</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">string</td>
+<td><code>&quot;10s&quot;</code></td>
+</tr>
+</tbody>
+</table>
+<p>This specifies the session timeout to use with zookeeper. The actual timeout is
+negotiated between server and client, but will never be lower than this number.</p>
+<h2 id="datadog">[datadog]</h2>
+<h3 id="url">url</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">string</td>
+<td><code>&quot;localhost:8200&quot;</code></td>
+</tr>
+</tbody>
+</table>
+<p>If set, sequins will send metrics concerning S3 file downloads using the
+<a href="https://docs.datadoghq.com/guides/dogstatsd/" target="_blank">DogStatsD</a> protocol to this address.</p>
+<h2 id="debug">[debug]</h2>
+<h3 id="bind">bind</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">string</td>
+<td><em>unset</em> (eg <code>&quot;localhost:6060&quot;</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>If set, binds the golang debug http server, which can serve expvars and
+profiling information, to the specified address.</p>
+<h3 id="expvars">expvars</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">bool</td>
+<td><code>true</code></td>
+</tr>
+</tbody>
+</table>
+<p>If set, this adds expvars to the debug HTTP server, including the default ones
+and a few sequins-specific ones.</p>
+<h3 id="pprof">pprof</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Type</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">bool</td>
+<td><code>false</code></td>
+</tr>
+</tbody>
+</table>
+<p>If set, this adds the default pprof handlers to the debug HTTP server.</p>
+
+                                
+                                </section>
+                            
+    </div>
+    <div class="search-results">
+        <div class="has-results">
+            
+            <h1 class="search-results-title"><span class='search-results-count'></span> results matching "<span class='search-query'></span>"</h1>
+            <ul class="search-results-list"></ul>
+            
+        </div>
+        <div class="no-results">
+            
+            <h1 class="search-results-title">No results matching "<span class='search-query'></span>"</h1>
+            
+        </div>
+    </div>
+</div>
+
+                        </div>
+                    </div>
+                
+            </div>
+
+            
+                
+                <a href="../2-2-sharding/" class="navigation navigation-prev navigation-unique" aria-label="Previous page: Sharding">
+                    <i class="fa fa-angle-left"></i>
+                </a>
+                
+                
+            
+        
+    </div>
+
+    <script>
+        var gitbook = gitbook || [];
+        gitbook.push(function() {
+            gitbook.page.hasChanged({"page":{"title":"1. Configuration Reference","level":"4.1","depth":1,"previous":{"title":"Sharding","level":"3.2","depth":1,"path":"2-2-sharding/README.md","ref":"2-2-sharding/README.md","articles":[]},"dir":"ltr"},"config":{"gitbook":"*","theme":"default","variables":{},"plugins":["-sharing","github","anchorjs"],"pluginsConfig":{"fontsettings":{"theme":"night","family":"sans","size":2},"github":{"url":"https://github.com/stripe/sequins"},"anchorjs":{"icon":"","class":"fa fa-link anchor-link"},"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"}},"file":{"path":"x-1-configuration-reference/README.md","mtime":"2017-10-25T03:39:39.000Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2017-10-30T20:04:11.774Z"},"basePath":"..","book":{"language":""}});
+        });
+    </script>
+</div>
+
+        
+    <script src="../gitbook/gitbook.js"></script>
+    <script src="../gitbook/theme.js"></script>
+    
+        
+        <script src="../gitbook/gitbook-plugin-github/plugin.js"></script>
+        
+    
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/anchor-js/3.1.1/anchor.min.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-anchorjs/anchor-style.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-search/search-engine.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-search/search.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-lunr/lunr.min.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-lunr/search-lunr.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-fontsettings/fontsettings.js"></script>
+        
+    
+
+    </body>
+</html>
+

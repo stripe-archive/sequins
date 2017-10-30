@@ -1,0 +1,476 @@
+
+<!DOCTYPE HTML>
+<html lang="" >
+    <head>
+        <meta charset="UTF-8">
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <title>Data Requirements · GitBook</title>
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="description" content="">
+        <meta name="generator" content="GitBook 3.2.3">
+        
+        
+        
+    
+    <link rel="stylesheet" href="../gitbook/style.css">
+
+    
+            
+                
+                <link rel="stylesheet" href="../gitbook/gitbook-plugin-highlight/website.css">
+                
+            
+                
+                <link rel="stylesheet" href="../gitbook/gitbook-plugin-search/search.css">
+                
+            
+                
+                <link rel="stylesheet" href="../gitbook/gitbook-plugin-fontsettings/website.css">
+                
+            
+        
+
+    
+
+    
+        
+        <link rel="stylesheet" href="../styles/website.css">
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+
+        
+    
+    
+    <meta name="HandheldFriendly" content="true"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <link rel="apple-touch-icon-precomposed" sizes="152x152" href="../gitbook/images/apple-touch-icon-precomposed-152.png">
+    <link rel="shortcut icon" href="../gitbook/images/favicon.ico" type="image/x-icon">
+
+    
+    <link rel="next" href="../1-3-querying-sequins/" />
+    
+    
+    <link rel="prev" href="../1-1-basic-concepts/" />
+    
+
+    </head>
+    <body>
+        
+<div class="book">
+    <div class="book-summary">
+        
+            
+<div id="book-search-input" role="search">
+    <input type="text" placeholder="Type to search" />
+</div>
+
+            
+                <nav role="navigation">
+                
+
+
+<ul class="summary">
+    
+    
+
+    
+
+    
+        
+        
+    
+        <li class="chapter " data-level="1.1" data-path="../">
+            
+                <a href="../">
+            
+                    
+                    Getting Started
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+        
+        <li class="header">Working with sequins</li>
+        
+        
+    
+        <li class="chapter " data-level="2.1" data-path="../1-1-basic-concepts/">
+            
+                <a href="../1-1-basic-concepts/">
+            
+                    
+                    Basic Concepts
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter active" data-level="2.2" data-path="./">
+            
+                <a href="./">
+            
+                    
+                    Data Requirements
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.3" data-path="../1-3-querying-sequins/">
+            
+                <a href="../1-3-querying-sequins/">
+            
+                    
+                    Querying Sequins
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.4" data-path="../1-4-running-a-distributed-cluster/">
+            
+                <a href="../1-4-running-a-distributed-cluster/">
+            
+                    
+                    Running a Distributed Cluster
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.5" data-path="../1-5-healthchecks-and-monitoring/">
+            
+                <a href="../1-5-healthchecks-and-monitoring/">
+            
+                    
+                    Healthchecks and Monitoring
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.6" data-path="../1-6-improving-performance/">
+            
+                <a href="../1-6-improving-performance/">
+            
+                    
+                    Improving Performance
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+        
+        <li class="header">Internals</li>
+        
+        
+    
+        <li class="chapter " data-level="3.1" data-path="../2-1-on-disk-format/">
+            
+                <a href="../2-1-on-disk-format/">
+            
+                    
+                    On-Disk Format
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="3.2" data-path="../2-2-sharding/">
+            
+                <a href="../2-2-sharding/">
+            
+                    
+                    Sharding
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+        
+        <li class="header">Appendix</li>
+        
+        
+    
+        <li class="chapter " data-level="4.1" data-path="../x-1-configuration-reference/">
+            
+                <a href="../x-1-configuration-reference/">
+            
+                    
+                    1. Configuration Reference
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+
+    <li class="divider"></li>
+
+    <li>
+        <a href="https://www.gitbook.com" target="blank" class="gitbook-link">
+            Published with GitBook
+        </a>
+    </li>
+</ul>
+
+
+                </nav>
+            
+        
+    </div>
+
+    <div class="book-body">
+        
+            <div class="body-inner">
+                
+                    
+
+<div class="book-header" role="navigation">
+    
+
+    <!-- Title -->
+    <h1>
+        <i class="fa fa-circle-o-notch fa-spin"></i>
+        <a href=".." >Data Requirements</a>
+    </h1>
+</div>
+
+
+
+
+                    <div class="page-wrapper" tabindex="-1" role="main">
+                        <div class="page-inner">
+                            
+<div id="book-search-results">
+    <div class="search-noresults">
+    
+                                <section class="normal markdown-section">
+                                
+                                <h1 id="data-requirements">Data Requirements</h1>
+<p>Currently Sequins supports two input file formats:</p>
+<ul>
+<li><a href="#sequencefiles">SequenceFiles</a></li>
+<li><a href="#sparkey-files">Sparkey files</a></li>
+</ul>
+<p>There are also a few <a href="#guidelines">guidelines</a> for producing data for sequins.</p>
+<h2 id="sequencefiles">SequenceFiles</h2>
+<p>The default input format for Sequins is <a href="http://hadoop.apache.org/docs/current/api/org/apache/hadoop/io/SequenceFile.html" target="_blank">SequenceFiles</a>. These are
+typically generated by Hadoop Map/Reduce.</p>
+<h3 id="naming">Naming</h3>
+<p>Sequins doesn&apos;t care at all how your SequenceFiles are named, but will ingest
+any files in a version directory.</p>
+<h3 id="compression">Compression</h3>
+<p>You can use either <code>BLOCK</code> or <code>RECORD</code> compression for SequenceFiles, or leave
+them uncompressed. Both snappy and gzip are supported.</p>
+<h3 id="sharding">Sharding</h3>
+<p>Sequins uses a <a href="../2-2-sharding/">sharding algorithm</a> in which keys are
+bucketed into N partitions, where the number of partitions is the number of
+files in the dataset. To do this, it uses a hash function based on Java&apos;s String
+<code>hashCode</code> function, chosen because it aligns coincidentally with the way Hadoop
+often buckets keys into reducers.</p>
+<p>In practice, this means that if your Hadoop job outputting the data has a reduce
+step, and <strong>the key is a String, and has the same value as the output key</strong>,
+then your data is effectively pre-sharded when it&apos;s written out, and each
+individual sequins instance can just download the data it needs, than rather
+scanning everything and downloading just the keys it wants.</p>
+<p>While this obviously isn&apos;t a hard requirement, it can make loading new data much
+faster.</p>
+<h3 id="key-and-value-serialization">Key and value serialization</h3>
+<p>Hadoop often writes SequenceFiles with individual key and value serializations;
+in this way, SequenceFile is generic.</p>
+<p>Sequins supports any key and value serialization, but has some optimizations for
+the commons ones. In particular,
+<a href="https://hadoop.apache.org/docs/current/api/org/apache/hadoop/io/BytesWritable.html" target="_blank">org.apache.hadoop.io.BytesWritable</a> and
+<a href="https://hadoop.apache.org/docs/current/api/org/apache/hadoop/io/Text.html" target="_blank">org.apache.hadoop.io.Text</a> are unwrapped, and the actual underlying bytes
+are used. For example, if you have a <code>SequenceFile[BytesWritable, Text]</code> and a
+record is saved as:</p>
+<pre><code>context.write(new BytesWritable(&quot;foo&quot;.getBytes(&quot;ASCII&quot;)), new Text(&quot;bar&quot;))
+</code></pre><p>Then you can query the value at <code>/mydata/foo</code>, as you&apos;d expect.</p>
+<p>However, with other serializations, sequins doesn&apos;t do any converting for you,
+and you&apos;ll need to consider how the data actually looks on disk. This can be a
+bit tricky. Let&apos;s say you have a <code>SequenceFile[IntWritable, IntWritable]</code> and
+you write the tuple <code>(42, 100)</code>. Hadoop serializes a IntWritable as an unsigned
+int32<sup><a href="#fn_1" id="reffn_1">1</a></sup>, so you&apos;d need to query it as such:</p>
+<pre><code>$ curl localhost:9599/mydata/%00%00%00%2A | hexdump
+0000000 00 00 00 64
+</code></pre><blockquote id="fn_1">
+<sup>1</sup>. IntWritable represents a signed int, but it&apos;s cast first; so -42 would be<a href="#reffn_1" title="Jump back to footnote [1] in the text."> &#x21A9;</a>
+</blockquote>
+<p><code>%FF%FF%FF%D6</code>.</p>
+<h2 id="sparkey-files">Sparkey files</h2>
+<p>Sequins also supports <a href="https://github.com/spotify/sparkey" target="_blank">Sparkey files</a> as an input format with faster
+loading.</p>
+<p>Ingesting SequenceFiles is often CPU-limited, as Sequins has to read the whole
+file and convert it to its internal storage format. This is also inefficient, as
+it has to be done on every single Sequins node, rather than once by whatever
+generates the data. If you provide your data in Sparkey format, Sequins can load
+your data about ten times faster.</p>
+<h3 id="format-details">Format details</h3>
+<p>The input directory should contain pairs of Sparkey log files and compressed
+Sparkey index files.</p>
+<p>The Sparkey log files, with extension <code>.spl</code>, contain a list of keys and values.
+The keys in this file should be in lexicographically-sorted order.</p>
+<p>The compressed Sparkey index files, with extension <code>.spi.sz</code>, associates keys
+with their locations in the log file.</p>
+<h3 id="naming">Naming</h3>
+<p>Each log/index file pair must have the exact same basename, but with different
+extensions.</p>
+<p>The name of each file must contain at least one sequence of digits. The first
+such run of digits must identify which <a href="#sharding">key partition</a> the file is
+for. For example, the file <code>part-00012-00034.spl</code> is for partition number 12.</p>
+<p>It is legal to have multiple pairs of files from the same partition, for example
+with names <code>part-00012-00034.spl</code> and <code>part-00012-00035.spl</code>. However, such
+files must contain non-overlapping key ranges.</p>
+<h3 id="compression">Compression</h3>
+<p>The Sparkey log files must use Sparkey&apos;s built-in Snappy compression. The index
+files must be compressed with <a href="https://github.com/google/snappy/blob/master/framing_format.txt" target="_blank">framed-Snappy</a> compression.</p>
+<h3 id="sharding">Sharding</h3>
+<p>Each log/index file pair must contain keys only from a single key partition.
+This means that a file with partition number 12 should only contain a key K if
+<code>hashCode(K) % numPartitions == 12</code>.</p>
+<h3 id="key-and-value-serialization">Key and value serialization</h3>
+<p>Sparkey files should contain data of type BytesWritable and Text pre-unwrapped.
+In other words, <code>new Text(&quot;foo&quot;)</code> should be stored as just <code>foo</code>.</p>
+<p>However other Writable formats such as IntWritable should be stored in their
+canonical serialization format.</p>
+<h3 id="generation">Generation</h3>
+<p>While SequenceFiles are trivial to generate in Hadoop, it&apos;s slightly more
+complex to generate Sparkey files. We&apos;ve provided a <a href="https://github.com/stripe/sequins/blob/master/doc/manual/1-2-data-requirements/SparkeyWordCount.java" target="_blank">Sparkey-generating version
+of the Hadoop Word Count example</a>, to help you along.</p>
+<h2 id="guidelines">Guidelines</h2>
+<p>While not required, Sequins operates best when the number and sizes of input
+files are under certain thresholds.</p>
+<p>The number of input files (and hence partitions) affects the stability of
+Zookeeper. A maximum of 512 input files per version is a good threshold.</p>
+<p>Input files that are very large are more likely to hang or fail during
+downloads. A good threshold here depends on your download speeds, but we prefer
+files below 5 GiB in size.</p>
+
+                                
+                                </section>
+                            
+    </div>
+    <div class="search-results">
+        <div class="has-results">
+            
+            <h1 class="search-results-title"><span class='search-results-count'></span> results matching "<span class='search-query'></span>"</h1>
+            <ul class="search-results-list"></ul>
+            
+        </div>
+        <div class="no-results">
+            
+            <h1 class="search-results-title">No results matching "<span class='search-query'></span>"</h1>
+            
+        </div>
+    </div>
+</div>
+
+                        </div>
+                    </div>
+                
+            </div>
+
+            
+                
+                <a href="../1-1-basic-concepts/" class="navigation navigation-prev " aria-label="Previous page: Basic Concepts">
+                    <i class="fa fa-angle-left"></i>
+                </a>
+                
+                
+                <a href="../1-3-querying-sequins/" class="navigation navigation-next " aria-label="Next page: Querying Sequins">
+                    <i class="fa fa-angle-right"></i>
+                </a>
+                
+            
+        
+    </div>
+
+    <script>
+        var gitbook = gitbook || [];
+        gitbook.push(function() {
+            gitbook.page.hasChanged({"page":{"title":"Data Requirements","level":"2.2","depth":1,"next":{"title":"Querying Sequins","level":"2.3","depth":1,"path":"1-3-querying-sequins/README.md","ref":"1-3-querying-sequins/README.md","articles":[]},"previous":{"title":"Basic Concepts","level":"2.1","depth":1,"path":"1-1-basic-concepts/README.md","ref":"1-1-basic-concepts/README.md","articles":[]},"dir":"ltr"},"config":{"gitbook":"*","theme":"default","variables":{},"plugins":["-sharing","github","anchorjs"],"pluginsConfig":{"fontsettings":{"theme":"night","family":"sans","size":2},"github":{"url":"https://github.com/stripe/sequins"},"anchorjs":{"icon":"","class":"fa fa-link anchor-link"},"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"}},"file":{"path":"1-2-data-requirements/README.md","mtime":"2017-10-30T20:04:02.000Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2017-10-30T20:04:11.774Z"},"basePath":"..","book":{"language":""}});
+        });
+    </script>
+</div>
+
+        
+    <script src="../gitbook/gitbook.js"></script>
+    <script src="../gitbook/theme.js"></script>
+    
+        
+        <script src="../gitbook/gitbook-plugin-github/plugin.js"></script>
+        
+    
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/anchor-js/3.1.1/anchor.min.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-anchorjs/anchor-style.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-search/search-engine.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-search/search.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-lunr/lunr.min.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-lunr/search-lunr.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-fontsettings/fontsettings.js"></script>
+        
+    
+
+    </body>
+</html>
+

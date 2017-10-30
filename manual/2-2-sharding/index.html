@@ -1,0 +1,501 @@
+
+<!DOCTYPE HTML>
+<html lang="" >
+    <head>
+        <meta charset="UTF-8">
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <title>Sharding · GitBook</title>
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="description" content="">
+        <meta name="generator" content="GitBook 3.2.3">
+        
+        
+        
+    
+    <link rel="stylesheet" href="../gitbook/style.css">
+
+    
+            
+                
+                <link rel="stylesheet" href="../gitbook/gitbook-plugin-highlight/website.css">
+                
+            
+                
+                <link rel="stylesheet" href="../gitbook/gitbook-plugin-search/search.css">
+                
+            
+                
+                <link rel="stylesheet" href="../gitbook/gitbook-plugin-fontsettings/website.css">
+                
+            
+        
+
+    
+
+    
+        
+        <link rel="stylesheet" href="../styles/website.css">
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+
+        
+    
+    
+    <meta name="HandheldFriendly" content="true"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <link rel="apple-touch-icon-precomposed" sizes="152x152" href="../gitbook/images/apple-touch-icon-precomposed-152.png">
+    <link rel="shortcut icon" href="../gitbook/images/favicon.ico" type="image/x-icon">
+
+    
+    <link rel="next" href="../x-1-configuration-reference/" />
+    
+    
+    <link rel="prev" href="../2-1-on-disk-format/" />
+    
+
+    </head>
+    <body>
+        
+<div class="book">
+    <div class="book-summary">
+        
+            
+<div id="book-search-input" role="search">
+    <input type="text" placeholder="Type to search" />
+</div>
+
+            
+                <nav role="navigation">
+                
+
+
+<ul class="summary">
+    
+    
+
+    
+
+    
+        
+        
+    
+        <li class="chapter " data-level="1.1" data-path="../">
+            
+                <a href="../">
+            
+                    
+                    Getting Started
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+        
+        <li class="header">Working with sequins</li>
+        
+        
+    
+        <li class="chapter " data-level="2.1" data-path="../1-1-basic-concepts/">
+            
+                <a href="../1-1-basic-concepts/">
+            
+                    
+                    Basic Concepts
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.2" data-path="../1-2-data-requirements/">
+            
+                <a href="../1-2-data-requirements/">
+            
+                    
+                    Data Requirements
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.3" data-path="../1-3-querying-sequins/">
+            
+                <a href="../1-3-querying-sequins/">
+            
+                    
+                    Querying Sequins
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.4" data-path="../1-4-running-a-distributed-cluster/">
+            
+                <a href="../1-4-running-a-distributed-cluster/">
+            
+                    
+                    Running a Distributed Cluster
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.5" data-path="../1-5-healthchecks-and-monitoring/">
+            
+                <a href="../1-5-healthchecks-and-monitoring/">
+            
+                    
+                    Healthchecks and Monitoring
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.6" data-path="../1-6-improving-performance/">
+            
+                <a href="../1-6-improving-performance/">
+            
+                    
+                    Improving Performance
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+        
+        <li class="header">Internals</li>
+        
+        
+    
+        <li class="chapter " data-level="3.1" data-path="../2-1-on-disk-format/">
+            
+                <a href="../2-1-on-disk-format/">
+            
+                    
+                    On-Disk Format
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter active" data-level="3.2" data-path="./">
+            
+                <a href="./">
+            
+                    
+                    Sharding
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+        
+        <li class="header">Appendix</li>
+        
+        
+    
+        <li class="chapter " data-level="4.1" data-path="../x-1-configuration-reference/">
+            
+                <a href="../x-1-configuration-reference/">
+            
+                    
+                    1. Configuration Reference
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+
+    <li class="divider"></li>
+
+    <li>
+        <a href="https://www.gitbook.com" target="blank" class="gitbook-link">
+            Published with GitBook
+        </a>
+    </li>
+</ul>
+
+
+                </nav>
+            
+        
+    </div>
+
+    <div class="book-body">
+        
+            <div class="body-inner">
+                
+                    
+
+<div class="book-header" role="navigation">
+    
+
+    <!-- Title -->
+    <h1>
+        <i class="fa fa-circle-o-notch fa-spin"></i>
+        <a href=".." >Sharding</a>
+    </h1>
+</div>
+
+
+
+
+                    <div class="page-wrapper" tabindex="-1" role="main">
+                        <div class="page-inner">
+                            
+<div id="book-search-results">
+    <div class="search-noresults">
+    
+                                <section class="normal markdown-section">
+                                
+                                <h1 id="sharding">Sharding</h1>
+<p>This is an in-depth description of how sharding works. For an overview of
+running a sequins cluster, including notes on how it should behave, see <a href="../1-4-running-a-distributed-cluster/">Running
+A Distributed Cluster</a>.</p>
+<p>The algorithm described here is effectively isolated between databases.
+Therefore, this document speaks to the operations on a single sequins database,
+rather than everything at once.</p>
+<h1 id="design-principles">Design Principles</h1>
+<ul>
+<li><p>Sequins should be able to scale horizontally by just adding nodes to an
+existing cluster. This should require as little shared state (in Zookeeper)
+as possible, and that shared state should be considered ephemeral.
+Specifically, sequins should absolutely not require shared state in the read
+path; meaning that any node must be able to continue serving requests without
+any shared state available.</p>
+</li>
+<li><p>To minimize implementation complexity, sharding should be as static as
+possible. A cluster must reshard a database once at startup, and once
+whenever a new version is available, but should not dynamically correct over-
+or underreplication.</p>
+</li>
+<li><p>Since sequins is a more-or-less static, stateless store, and since writes are
+async and affect the entire database at once, we don&apos;t have to think too hard
+about consistency. But one important property to try to guarantee is
+monotonic reads; if you talk to a single sequins instance during a version
+upgrade, you get only records from version (N-1) until the node upgrades, and
+then only records from version N.</p>
+</li>
+</ul>
+<h1 id="shared-state-in-zookeeper">Shared State in Zookeeper</h1>
+<p>Zookeeper is used for shared state. To minimize complexity and stay robust to
+Zookeeper failure, the code only supports two operations:</p>
+<ul>
+<li>Publishing ephemeral keys into a znode</li>
+<li>Listing a znode&apos;s children and caching the state locally</li>
+</ul>
+<p>All state must be considered possibly minutes, hours or years stale. All read
+operations read the cache; the syncing process happens separately.</p>
+<p>All znodes described below are prefixed under a root which includes the <a href="../x-1-configuration-reference#clustername">cluster
+name</a> and a protocol number
+(currently <code>v1</code>).</p>
+<h1 id="properties-of-a-version">Properties of a Version</h1>
+<p>A version is an immutable map of keys to values, existing in the source root as
+a collection of N files. Keys can be duplicated in the map, but only one value
+will be loaded (which one is picked is undefined).</p>
+<p>In addition, each version is sharded into N partitions. Each partition K
+contains the keyspace where <code>hashCode(key) % N == K</code>.</p>
+<p>We use Java&apos;s String hashCode algorithm as the hashing function, and the number of
+files as N, because that allows us to treat many datasets as pre-sharded by
+Hadoop&apos;s shuffle step. In particular, any Hadoop job with the <a href="https://hadoop.apache.org/docs/current/api/org/apache/hadoop/mapreduce/lib/partition/HashPartitioner.html" target="_blank">default
+Partitioner</a> will produce a version where each file has the
+keyspace of one and only one partition.</p>
+<p>However, this isn&apos;t a guarantee, so we treat this only as a possible
+optimization.</p>
+<h1 id="upgrades">Upgrades</h1>
+<p>This is the meatiest part of the distributed algorithm: how nodes discover and
+load new versions.</p>
+<p><strong>On startup</strong> (or when reconnecting to zookeeper), a node</p>
+<ol>
+<li><p>Creates an ephemeral znode under <code>/nodes</code> for itself</p>
+</li>
+<li><p>Starts watching <code>/nodes</code>. On startup, it waits for these to remain stable
+for <a href="../x-1-configuration-reference#timetoconverge">some period</a> before
+continuing.</p>
+</li>
+</ol>
+<p><strong>When it sees a new version</strong> (this also occurs at startup, and applies to both
+existing and new databases), it</p>
+<ol>
+<li><p>Watches the children of <code>partitions/&lt;version&gt;</code>, and continually mirrors that
+state locally. This is the map of where partitions live on the cluster.</p>
+</li>
+<li><p>Waits until every partition represented in the cluster at least once; in
+other words, until the minimum replication factor is at least
+1.</p>
+</li>
+</ol>
+<p>In the background, it decides which partitions it is responsible for and
+backfills them. To do that, it</p>
+<ol>
+<li><p>Decides which partitions it is responsible for offline, by:</p>
+<p>a. Creating an array of all partitions in sorted order * the replication
+   factor. (e.g. [1, 1, 1, 2, 2, 2, ...])</p>
+<p>b. Creating an array of all nodes it knows about in sorted order based on
+   their shard id.</p>
+<p>c. For all of the partitions at index <code>idx</code>, if <code>idx % len(nodes)</code> is equal
+   to its position in the node array, we assign it that partition.</p>
+</li>
+<li><p>Starts loading and preparing those partitions. As they become available, it
+writes an ephemeral node to the partition map, at
+<code>/partitions/&lt;version&gt;/&lt;partition&gt;@&lt;hostname&gt;</code>.</p>
+</li>
+</ol>
+<p>Note that the ring is only used as a way to stably, fairly and deterministically
+pick partitions without actually needing to read  current state of the cluster
+(which could be racy). Once the partition map is built, that is used as the
+actual state of the cluster going forward.</p>
+<p>Once a node has the data locally, it can respond to peers that specifically ask
+that version, but it won&apos;t upgrade <em>to clients</em> until it sees that a version is
+complete across the cluster. Note that this switch to clients, which is the
+actual upgrade, can happen before or after the local partitions are finished
+loading; it&apos;s decoupled from that process. This is important if, for example, a
+node is starting up to join an existing cluster, and wants to be able to service
+requests immediately.</p>
+<p>Even once it does upgrade (again, to clients), it keeps the old version around
+for a period of time. Specifically, it starts a 10 minute timer, and every time
+it receives a request for the old version, it resets the timer. Only at the end
+of the timer does it clear the old version.</p>
+<p>That means that a cluster effectively has two versions during an upgrade. In
+this way, individual nodes can lag behind and still present a consistent picture
+to the clients they talk to.</p>
+<p><strong>Finally, when responding to a request</strong>, the node</p>
+<ul>
+<li>Looks to see if it has the partition of the key locally. If so, it responds immediately</li>
+<li>If not, determines a list of peers by consulting the cache of
+<code>/partitions/&lt;version&gt;/</code></li>
+<li>Picks a node at random and tries it (<code>?proxy=true</code> is added to the
+querystring to indicate that it shouldn&apos;t be proxied further).</li>
+<li>Every duration of
+<a href="../x-1-configuration-reference#proxystagetimeout">proxy_stage_timeout</a>, it
+starts a request to a new node in parallel.</li>
+<li>Returns the first request that succeeds, or bails after
+<a href="../x-1-configuration-reference#proxy_timeout">proxy_timeout</a>.</li>
+</ul>
+
+                                
+                                </section>
+                            
+    </div>
+    <div class="search-results">
+        <div class="has-results">
+            
+            <h1 class="search-results-title"><span class='search-results-count'></span> results matching "<span class='search-query'></span>"</h1>
+            <ul class="search-results-list"></ul>
+            
+        </div>
+        <div class="no-results">
+            
+            <h1 class="search-results-title">No results matching "<span class='search-query'></span>"</h1>
+            
+        </div>
+    </div>
+</div>
+
+                        </div>
+                    </div>
+                
+            </div>
+
+            
+                
+                <a href="../2-1-on-disk-format/" class="navigation navigation-prev " aria-label="Previous page: On-Disk Format">
+                    <i class="fa fa-angle-left"></i>
+                </a>
+                
+                
+                <a href="../x-1-configuration-reference/" class="navigation navigation-next " aria-label="Next page: 1. Configuration Reference">
+                    <i class="fa fa-angle-right"></i>
+                </a>
+                
+            
+        
+    </div>
+
+    <script>
+        var gitbook = gitbook || [];
+        gitbook.push(function() {
+            gitbook.page.hasChanged({"page":{"title":"Sharding","level":"3.2","depth":1,"next":{"title":"1. Configuration Reference","level":"4.1","depth":1,"path":"x-1-configuration-reference/README.md","ref":"x-1-configuration-reference/README.md","articles":[]},"previous":{"title":"On-Disk Format","level":"3.1","depth":1,"path":"2-1-on-disk-format/README.md","ref":"2-1-on-disk-format/README.md","articles":[]},"dir":"ltr"},"config":{"gitbook":"*","theme":"default","variables":{},"plugins":["-sharing","github","anchorjs"],"pluginsConfig":{"fontsettings":{"theme":"night","family":"sans","size":2},"github":{"url":"https://github.com/stripe/sequins"},"anchorjs":{"icon":"","class":"fa fa-link anchor-link"},"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"}},"file":{"path":"2-2-sharding/README.md","mtime":"2017-10-30T20:04:02.000Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2017-10-30T20:04:11.774Z"},"basePath":"..","book":{"language":""}});
+        });
+    </script>
+</div>
+
+        
+    <script src="../gitbook/gitbook.js"></script>
+    <script src="../gitbook/theme.js"></script>
+    
+        
+        <script src="../gitbook/gitbook-plugin-github/plugin.js"></script>
+        
+    
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/anchor-js/3.1.1/anchor.min.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-anchorjs/anchor-style.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-search/search-engine.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-search/search.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-lunr/lunr.min.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-lunr/search-lunr.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-fontsettings/fontsettings.js"></script>
+        
+    
+
+    </body>
+</html>
+

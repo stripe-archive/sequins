@@ -1,0 +1,457 @@
+
+<!DOCTYPE HTML>
+<html lang="" >
+    <head>
+        <meta charset="UTF-8">
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <title>Basic Concepts · GitBook</title>
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="description" content="">
+        <meta name="generator" content="GitBook 3.2.3">
+        
+        
+        
+    
+    <link rel="stylesheet" href="../gitbook/style.css">
+
+    
+            
+                
+                <link rel="stylesheet" href="../gitbook/gitbook-plugin-highlight/website.css">
+                
+            
+                
+                <link rel="stylesheet" href="../gitbook/gitbook-plugin-search/search.css">
+                
+            
+                
+                <link rel="stylesheet" href="../gitbook/gitbook-plugin-fontsettings/website.css">
+                
+            
+        
+
+    
+
+    
+        
+        <link rel="stylesheet" href="../styles/website.css">
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+
+        
+    
+    
+    <meta name="HandheldFriendly" content="true"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <link rel="apple-touch-icon-precomposed" sizes="152x152" href="../gitbook/images/apple-touch-icon-precomposed-152.png">
+    <link rel="shortcut icon" href="../gitbook/images/favicon.ico" type="image/x-icon">
+
+    
+    <link rel="next" href="../1-2-data-requirements/" />
+    
+    
+    <link rel="prev" href="../" />
+    
+
+    </head>
+    <body>
+        
+<div class="book">
+    <div class="book-summary">
+        
+            
+<div id="book-search-input" role="search">
+    <input type="text" placeholder="Type to search" />
+</div>
+
+            
+                <nav role="navigation">
+                
+
+
+<ul class="summary">
+    
+    
+
+    
+
+    
+        
+        
+    
+        <li class="chapter " data-level="1.1" data-path="../">
+            
+                <a href="../">
+            
+                    
+                    Getting Started
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+        
+        <li class="header">Working with sequins</li>
+        
+        
+    
+        <li class="chapter active" data-level="2.1" data-path="./">
+            
+                <a href="./">
+            
+                    
+                    Basic Concepts
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.2" data-path="../1-2-data-requirements/">
+            
+                <a href="../1-2-data-requirements/">
+            
+                    
+                    Data Requirements
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.3" data-path="../1-3-querying-sequins/">
+            
+                <a href="../1-3-querying-sequins/">
+            
+                    
+                    Querying Sequins
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.4" data-path="../1-4-running-a-distributed-cluster/">
+            
+                <a href="../1-4-running-a-distributed-cluster/">
+            
+                    
+                    Running a Distributed Cluster
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.5" data-path="../1-5-healthchecks-and-monitoring/">
+            
+                <a href="../1-5-healthchecks-and-monitoring/">
+            
+                    
+                    Healthchecks and Monitoring
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.6" data-path="../1-6-improving-performance/">
+            
+                <a href="../1-6-improving-performance/">
+            
+                    
+                    Improving Performance
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+        
+        <li class="header">Internals</li>
+        
+        
+    
+        <li class="chapter " data-level="3.1" data-path="../2-1-on-disk-format/">
+            
+                <a href="../2-1-on-disk-format/">
+            
+                    
+                    On-Disk Format
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="3.2" data-path="../2-2-sharding/">
+            
+                <a href="../2-2-sharding/">
+            
+                    
+                    Sharding
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+        
+        <li class="header">Appendix</li>
+        
+        
+    
+        <li class="chapter " data-level="4.1" data-path="../x-1-configuration-reference/">
+            
+                <a href="../x-1-configuration-reference/">
+            
+                    
+                    1. Configuration Reference
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+
+    <li class="divider"></li>
+
+    <li>
+        <a href="https://www.gitbook.com" target="blank" class="gitbook-link">
+            Published with GitBook
+        </a>
+    </li>
+</ul>
+
+
+                </nav>
+            
+        
+    </div>
+
+    <div class="book-body">
+        
+            <div class="body-inner">
+                
+                    
+
+<div class="book-header" role="navigation">
+    
+
+    <!-- Title -->
+    <h1>
+        <i class="fa fa-circle-o-notch fa-spin"></i>
+        <a href=".." >Basic Concepts</a>
+    </h1>
+</div>
+
+
+
+
+                    <div class="page-wrapper" tabindex="-1" role="main">
+                        <div class="page-inner">
+                            
+<div id="book-search-results">
+    <div class="search-noresults">
+    
+                                <section class="normal markdown-section">
+                                
+                                <h1 id="basic-concepts">Basic Concepts</h1>
+<h3 id="the-source-root">The Source Root</h3>
+<p>Sequins is generally <em>stateless</em>; it works by mirroring data at rest somewhere
+else. When sequins starts up, and whenever it is told to refresh its local data,
+it will do its best to mirror the organizational structure of the source root.</p>
+<p>This source root can be on local disk, <a href="https://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-hdfs/HdfsUserGuide.html" target="_blank">HDFS</a>, or <a href="https://aws.amazon.com/s3/" target="_blank">Amazon S3</a>. You can
+set it be setting the <a href="../x-1-configuration-reference#source">source root</a>
+configuration property to a URI:</p>
+<ul>
+<li><p>Data in local disk can be referred to by just the path, or with a <code>file://</code>
+URI:</p>
+<pre><code> file:///path/to/data
+</code></pre></li>
+</ul>
+<ul>
+<li><p>Data in HDFS can be referred to with an <code>hdfs://</code> URI, using the namenode
+address and port as the hostname:</p>
+<pre><code> hdfs://namenode:8020/path/to/data
+</code></pre></li>
+</ul>
+<ul>
+<li><p>Data in S3 can be referred to by an <code>s3://</code> URI, using the bucket name as
+the host:</p>
+<pre><code> s3://my-bucket/path/to/data
+</code></pre></li>
+</ul>
+<p>In the later case, the &quot;path&quot; is really a key prefix; S3 does not have real
+directories. Sequins treats prefix components separated by <code>/</code> as directories,
+just like awscli or other tools.</p>
+<p>Under the source root, the data should be organized into <strong>databases</strong> and below
+that into <strong>versions</strong>:</p>
+<pre><code>/path/to/data
+&#x251C;&#x2500;&#x2500; &lt;database&gt;
+&#x2502;   &#x251C;&#x2500;&#x2500; &lt;version&gt;
+&#x2502;   &#x2502;   &#x251C;&#x2500;&#x2500; &lt;data file&gt;
+&#x2502;   &#x2502;   &#x251C;&#x2500;&#x2500; &lt;data file&gt;
+&#x2502;   &#x2502;   &#x251C;&#x2500;&#x2500; &lt;data file&gt;
+&#x2502;   &#x2502;   &#x2514;&#x2500;&#x2500; ...
+&#x2502;   &#x2514;&#x2500;&#x2500; &lt;version&gt;
+&#x2502;       &#x2514;&#x2500;&#x2500; ...
+&#x2514;&#x2500;&#x2500; &lt;database&gt;
+    &#x2514;&#x2500;&#x2500; &lt;version&gt;
+        &#x2514;&#x2500;&#x2500; ...
+</code></pre><p>Both the database and version can be arbitrary strings, but URI-friendly strings
+are recommended.</p>
+<h3 id="databases-and-versions">Databases and Versions</h3>
+<p>A single sequins instance can hold multiple <strong>databases</strong>. This is the first layer of
+directories in the <a href="#the-source-root">source root</a>.</p>
+<p>Sequins doesn&apos;t support individual writes, like other object stores would.
+Instead, databases are versioned. To update a database, you present it with an
+entirely new copy of the dataset, called a <strong>version</strong>, by dropping it into the
+database folder in the source root.</p>
+<p>Database and version names must consist of alphanumeric characters,
+hyphens, and underscores (path components are ignored if they include
+other characters). But otherwise, they are just arbitrary strings, and
+are compared lexicographically - so to update a database, you need to
+give it a version that is lexicographically greater than the current
+one. At Stripe we use <code>date +%Y%m%d</code> (eg <code>20160901</code>) and timestamps.</p>
+<p>Sequins will load this in the background and hotswap it in atomically.
+Additionally, Sequins returns an <code>X-Sequins-Version</code> header <a href="../1-3-querying-sequins/#response-and-request-headers">on
+responses</a> if
+you need to track what version you&apos;re getting.</p>
+<h3 id="loading-new-data">Loading New Data</h3>
+<p>You can tell sequins to check for new data in two ways. The first is the
+<a href="../x-1-configuration-reference/#refreshperiod">refresh_period</a>
+configuration property, which instructs sequins to continually check for new
+data. You can also send a SIGHUP to the process and it will reload a single
+time.</p>
+<p>Either way, sequins will perform three operations:</p>
+<ul>
+<li><p>For any new databases that weren&apos;t there before, load the latest version and
+start serving it.</p>
+</li>
+<li><p>For each database which is no longer in the source root, stop serving it and
+delete it locally.</p>
+</li>
+<li><p>For each existing database, load whichever version is lexicographically
+greatest, if it is not the current local version.</p>
+</li>
+</ul>
+
+                                
+                                </section>
+                            
+    </div>
+    <div class="search-results">
+        <div class="has-results">
+            
+            <h1 class="search-results-title"><span class='search-results-count'></span> results matching "<span class='search-query'></span>"</h1>
+            <ul class="search-results-list"></ul>
+            
+        </div>
+        <div class="no-results">
+            
+            <h1 class="search-results-title">No results matching "<span class='search-query'></span>"</h1>
+            
+        </div>
+    </div>
+</div>
+
+                        </div>
+                    </div>
+                
+            </div>
+
+            
+                
+                <a href="../" class="navigation navigation-prev " aria-label="Previous page: Getting Started">
+                    <i class="fa fa-angle-left"></i>
+                </a>
+                
+                
+                <a href="../1-2-data-requirements/" class="navigation navigation-next " aria-label="Next page: Data Requirements">
+                    <i class="fa fa-angle-right"></i>
+                </a>
+                
+            
+        
+    </div>
+
+    <script>
+        var gitbook = gitbook || [];
+        gitbook.push(function() {
+            gitbook.page.hasChanged({"page":{"title":"Basic Concepts","level":"2.1","depth":1,"next":{"title":"Data Requirements","level":"2.2","depth":1,"path":"1-2-data-requirements/README.md","ref":"1-2-data-requirements/README.md","articles":[]},"previous":{"title":"Getting Started","level":"1.1","depth":1,"path":"README.md","ref":"README.md","articles":[]},"dir":"ltr"},"config":{"gitbook":"*","theme":"default","variables":{},"plugins":["-sharing","github","anchorjs"],"pluginsConfig":{"fontsettings":{"theme":"night","family":"sans","size":2},"github":{"url":"https://github.com/stripe/sequins"},"anchorjs":{"icon":"","class":"fa fa-link anchor-link"},"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"}},"file":{"path":"1-1-basic-concepts/README.md","mtime":"2017-07-15T02:35:12.000Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2017-10-30T20:04:11.774Z"},"basePath":"..","book":{"language":""}});
+        });
+    </script>
+</div>
+
+        
+    <script src="../gitbook/gitbook.js"></script>
+    <script src="../gitbook/theme.js"></script>
+    
+        
+        <script src="../gitbook/gitbook-plugin-github/plugin.js"></script>
+        
+    
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/anchor-js/3.1.1/anchor.min.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-anchorjs/anchor-style.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-search/search-engine.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-search/search.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-lunr/lunr.min.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-lunr/search-lunr.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-fontsettings/fontsettings.js"></script>
+        
+    
+
+    </body>
+</html>
+

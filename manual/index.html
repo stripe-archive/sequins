@@ -1,0 +1,469 @@
+
+<!DOCTYPE HTML>
+<html lang="" >
+    <head>
+        <meta charset="UTF-8">
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <title>Getting Started · GitBook</title>
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="description" content="">
+        <meta name="generator" content="GitBook 3.2.3">
+        
+        
+        
+    
+    <link rel="stylesheet" href="gitbook/style.css">
+
+    
+            
+                
+                <link rel="stylesheet" href="gitbook/gitbook-plugin-highlight/website.css">
+                
+            
+                
+                <link rel="stylesheet" href="gitbook/gitbook-plugin-search/search.css">
+                
+            
+                
+                <link rel="stylesheet" href="gitbook/gitbook-plugin-fontsettings/website.css">
+                
+            
+        
+
+    
+
+    
+        
+        <link rel="stylesheet" href="styles/website.css">
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+
+        
+    
+    
+    <meta name="HandheldFriendly" content="true"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <link rel="apple-touch-icon-precomposed" sizes="152x152" href="gitbook/images/apple-touch-icon-precomposed-152.png">
+    <link rel="shortcut icon" href="gitbook/images/favicon.ico" type="image/x-icon">
+
+    
+    <link rel="next" href="1-1-basic-concepts/" />
+    
+    
+
+    </head>
+    <body>
+        
+<div class="book">
+    <div class="book-summary">
+        
+            
+<div id="book-search-input" role="search">
+    <input type="text" placeholder="Type to search" />
+</div>
+
+            
+                <nav role="navigation">
+                
+
+
+<ul class="summary">
+    
+    
+
+    
+
+    
+        
+        
+    
+        <li class="chapter active" data-level="1.1" data-path="./">
+            
+                <a href="./">
+            
+                    
+                    Getting Started
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+        
+        <li class="header">Working with sequins</li>
+        
+        
+    
+        <li class="chapter " data-level="2.1" data-path="1-1-basic-concepts/">
+            
+                <a href="1-1-basic-concepts/">
+            
+                    
+                    Basic Concepts
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.2" data-path="1-2-data-requirements/">
+            
+                <a href="1-2-data-requirements/">
+            
+                    
+                    Data Requirements
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.3" data-path="1-3-querying-sequins/">
+            
+                <a href="1-3-querying-sequins/">
+            
+                    
+                    Querying Sequins
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.4" data-path="1-4-running-a-distributed-cluster/">
+            
+                <a href="1-4-running-a-distributed-cluster/">
+            
+                    
+                    Running a Distributed Cluster
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.5" data-path="1-5-healthchecks-and-monitoring/">
+            
+                <a href="1-5-healthchecks-and-monitoring/">
+            
+                    
+                    Healthchecks and Monitoring
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.6" data-path="1-6-improving-performance/">
+            
+                <a href="1-6-improving-performance/">
+            
+                    
+                    Improving Performance
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+        
+        <li class="header">Internals</li>
+        
+        
+    
+        <li class="chapter " data-level="3.1" data-path="2-1-on-disk-format/">
+            
+                <a href="2-1-on-disk-format/">
+            
+                    
+                    On-Disk Format
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="3.2" data-path="2-2-sharding/">
+            
+                <a href="2-2-sharding/">
+            
+                    
+                    Sharding
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+        
+        <li class="header">Appendix</li>
+        
+        
+    
+        <li class="chapter " data-level="4.1" data-path="x-1-configuration-reference/">
+            
+                <a href="x-1-configuration-reference/">
+            
+                    
+                    1. Configuration Reference
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+
+    <li class="divider"></li>
+
+    <li>
+        <a href="https://www.gitbook.com" target="blank" class="gitbook-link">
+            Published with GitBook
+        </a>
+    </li>
+</ul>
+
+
+                </nav>
+            
+        
+    </div>
+
+    <div class="book-body">
+        
+            <div class="body-inner">
+                
+                    
+
+<div class="book-header" role="navigation">
+    
+
+    <!-- Title -->
+    <h1>
+        <i class="fa fa-circle-o-notch fa-spin"></i>
+        <a href="." >Getting Started</a>
+    </h1>
+</div>
+
+
+
+
+                    <div class="page-wrapper" tabindex="-1" role="main">
+                        <div class="page-inner">
+                            
+<div id="book-search-results">
+    <div class="search-noresults">
+    
+                                <section class="normal markdown-section">
+                                
+                                <h1 id="getting-started">Getting Started</h1>
+<h3 id="installing-and-running-sequins">Installing and Running Sequins</h3>
+<p>You can download a recent release from the <a href="https://github.com/stripe/sequins/releases" target="_blank">github releases page</a>.</p>
+<p>Unzip it wherever you like. Then you can run it to see the usage:</p>
+<pre><code>$ ./sequins --help
+usage: sequins [&lt;flags&gt;]
+
+Flags:
+      --help                Show context-sensitive help (also try
+                            --help-long and --help-man).
+  -b, --bind=ADDRESS        Address to bind to. Overrides the config
+                            option of the same name.
+  -r, --source=URI          Where the sequencefiles are. Overrides the
+                            config option of the same name.
+  -l, --local-store=PATH    Where to store local data. Overrides the
+                            config option of the same name.
+      --config=PATH         The config file to use. By default, either
+                            sequins.conf in the local directory or /etc/
+                            sequins.conf will be used.
+      --debug-bind=ADDRESS  Address to bind to for pprof and expvars.
+                            Overrides the config option of the same name.
+      --version             Show application version.
+</code></pre><p>First, start up sequins and point it to wherever you intend to keep your data.
+This can be in HDFS:</p>
+<pre><code>$ hadoop fs -mkdir /sequins
+$ ./sequins --local-store /tmp/sequins --bind localhost:9599 \
+  --source hdfs://namenode:8020/sequins
+</code></pre><p>Or, if you put it in S3, use a S3 URI<sup><a href="#fn_1" id="reffn_1">1</a></sup>:</p>
+<pre><code>$ ./sequins --local-store /tmp/sequins --bind localhost:9599 \
+  --source s3://my-bucket/sequins
+</code></pre><p>If you&apos;re just playing around and don&apos;t have HDFS or S3 available, you can give
+sequins a local path:</p>
+<pre><code>$ mkdir /tmp/foobar
+$ ./sequins --local-store /tmp/sequins --bind localhost:9599 \
+  --source /tmp/foobar
+</code></pre><p>Now you can query it (I&apos;m using <a href="http://httpie.org" target="_blank">httpie</a> here, but
+curl works just as well):</p>
+<pre><code>$ http localhost:9599/foo/bar
+HTTP/1.1 404 Not Found
+Content-Length: 0
+Content-Type: text/plain; charset=utf-8
+Date: Mon, 01 Aug 2016 11:57:53 GMT
+</code></pre><p>However, you&apos;ll only get 404s, since sequins hasn&apos;t loaded any data yet. We need
+to give it some.</p>
+<h3 id="writing-some-data">Writing some data</h3>
+<p>Sequins works by asynchronously mirroring data at rest in HDFS, S3, or another
+filesystem. It&apos;s particularly suited for ingesting data written from
+<a href="http://hadoop.apache.org" target="_blank">Hadoop</a> or similar tools.</p>
+<p>You&apos;ll want to write a job that dumps out some key/value-oriented data in the
+<a href="http://hadoop.apache.org/docs/current/api/org/apache/hadoop/io/SequenceFile.html" target="_blank">SequenceFile</a> format. This is a commonly-used format in the
+Hadoop ecosystem, so tools like Pig, Scalding or Spark should all be able to
+write it out of the box. More info on the supported formats can be found in the
+<a href="1-2-data-requirements/">Data Requirements</a> section.</p>
+<p>Once you have your data ready, you need to arrange it in a particular way in
+S3, HDFS, or on local disk<sup><a href="#fn_2" id="reffn_2">2</a></sup>:</p>
+<pre><code>/path/to/data
+&#x2514;&#x2500;&#x2500; mydata
+    &#x2514;&#x2500;&#x2500; version0
+        &#x251C;&#x2500;&#x2500; part-00000  # These names are irrelevant, but this is how Hadoop
+        &#x251C;&#x2500;&#x2500; part-00001  # names files.
+        &#x251C;&#x2500;&#x2500; part-00002
+        &#x2514;&#x2500;&#x2500; ...
+</code></pre><p><code>mydata</code> is a name for your dataset, which we&apos;ll henceforth call a <strong>database</strong>.
+<code>version0</code> is the <strong>version</strong> of the database; that comes into play when we want
+to update it. Both are arbitrary strings.</p>
+<p>Once your data is written, tell sequins to reload the data by HUPing it:</p>
+<pre><code>$ pkill -HUP -f sequins
+</code></pre><p>Sequins should start automatically  downloading and mirroring your data. If it&apos;s
+a large dataset, this can take a while. (If it&apos;s a really big dataset, you&apos;ll
+want to read about <a href="1-4-running-a-distributed-cluster/">sharding over multiple
+machines</a>.)</p>
+<p>You can check the progress by opening <a href="http://localhost:9599" target="_blank">http://localhost:9599</a> in a browser, or
+simply watching the logs.</p>
+<h3 id="querying-it">Querying it</h3>
+<p>Once your data is finished loading, you can query it by issuing an HTTP GET to
+<code>/&lt;database&gt;/&lt;key&gt;</code>:</p>
+<pre><code>$ http localhost:9599/&lt;database&gt;/&lt;key&gt;
+HTTP/1.1 200 OK
+Content-Length: 7
+Date: Mon, 01 Aug 2016 11:57:53 GMT
+Last-Modified: Mon, 01 Aug 2016 11:56:27 GMT
+X-Sequins-Version: version0
+
+&lt;value&gt;
+</code></pre><p><strong>Note</strong>: The database names <code>healthz</code> and <code>healthcheck</code> cannot be used as they
+are reserved for the healthcheck endpoints.</p>
+<h3 id="further-configuration">Further Configuration</h3>
+<p>Sequins usually reads its config from a configuration file called
+<code>sequins.conf</code>, either in the local directory or at <code>/etc/sequins.conf</code>.</p>
+<p>The release tarballs contain a <code>sequins.conf.example</code>, which you can copy and
+modify as you please; you can also check out the <a href="x-1-configuration-reference/">Configuration
+Reference</a> for more details.</p>
+<blockquote id="fn_1">
+<sup>1</sup>. You may need S3 credentials in your environment or in a config file. See the <a href="x-1-configuration-reference#s3">Configuration Reference</a>.<a href="#reffn_1" title="Jump back to footnote [1] in the text."> &#x21A9;</a>
+</blockquote>
+<blockquote id="fn_2">
+<sup>2</sup>. Yes, S3 doesn&apos;t have directories. We do our best to pretend that it does, though. More information can be found in the <a href="1-1-basic-concepts/#the-source-root">next section</a>.<a href="#reffn_2" title="Jump back to footnote [2] in the text."> &#x21A9;</a>
+</blockquote>
+
+                                
+                                </section>
+                            
+    </div>
+    <div class="search-results">
+        <div class="has-results">
+            
+            <h1 class="search-results-title"><span class='search-results-count'></span> results matching "<span class='search-query'></span>"</h1>
+            <ul class="search-results-list"></ul>
+            
+        </div>
+        <div class="no-results">
+            
+            <h1 class="search-results-title">No results matching "<span class='search-query'></span>"</h1>
+            
+        </div>
+    </div>
+</div>
+
+                        </div>
+                    </div>
+                
+            </div>
+
+            
+                
+                
+                <a href="1-1-basic-concepts/" class="navigation navigation-next navigation-unique" aria-label="Next page: Basic Concepts">
+                    <i class="fa fa-angle-right"></i>
+                </a>
+                
+            
+        
+    </div>
+
+    <script>
+        var gitbook = gitbook || [];
+        gitbook.push(function() {
+            gitbook.page.hasChanged({"page":{"title":"Getting Started","level":"1.1","depth":1,"next":{"title":"Basic Concepts","level":"2.1","depth":1,"path":"1-1-basic-concepts/README.md","ref":"1-1-basic-concepts/README.md","articles":[]},"dir":"ltr"},"config":{"gitbook":"*","theme":"default","variables":{},"plugins":["-sharing","github","anchorjs"],"pluginsConfig":{"fontsettings":{"theme":"night","family":"sans","size":2},"github":{"url":"https://github.com/stripe/sequins"},"anchorjs":{"icon":"","class":"fa fa-link anchor-link"},"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"}},"file":{"path":"README.md","mtime":"2017-09-19T20:40:52.000Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2017-10-30T20:04:11.774Z"},"basePath":".","book":{"language":""}});
+        });
+    </script>
+</div>
+
+        
+    <script src="gitbook/gitbook.js"></script>
+    <script src="gitbook/theme.js"></script>
+    
+        
+        <script src="gitbook/gitbook-plugin-github/plugin.js"></script>
+        
+    
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/anchor-js/3.1.1/anchor.min.js"></script>
+        
+    
+        
+        <script src="gitbook/gitbook-plugin-anchorjs/anchor-style.js"></script>
+        
+    
+        
+        <script src="gitbook/gitbook-plugin-search/search-engine.js"></script>
+        
+    
+        
+        <script src="gitbook/gitbook-plugin-search/search.js"></script>
+        
+    
+        
+        <script src="gitbook/gitbook-plugin-lunr/lunr.min.js"></script>
+        
+    
+        
+        <script src="gitbook/gitbook-plugin-lunr/search-lunr.js"></script>
+        
+    
+        
+        <script src="gitbook/gitbook-plugin-fontsettings/fontsettings.js"></script>
+        
+    
+
+    </body>
+</html>
+

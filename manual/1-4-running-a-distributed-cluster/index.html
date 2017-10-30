@@ -1,0 +1,478 @@
+
+<!DOCTYPE HTML>
+<html lang="" >
+    <head>
+        <meta charset="UTF-8">
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <title>Running a Distributed Cluster · GitBook</title>
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="description" content="">
+        <meta name="generator" content="GitBook 3.2.3">
+        
+        
+        
+    
+    <link rel="stylesheet" href="../gitbook/style.css">
+
+    
+            
+                
+                <link rel="stylesheet" href="../gitbook/gitbook-plugin-highlight/website.css">
+                
+            
+                
+                <link rel="stylesheet" href="../gitbook/gitbook-plugin-search/search.css">
+                
+            
+                
+                <link rel="stylesheet" href="../gitbook/gitbook-plugin-fontsettings/website.css">
+                
+            
+        
+
+    
+
+    
+        
+        <link rel="stylesheet" href="../styles/website.css">
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+
+        
+    
+    
+    <meta name="HandheldFriendly" content="true"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <link rel="apple-touch-icon-precomposed" sizes="152x152" href="../gitbook/images/apple-touch-icon-precomposed-152.png">
+    <link rel="shortcut icon" href="../gitbook/images/favicon.ico" type="image/x-icon">
+
+    
+    <link rel="next" href="../1-5-healthchecks-and-monitoring/" />
+    
+    
+    <link rel="prev" href="../1-3-querying-sequins/" />
+    
+
+    </head>
+    <body>
+        
+<div class="book">
+    <div class="book-summary">
+        
+            
+<div id="book-search-input" role="search">
+    <input type="text" placeholder="Type to search" />
+</div>
+
+            
+                <nav role="navigation">
+                
+
+
+<ul class="summary">
+    
+    
+
+    
+
+    
+        
+        
+    
+        <li class="chapter " data-level="1.1" data-path="../">
+            
+                <a href="../">
+            
+                    
+                    Getting Started
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+        
+        <li class="header">Working with sequins</li>
+        
+        
+    
+        <li class="chapter " data-level="2.1" data-path="../1-1-basic-concepts/">
+            
+                <a href="../1-1-basic-concepts/">
+            
+                    
+                    Basic Concepts
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.2" data-path="../1-2-data-requirements/">
+            
+                <a href="../1-2-data-requirements/">
+            
+                    
+                    Data Requirements
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.3" data-path="../1-3-querying-sequins/">
+            
+                <a href="../1-3-querying-sequins/">
+            
+                    
+                    Querying Sequins
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter active" data-level="2.4" data-path="./">
+            
+                <a href="./">
+            
+                    
+                    Running a Distributed Cluster
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.5" data-path="../1-5-healthchecks-and-monitoring/">
+            
+                <a href="../1-5-healthchecks-and-monitoring/">
+            
+                    
+                    Healthchecks and Monitoring
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="2.6" data-path="../1-6-improving-performance/">
+            
+                <a href="../1-6-improving-performance/">
+            
+                    
+                    Improving Performance
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+        
+        <li class="header">Internals</li>
+        
+        
+    
+        <li class="chapter " data-level="3.1" data-path="../2-1-on-disk-format/">
+            
+                <a href="../2-1-on-disk-format/">
+            
+                    
+                    On-Disk Format
+            
+                </a>
+            
+
+            
+        </li>
+    
+        <li class="chapter " data-level="3.2" data-path="../2-2-sharding/">
+            
+                <a href="../2-2-sharding/">
+            
+                    
+                    Sharding
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+        
+        <li class="header">Appendix</li>
+        
+        
+    
+        <li class="chapter " data-level="4.1" data-path="../x-1-configuration-reference/">
+            
+                <a href="../x-1-configuration-reference/">
+            
+                    
+                    1. Configuration Reference
+            
+                </a>
+            
+
+            
+        </li>
+    
+
+    
+
+    <li class="divider"></li>
+
+    <li>
+        <a href="https://www.gitbook.com" target="blank" class="gitbook-link">
+            Published with GitBook
+        </a>
+    </li>
+</ul>
+
+
+                </nav>
+            
+        
+    </div>
+
+    <div class="book-body">
+        
+            <div class="body-inner">
+                
+                    
+
+<div class="book-header" role="navigation">
+    
+
+    <!-- Title -->
+    <h1>
+        <i class="fa fa-circle-o-notch fa-spin"></i>
+        <a href=".." >Running a Distributed Cluster</a>
+    </h1>
+</div>
+
+
+
+
+                    <div class="page-wrapper" tabindex="-1" role="main">
+                        <div class="page-inner">
+                            
+<div id="book-search-results">
+    <div class="search-noresults">
+    
+                                <section class="normal markdown-section">
+                                
+                                <h1 id="running-a-distributed-cluster">Running a Distributed Cluster</h1>
+<p>Multiple sequins nodes can run as a cluster, to distribute load and disk usage,
+and to provide redundancy against single node failure.</p>
+<p>To avoid the complexity this usually entails, sequins is designed in a way that
+optimizes for implementation simplicity over flexibility. Sequins will
+automatically and transparently divvy up and replicate your data, but this
+comes with two important caveats:</p>
+<ul>
+<li><p>Sequins sharding is static. A cluster will reshard a database once at
+startup, and once whenever a new version is available.</p>
+</li>
+<li><p>New nodes will happily overreplicate partitions, but if a node disappears
+the cluster will never automatically re-replicate partitions (you can,
+however, <a href="#node-failure">replace the node</a>).</p>
+</li>
+</ul>
+<p>Sequins requires a running <a href="https://zookeeper.apache.org/" target="_blank">Zookeeper</a> cluster for coordination, but not to
+serve requests (see <a href="#zookeeper-failure">Zookeeper Failure</a> for more
+information on how this dependency works, and what the failure modes are).</p>
+<h3 id="setting-up">Setting up</h3>
+<p>You&apos;ll need the following properties in <code>sequins.conf</code> on all the nodes in the
+cluster, at a minimum:</p>
+<ul>
+<li><p><code>sharding.enabled</code>: This should be set to <code>true</code>.</p>
+</li>
+<li><p><code>zk.servers</code>: This should be the address(es) of the zookeeper quorum, eg
+<code>[&quot;zk1:2181&quot;]</code></p>
+</li>
+</ul>
+<p>There&apos;s lots of other ways to tweak your distributed setup; see the
+<a href="../x-1-configuration-reference#sharding">Configuration Reference</a> for details.</p>
+<p>Then start up the nodes. Because sharding is static, sequins will wait for the
+list of peers to stabilize before proceeding; you should <strong>start the nodes at
+roughly the same time</strong>, or some partitions will be overreplicated.</p>
+<p>That&apos;s it! Once the data is ingested, you can query any node in the cluster for
+any key; peers will transparently proxy to eachother.</p>
+<h3 id="node-failure">Node Failure</h3>
+<p>By default, sequins has a <code>sharding.replication</code> setting of 2. That means that
+in the face of a single node going down, the cluster should still be able to
+respond to all requests<sup><a href="#fn_1" id="reffn_1">1</a></sup>.</p>
+<p>However, as mentioned earlier, sequins sharding is static; it will not
+automatically correct the underreplication that results from a node
+disappearing. If a node is permanently down, this can leave you in a precarious
+position.</p>
+<p>Sequins provides a mechanism to deal with this in the form of the
+<a href="../x-1-configuration-reference/#shardid">shard_id</a> configuration
+property. The <code>shard_id</code>, unlike hostname, does not have to be unique per node.
+If you spin up a node with the same <code>shard_id</code>, it will replicate the exact same
+partitions. You can use this to replace an exploded node, or to spin up a new
+node in advance of decommissioning an old one.</p>
+<blockquote id="fn_1">
+<sup>1</sup>. Of course, it&apos;s still important for clients to retry requests (and have timeouts).<a href="#reffn_1" title="Jump back to footnote [1] in the text."> &#x21A9;</a>
+</blockquote>
+<h3 id="zookeeper-failure">Zookeeper Failure</h3>
+<p>Sequins depends on Zookeeper for the coordination of sharding, but only ever
+asynchronously. That means that if Zookeeper becomes unavailable,</p>
+<ul>
+<li><p>New nodes will refuse to start up.</p>
+</li>
+<li><p>Sequins will not download new databases or versions of databases.</p>
+</li>
+<li><p>In the case of a split, where some nodes can talk to Zookeeper and others
+can not, the partition map may become stale, and you may receive different
+versions of a given database from different nodes.</p>
+</li>
+</ul>
+<p>Crucially, however, Zookeeper going down should <strong>never impact an existing
+cluster&apos;s ability to service requests</strong>.</p>
+<h3 id="version-upgrades">Version upgrades</h3>
+<p>Sequins uses Zookeeper to check which nodes have which partitions. It will
+upgrade to a new version when that version is minimally replicated&#x2014;when every
+partition is available somewhere in the cluster.</p>
+<p>Note that this occurs before the version is fully replicated, and
+possibly even before the local node has any partitions.</p>
+<h4 id="replication">Replication</h4>
+<p>During the window between an upgrade and full replication, Sequins is
+more vulnerable to node failure. You can mitigate this vulnerability by
+setting <code>sharding.min_replication</code>, so that Sequins waits for a certain
+amount of redundancy before triggering the upgrade.</p>
+<p>However, a high <code>min_replication</code> will also make upgrades take longer.
+In particular, if <code>min_replication</code> is the same as <code>replication</code>, a
+successful upgrade requires every single node to be up and running.</p>
+<p>Recommended settings for a stable cluster are therefore
+1 &lt; <code>min_replication</code> &lt; <code>replication</code> &lt;= count(<code>shard_id</code>).</p>
+<h4 id="version-consistency">Version consistency</h4>
+<p>Nodes in a sequins cluster will make a best-effort attempt to upgrade a given
+database at more or less the same time. It is, of course, physically impossible
+to ensure that individual nodes upgrade exactly at the same time, and you should
+not rely on this property.</p>
+<p>Individual nodes will also attempt to be individually consistent. If you query a
+node in sequence, you should only ever see the version monotonically increase;
+in other words, once a node has upgraded to a new version of a given database,
+it should never return values from an older version, <em>even if that request was
+proxied to another node</em>. This, however, is also best-effort, and can fail in
+the case of extended coordination failure (because of a Zookeeper outage or
+something else).</p>
+<p>In these cases, Sequins will always optimize for availability, and choose to
+return a value from a different version if that is the only value available.
+Sequins returns an <code>X-Sequins-Version</code> header <a href="../1-3-querying-sequins/#response-and-request-headers">on
+responses</a> if you
+need to track what version you&apos;re getting.</p>
+
+                                
+                                </section>
+                            
+    </div>
+    <div class="search-results">
+        <div class="has-results">
+            
+            <h1 class="search-results-title"><span class='search-results-count'></span> results matching "<span class='search-query'></span>"</h1>
+            <ul class="search-results-list"></ul>
+            
+        </div>
+        <div class="no-results">
+            
+            <h1 class="search-results-title">No results matching "<span class='search-query'></span>"</h1>
+            
+        </div>
+    </div>
+</div>
+
+                        </div>
+                    </div>
+                
+            </div>
+
+            
+                
+                <a href="../1-3-querying-sequins/" class="navigation navigation-prev " aria-label="Previous page: Querying Sequins">
+                    <i class="fa fa-angle-left"></i>
+                </a>
+                
+                
+                <a href="../1-5-healthchecks-and-monitoring/" class="navigation navigation-next " aria-label="Next page: Healthchecks and Monitoring">
+                    <i class="fa fa-angle-right"></i>
+                </a>
+                
+            
+        
+    </div>
+
+    <script>
+        var gitbook = gitbook || [];
+        gitbook.push(function() {
+            gitbook.page.hasChanged({"page":{"title":"Running a Distributed Cluster","level":"2.4","depth":1,"next":{"title":"Healthchecks and Monitoring","level":"2.5","depth":1,"path":"1-5-healthchecks-and-monitoring/README.md","ref":"1-5-healthchecks-and-monitoring/README.md","articles":[]},"previous":{"title":"Querying Sequins","level":"2.3","depth":1,"path":"1-3-querying-sequins/README.md","ref":"1-3-querying-sequins/README.md","articles":[]},"dir":"ltr"},"config":{"gitbook":"*","theme":"default","variables":{},"plugins":["-sharing","github","anchorjs"],"pluginsConfig":{"fontsettings":{"theme":"night","family":"sans","size":2},"github":{"url":"https://github.com/stripe/sequins"},"anchorjs":{"icon":"","class":"fa fa-link anchor-link"},"highlight":{},"search":{},"lunr":{"maxIndexSize":1000000,"ignoreSpecialCharacters":false},"theme-default":{"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"},"showLevel":false}},"structure":{"langs":"LANGS.md","readme":"README.md","glossary":"GLOSSARY.md","summary":"SUMMARY.md"},"pdf":{"pageNumbers":true,"fontSize":12,"fontFamily":"Arial","paperSize":"a4","chapterMark":"pagebreak","pageBreaksBefore":"/","margin":{"right":62,"left":62,"top":56,"bottom":56}},"styles":{"website":"styles/website.css","pdf":"styles/pdf.css","epub":"styles/epub.css","mobi":"styles/mobi.css","ebook":"styles/ebook.css","print":"styles/print.css"}},"file":{"path":"1-4-running-a-distributed-cluster/README.md","mtime":"2017-10-25T03:39:39.000Z","type":"markdown"},"gitbook":{"version":"3.2.3","time":"2017-10-30T20:04:11.774Z"},"basePath":"..","book":{"language":""}});
+        });
+    </script>
+</div>
+
+        
+    <script src="../gitbook/gitbook.js"></script>
+    <script src="../gitbook/theme.js"></script>
+    
+        
+        <script src="../gitbook/gitbook-plugin-github/plugin.js"></script>
+        
+    
+        
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/anchor-js/3.1.1/anchor.min.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-anchorjs/anchor-style.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-search/search-engine.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-search/search.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-lunr/lunr.min.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-lunr/search-lunr.js"></script>
+        
+    
+        
+        <script src="../gitbook/gitbook-plugin-fontsettings/fontsettings.js"></script>
+        
+    
+
+    </body>
+</html>
+

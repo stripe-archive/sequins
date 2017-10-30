@@ -202,31 +202,6 @@ func (vs *version) sparkeyDownload(src, dst, fileType string, transform func(io.
 }
 
 // Add a Sparkey file to this version.
-//
-// Sequins supports a secondary input format: a directory of Sparkey files.
-//
-// The directory MUST contain Sparkey log files, with names ending in `.spl`. For each
-// log file, the directory MUST also contain a corresponding compressed Sparkey index
-// file, with the same name but an extension of `.spi.sz`.
-//
-// The log file MUST use Snappy compression. The index file MUST be compressed as framed
-// Snappy.
-//
-// The name of each Sparkey file MUST contain a sequence of digits. The first such sequence
-// will be taken as the partition number, eg: `part-r-00012-00034.spl` will have partition
-// number 12. The keys of the Sparkey files MUST be partitioned such that file `i` of `N`
-// total files contains a key `k` iff `k.asJavaString().hashCode() % N == i`. The keys in
-// each log file MUST be in sorted order.
-//
-// Multiple log files per partition are allowed. However, such log files must have non-
-// overlapping key ranges.
-//
-// The number of log files in a directory SHOULD NOT exceed 512, or zookeeper performance
-// may suffer. The size of a log file SHOULD NOT exceed 5 GiB, for reasons of load
-// balancing and download size.
-//
-// The directory SHOULD also contain a _SUCCESS file, for resistence against partial fetches,
-// see the `require_success_file` option.
 func (vs *version) addSparkeyFile(file string, disp string, partition int) error {
 	success := false
 
@@ -261,25 +236,6 @@ func (vs *version) addSparkeyFile(file string, disp string, partition int) error
 }
 
 // Add a sequencefile to this version.
-//
-// Sequins' primary input format is a directory of sequencefiles. The key and value classes
-// of the sequencefiles MUST be either BytesWritable or TextWritable.
-//
-// The directory SHOULD also contain a _SUCCESS file, for resistence against partial fetches,
-// see the `require_success_file` option.
-//
-// The sequencefiles keys SHOULD be partitioned such that file `i` of `N` total files contains
-// a key `k` iff `k.asJavaString().hashCode() % N == i`. Other partitioning schemes will cause
-// each Sequins node to download more data than necessary.
-//
-// The number of sequencefiles in a directory SHOULD NOT exceed 512, or zookeeper performance
-// may suffer. The size of a sequencefile SHOULD NOT exceed 5 GiB, for reasons of load
-// balancing and download size.
-//
-// The sequencefiles MAY use compression.
-//
-// The names of the sequencefiles are not important, and no relationships between them are
-// assumed.
 func (vs *version) addSequenceFile(file string, disp string, partitions map[int]bool) error {
 	log.Println("Reading records from", disp)
 

@@ -10,22 +10,13 @@ know](https://github.com/stripe/sequins/issues/new).
 That said, there are a few tweaks available to improve load times and reduce
 latency in some specific circumstances.
 
-### Pre-shard Your Data
+### Input File Optimization
 
-Sequins uses a [sharding algorithm](../2-2-sharding/README.md) in which keys are
-bucket into N partitions, where the number of partitions is the number of files
-in the dataset. To do this, it uses a hash function based on `hashCode`
-function, chosen because it aligns coincidentally with the way Hadoop buckets
-keys into reducers.
+Sequins will load your data faster if your input SequenceFiles are compressed
+and [pre-sharded](../1-2-data-requirements#sharding).
 
-In practice, this means that if your Hadoop job outputting the data has a reduce
-step, and **the key is the same as the output key**, then your data is
-effectively pre-sharded when it's written out, and each individual sequins
-instance can just download the data it needs, rather scanning everything and
-downloading just the keys it wants.
-
-While this obviously isn't a hard requirement, it can make loading new data much
-faster.
+Data will load even faster, and CPU usage will be lower, if you provide your
+input data as [Sparkey format](../1-2-data-requirements#sparkey-files).
 
 ### Throttle Loads to Reduce the Impact on Latency
 

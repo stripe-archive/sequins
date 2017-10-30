@@ -65,7 +65,8 @@ func init() {
 }
 
 type status struct {
-	DBs map[string]dbStatus `json:"dbs"`
+	DBs     map[string]dbStatus `json:"dbs"`
+	ShardID string              `json:"shard_id"`
 }
 
 type dbStatus struct {
@@ -203,6 +204,10 @@ func (s *sequins) serveStatus(w http.ResponseWriter, r *http.Request) {
 				db.Versions[versionName] = calculateReplicationStats(version)
 			}
 		}
+	}
+
+	if s.config.Sharding.Enabled {
+		status.ShardID = s.peers.ShardID
 	}
 
 	if acceptsJSON(r) {

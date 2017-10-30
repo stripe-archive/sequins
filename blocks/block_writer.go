@@ -25,10 +25,14 @@ type blockWriter struct {
 	addLock sync.Mutex
 }
 
-func newBlock(storePath string, partition int, compression Compression, blockSize int) (*blockWriter, error) {
-	id := uuid.New()
-	name := fmt.Sprintf("block-%05d-%s.spl", partition, id)
+func newBlockName(partition int) (name, id string) {
+	id = uuid.New()
+	name = fmt.Sprintf("block-%05d-%s.spl", partition, id)
+	return
+}
 
+func newBlock(storePath string, partition int, compression Compression, blockSize int) (*blockWriter, error) {
+	name, id := newBlockName(partition)
 	path := filepath.Join(storePath, name)
 	log.Println("Initializing block at", path)
 

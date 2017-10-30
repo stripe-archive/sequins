@@ -53,7 +53,7 @@ will be loaded (which one is picked is undefined).
 In addition, each version is sharded into N partitions. Each partition K
 contains the keyspace where `hashCode(key) % N == K`.
 
-We use java's hashCode algorithm as the hashing function, and the number of
+We use Java's String hashCode algorithm as the hashing function, and the number of
 files as N, because that allows us to treat many datasets as pre-sharded by
 Hadoop's shuffle step. In particular, any Hadoop job with the [default
 Partitioner][partitioner] will produce a version where each file has the

@@ -9,6 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"os"
+	"path/filepath"
+
+	"github.com/bsm/go-sparkey"
+	"github.com/golang/snappy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -140,4 +145,85 @@ func TestBlockParallelReads(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+func copySparkey(t *testing.T, name, dir string) string {
+	cur, err := os.Getwd()
+	require.NoError(t, err)
+	testDir := filepath.Join(filepath.Dir(cur), "test_databases", "sparkey")
+
+	srcLog, err := os.Open(sparkey.LogFileName(filepath.Join(testDir, name)))
+	require.NoError(t, err)
+	defer srcLog.Close()
+	dstLogPath := sparkey.LogFileName(filepath.Join(dir, name))
+	dstLog, err := os.Create(dstLogPath)
+	require.NoError(t, err)
+	defer dstLog.Close()
+	_, err = io.Copy(dstLog, srcLog)
+	require.NoError(t, err)
+
+	srcIdx, err := os.Open(sparkey.HashFileName(filepath.Join(testDir, name)) + ".sz")
+	require.NoError(t, err)
+	defer srcIdx.Close()
+	uncIdx := snappy.NewReader(srcIdx)
+	dstIdx, err := os.Create(sparkey.HashFileName(filepath.Join(dir, name)))
+	require.NoError(t, err)
+	defer dstIdx.Close()
+	_, err = io.Copy(dstIdx, uncIdx)
+	require.NoError(t, err)
+
+	return dstLogPath
+}
+
+func TestBlockSparkey(t *testing.T) {
+	tmpSparkey, err := ioutil.TempDir("", "sequins-sparkey-")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpSparkey)
+	tmpStorePath, err := ioutil.TempDir("", "sequins-store-")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpStorePath)
+
+	// Empty file
+	empty := copySparkey(t, "part1", tmpSparkey)
+	block, err := newBlockFromSparkey(tmpStorePath, empty, 11)
+	require.NoError(t, err)
+	assert.Equal(t, 11, block.Partition)
+	assert.Equal(t, 0, block.Count)
+	assert.Nil(t, block.minKey)
+	assert.Nil(t, block.maxKey)
+	rec, err := block.Get([]byte("bad"))
+	assert.NoError(t, err)
+	assert.Nil(t, rec)
+	_, err = os.Stat(empty)
+	// newBlockFromSparkey should have removed the original.
+	assert.True(t, os.IsNotExist(err))
+
+	// Try Delete()
+	_, err = os.Stat(filepath.Join(tmpStorePath, block.Name))
+	assert.False(t, os.IsNotExist(err))
+	err = block.Delete()
+	assert.NoError(t, err)
+	_, err = os.Stat(filepath.Join(tmpStorePath, block.Name))
+	assert.True(t, os.IsNotExist(err))
+
+	// Non-empty file
+	nonEmpty0 := copySparkey(t, "part0-file0", tmpSparkey)
+	block, err = newBlockFromSparkey(tmpStorePath, nonEmpty0, 12)
+	require.NoError(t, err)
+	assert.Equal(t, 12, block.Partition)
+	assert.Equal(t, 2, block.Count)
+	assert.Equal(t, "Alice", string(block.minKey))
+	assert.Nil(t, block.maxKey)
+	rec, err = block.Get([]byte("bad"))
+	assert.NoError(t, err)
+	assert.Nil(t, rec)
+	rec, err = block.Get([]byte("Betty"))
+	assert.NoError(t, err)
+	assert.NotNil(t, rec)
+	buf, err := ioutil.ReadAll(rec)
+	assert.NoError(t, err)
+	rec.Close()
+	assert.Equal(t, "White", string(buf))
+	_, err = os.Stat(empty)
+	assert.True(t, os.IsNotExist(err))
 }

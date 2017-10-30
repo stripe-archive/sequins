@@ -4,14 +4,19 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/bsm/go-sparkey"
 	"github.com/colinmarc/sequencefile"
+	"github.com/golang/snappy"
 
 	"github.com/stripe/sequins/blocks"
 )
@@ -158,17 +163,80 @@ func (vs *version) addFiles(partitions map[int]bool) error {
 	}
 }
 
-func (vs *version) addFile(file string, partitions map[int]bool) error {
-	if vs.stats != nil {
-		start := time.Now()
-		defer func() {
-			duration := time.Since(start)
-			tags := []string{fmt.Sprintf("sequins_db:%s", vs.db.name)}
-			vs.stats.Timing("s3.download_duration", duration, tags, 1)
-		}()
+// Download a sparkey file into a local file
+func (vs *version) sparkeyDownload(src, dst, fileType string, transform func(io.Reader) io.Reader) error {
+	success := false
+
+	disp := vs.sequins.backend.DisplayPath(vs.db.name, vs.name, src)
+	log.Printf("downloading sparkey %s file %s\n", fileType, disp)
+
+	stream, err := vs.sequins.backend.Open(vs.db.name, vs.name, src)
+	if err != nil {
+		return fmt.Errorf("opening sparkey %s file for %s: %s", fileType, disp, err)
+	}
+	defer stream.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return fmt.Errorf("creating sparkey %s file for %s: %s", fileType, disp, err)
+	}
+	defer func() {
+		out.Close()
+		if !success {
+			os.Remove(dst)
+		}
+	}()
+
+	var trStream io.Reader = stream
+	if transform != nil {
+		trStream = transform(trStream)
 	}
 
-	disp := vs.sequins.backend.DisplayPath(vs.db.name, vs.name, file)
+	_, err = io.Copy(out, trStream)
+	if err != nil {
+		return fmt.Errorf("reading sparkey %s file %s: %s", fileType, disp, err)
+	}
+
+	success = true
+	return nil
+}
+
+// Add a Sparkey file to this version.
+func (vs *version) addSparkeyFile(file string, disp string, partition int) error {
+	success := false
+
+	tmp, err := ioutil.TempFile(vs.path, ".sparkey")
+	if err != nil {
+		return fmt.Errorf("creating temporary sparkey file for %s: %s", disp, err)
+	}
+	logPath := sparkey.LogFileName(tmp.Name())
+	idxPath := sparkey.HashFileName(logPath)
+	defer func() {
+		os.Remove(tmp.Name())
+		if !success {
+			os.Remove(logPath)
+			os.Remove(idxPath)
+		}
+	}()
+
+	err = vs.sparkeyDownload(file, logPath, "log", nil)
+	if err != nil {
+		return err
+	}
+
+	idxSrc := strings.TrimSuffix(file, ".spl") + ".spi.sz"
+	err = vs.sparkeyDownload(idxSrc, idxPath, "index", func(r io.Reader) io.Reader {
+		return snappy.NewReader(r)
+	})
+	if err != nil {
+		return err
+	}
+
+	return vs.blockStore.AddSparkeyBlock(logPath, partition)
+}
+
+// Add a sequencefile to this version.
+func (vs *version) addSequenceFile(file string, disp string, partitions map[int]bool) error {
 	log.Println("Reading records from", disp)
 
 	stream, err := vs.sequins.backend.Open(vs.db.name, vs.name, file)
@@ -192,6 +260,38 @@ func (vs *version) addFile(file string, partitions map[int]bool) error {
 		log.Println("Skipping", disp, "because it contains no relevant partitions")
 	} else if err != nil {
 		return fmt.Errorf("reading %s: %s", disp, err)
+	}
+
+	return nil
+}
+
+func (vs *version) addFile(file string, partitions map[int]bool) error {
+	disp := vs.sequins.backend.DisplayPath(vs.db.name, vs.name, file)
+
+	raw, partition := isSparkeyFile(file)
+	if raw && !partitions[partition] {
+		// Since we already know the partition, we can skip this right away.
+		log.Printf("Skipping sparkey file %s\n", disp)
+		return nil
+	}
+
+	if vs.stats != nil {
+		start := time.Now()
+		defer func() {
+			duration := time.Since(start)
+			tags := []string{fmt.Sprintf("sequins_db:%s", vs.db.name)}
+			vs.stats.Timing("s3.download_duration", duration, tags, 1)
+		}()
+	}
+
+	var err error
+	if raw {
+		err = vs.addSparkeyFile(file, disp, partition)
+	} else {
+		err = vs.addSequenceFile(file, disp, partitions)
+	}
+	if err != nil {
+		return err
 	}
 
 	// Intentionally hang, for tests.

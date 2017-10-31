@@ -65,7 +65,8 @@ func init() {
 }
 
 type status struct {
-	DBs map[string]dbStatus `json:"dbs"`
+	DBs     map[string]dbStatus `json:"dbs"`
+	ShardID string              `json:"shard_id"`
 }
 
 type dbStatus struct {
@@ -78,6 +79,11 @@ type versionStatus struct {
 	ReplicationHistogram map[int]int `json:"replication_histogram"`
 	TargetReplication    int         `json:"target_replication"`
 	AverageReplication   float32     `json:"average_replication"`
+
+	// For backwards compatibility
+	MissingPartitions         int `json:"missing_partitions"`
+	UnderreplicatedPartitions int `json:"underreplicated_partitions"`
+	OverreplicatedPartitions  int `json:"overreplicated_partitions"`
 
 	Nodes map[string]nodeVersionStatus `json:"nodes"`
 }
@@ -198,6 +204,10 @@ func (s *sequins) serveStatus(w http.ResponseWriter, r *http.Request) {
 				db.Versions[versionName] = calculateReplicationStats(version)
 			}
 		}
+	}
+
+	if s.config.Sharding.Enabled {
+		status.ShardID = s.peers.ShardID
 	}
 
 	if acceptsJSON(r) {
@@ -344,6 +354,16 @@ func calculateReplicationStats(vst versionStatus) versionStatus {
 		vst.AverageReplication = 0
 	} else {
 		vst.AverageReplication = float32(totalReplication) / float32(vst.NumPartitions)
+	}
+
+	for replication, count := range vst.ReplicationHistogram {
+		if replication == 0 {
+			vst.MissingPartitions += count
+		} else if replication < vst.TargetReplication {
+			vst.UnderreplicatedPartitions += count
+		} else if replication > vst.TargetReplication {
+			vst.OverreplicatedPartitions += count
+		}
 	}
 
 	return vst

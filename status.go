@@ -79,6 +79,11 @@ type versionStatus struct {
 	TargetReplication    int         `json:"target_replication"`
 	AverageReplication   float32     `json:"average_replication"`
 
+	// For backwards compatibility
+	MissingPartitions         int `json:"missing_partitions"`
+	UnderreplicatedPartitions int `json:"underreplicated_partitions"`
+	OverreplicatedPartitions  int `json:"overreplicated_partitions"`
+
 	Nodes map[string]nodeVersionStatus `json:"nodes"`
 }
 
@@ -344,6 +349,16 @@ func calculateReplicationStats(vst versionStatus) versionStatus {
 		vst.AverageReplication = 0
 	} else {
 		vst.AverageReplication = float32(totalReplication) / float32(vst.NumPartitions)
+	}
+
+	for replication, count := range vst.ReplicationHistogram {
+		if replication == 0 {
+			vst.MissingPartitions += count
+		} else if replication < vst.TargetReplication {
+			vst.UnderreplicatedPartitions += count
+		} else if replication > vst.TargetReplication {
+			vst.OverreplicatedPartitions += count
+		}
 	}
 
 	return vst

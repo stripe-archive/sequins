@@ -40,7 +40,7 @@ var errDirLocked = errors.New("failed to acquire lock")
 
 type sequins struct {
 	config  sequinsConfig
-	http    *http.Server
+	http    http.Handler
 	backend backend.Backend
 
 	dbs     map[string]*db
@@ -127,6 +127,10 @@ func (s *sequins) init() error {
 	}()
 
 	s.sighups = sighups
+
+	// Setup the HTTP handler.
+	s.http = trackQueries(s)
+
 	return nil
 }
 
@@ -266,13 +270,8 @@ func (s *sequins) initLocalStore() error {
 func (s *sequins) start() {
 	defer s.shutdown()
 
-	var h http.Handler = s
-	if s.config.Debug.Bind != "" && s.config.Debug.Expvars {
-		h = trackQueries(s)
-	}
-
 	log.Println("Listening on", s.config.Bind)
-	graceful.Run(s.config.Bind, time.Second, h)
+	graceful.Run(s.config.Bind, time.Second, s.http)
 }
 
 func (s *sequins) shutdown() {

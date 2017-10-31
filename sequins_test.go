@@ -47,22 +47,7 @@ func init() {
 	}
 }
 
-func getSequins(t *testing.T, backend backend.Backend, localStore string) *sequins {
-	if localStore == "" {
-		tmpDir, err := ioutil.TempDir("", "sequins-")
-		require.NoError(t, err)
-
-		localStore = tmpDir
-	}
-
-	config := defaultConfig()
-	config.Bind = "localhost:9599"
-	config.LocalStore = localStore
-	config.MaxParallelLoads = 1
-
-	s := newSequins(backend, config)
-	require.NoError(t, s.init())
-
+func waitForDBs(t *testing.T, s *sequins) {
 	// This is a hack to wait until all DBs are ready.
 	dbs, err := s.listDBs()
 	require.NoError(t, err)
@@ -89,7 +74,25 @@ func getSequins(t *testing.T, backend backend.Backend, localStore string) *sequi
 			time.Sleep(time.Millisecond)
 		}
 	}
+}
 
+func getSequins(t *testing.T, backend backend.Backend, localStore string) *sequins {
+	if localStore == "" {
+		tmpDir, err := ioutil.TempDir("", "sequins-")
+		require.NoError(t, err)
+
+		localStore = tmpDir
+	}
+
+	config := defaultConfig()
+	config.Bind = "localhost:9599"
+	config.LocalStore = localStore
+	config.MaxParallelLoads = 1
+
+	s := newSequins(backend, config)
+	require.NoError(t, s.init())
+
+	waitForDBs(t, s)
 	return s
 }
 

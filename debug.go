@@ -46,7 +46,7 @@ type sequinsStats struct {
 	}
 
 	latencyHist *hdrhistogram.Histogram
-	queries     chan queryStats
+	queries     chan *queryStats
 
 	DiskUsed int64
 	lock     sync.RWMutex
@@ -55,6 +55,7 @@ type sequinsStats struct {
 type queryStats struct {
 	duration time.Duration
 	status   int
+	path     string
 }
 
 func startDebugServer(config sequinsConfig) {
@@ -100,7 +101,7 @@ func expvarHandler(w http.ResponseWriter, r *http.Request) {
 func newStats(localStorePath string) *sequinsStats {
 	s := &sequinsStats{
 		latencyHist: hdrhistogram.New(0, int64(10*time.Second/time.Microsecond), 5),
-		queries:     make(chan queryStats, 1024),
+		queries:     make(chan *queryStats, 1024),
 	}
 
 	go s.updateRequestStats()
@@ -222,19 +223,34 @@ func (s *sequinsStats) String() string {
 // trackingHandler is an http.Handler that tracks request times.
 type trackingHandler struct {
 	*sequins
+	trackStats bool
+	requestLog chan *queryStats
 }
 
-func trackQueries(s *sequins) trackingHandler {
-	return trackingHandler{s}
+func trackQueries(s *sequins) http.Handler {
+	debug := s.config.Debug
+	trackStats := debug.Bind != "" && debug.Expvars
+
+	var requestLog chan *queryStats
+	if debug.RequestLog != "" {
+		requestLog = make(chan *queryStats, 1024)
+		go logRequests(debug.RequestLog, requestLog)
+	}
+
+	if trackStats || requestLog != nil {
+		return &trackingHandler{s, trackStats, requestLog}
+	} else {
+		return s
+	}
 }
 
-func (t trackingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (t *trackingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Don't track queries to the status pages, and don't track proxied
 	// queries.
 	path := strings.TrimPrefix(r.URL.Path, "/")
 	if strings.Index(path, "/") > 0 && r.URL.Query().Get("proxy") == "" {
-		w = trackQuery(w)
-		defer w.(*queryTracker).done()
+		w = trackQuery(t, w)
+		defer w.(*queryTracker).done(path)
 	}
 
 	t.sequins.ServeHTTP(w, r)
@@ -242,14 +258,17 @@ func (t trackingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 type queryTracker struct {
 	http.ResponseWriter
-	start  time.Time
-	status int
+	handler *trackingHandler
+	start   time.Time
+	status  int
 }
 
-func trackQuery(w http.ResponseWriter) *queryTracker {
+func trackQuery(t *trackingHandler, w http.ResponseWriter) *queryTracker {
 	return &queryTracker{
 		ResponseWriter: w,
+		handler:        t,
 		start:          time.Now(),
+		status:         200,
 	}
 }
 
@@ -258,18 +277,37 @@ func (t *queryTracker) WriteHeader(status int) {
 	t.ResponseWriter.WriteHeader(status)
 }
 
-func (t *queryTracker) done() {
-	if expStats == nil {
-		return
-	}
-
-	q := queryStats{
+func (t *queryTracker) done(path string) {
+	q := &queryStats{
 		duration: time.Now().Sub(t.start),
 		status:   t.status,
+		path:     path,
+	}
+
+	if expStats != nil {
+		select {
+		case expStats.queries <- q:
+		default:
+		}
 	}
 
 	select {
-	case expStats.queries <- q:
+	case t.handler.requestLog <- q:
 	default:
+	}
+}
+
+func logRequests(path string, stats chan *queryStats) {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		log.Printf("Can't create request log: %s\n", err)
+		return
+	}
+	defer file.Close()
+	log.Printf("Logging requests to %s\n", path)
+
+	logger := log.New(file, "", log.LstdFlags|log.LUTC)
+	for q := range stats {
+		logger.Printf("%q %d\n", q.path, q.status)
 	}
 }

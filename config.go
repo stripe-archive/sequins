@@ -68,9 +68,10 @@ type zkConfig struct {
 }
 
 type debugConfig struct {
-	Bind    string `toml:"bind"`
-	Expvars bool   `toml:"expvars"`
-	Pprof   bool   `toml:"pprof"`
+	Bind       string `toml:"bind"`
+	Expvars    bool   `toml:"expvars"`
+	Pprof      bool   `toml:"pprof"`
+	RequestLog string `toml:"request_log"`
 }
 
 // testConfig has some options used in functional tests to slow sequins down
@@ -127,9 +128,10 @@ func defaultConfig() sequinsConfig {
 			SessionTimeout: duration{10 * time.Second},
 		},
 		Debug: debugConfig{
-			Bind:    "",
-			Expvars: true,
-			Pprof:   false,
+			Bind:       "",
+			Expvars:    true,
+			Pprof:      false,
+			RequestLog: "",
 		},
 		Test: testConfig{
 			UpgradeDelay:         duration{time.Duration(0)},

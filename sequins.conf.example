@@ -155,3 +155,6 @@ source = "hdfs://namenode:8020/path/to/sequins"
 
 # pprof = false
 # If set, this adds the default pprof handlers to the debug HTTP server.
+
+# request_log = "/var/log/sequins-requests.log"
+# Unset by default. If set, requests will be logged to the provided file.

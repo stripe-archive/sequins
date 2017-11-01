@@ -428,9 +428,15 @@ func (w *Watcher) cleanupTree(node string) {
 		return
 	}
 
+	var wg sync.WaitGroup
+	wg.Add(len(children))
 	for _, child := range children {
-		w.cleanupTree(path.Join(node, child))
+		go func(c string) {
+			w.cleanupTree(path.Join(node, c))
+			wg.Done()
+		}(child)
 	}
+	wg.Wait()
 
 	w.conn.Delete(node, -1)
 }

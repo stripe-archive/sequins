@@ -39,7 +39,7 @@ type version struct {
 
 	state     versionState
 	created   time.Time
-	available time.Time
+	active    time.Time
 	stateLock sync.RWMutex
 
 	ready     chan bool

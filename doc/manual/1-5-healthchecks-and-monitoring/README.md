@@ -23,19 +23,28 @@ with `Accept: application/json`:
 
 A simplified healthcheck interface is available at the `/healthz` and
 `/healthcheck` endpoints which will return a JSON representation of the state
-of each node. The status code will either be `200` if they all have the status
-`AVAILABLE` or `ACTIVE`, or `404` if at least one node does not:
+of each node. The status code will either be `200` if at least one version is
+marked as `ACTIVE` or `404` if this isn't the case.
 
     $ http localhost:9599/healthz
     HTTP/1.1 200 OK
-    Content-Length: 46
+    Content-Length: 150
     Content-Type: application/json
-    Date: Wed, 26 Jul 2017 21:49:52 GMT
- 
+    Date: Thu, 02 Nov 2017 00:29:29 GMT
     {
         "baby-names": {
             "1": {
-                "localhost": "ACTIVE"
+                "active_at": "2017-11-02T00:29:26Z",
+                "created_at": "2017-11-02T00:29:26Z",
+                "current": true,
+                "partitions": [
+                    0,
+                    1,
+                    2,
+                    3,
+                    4
+                ],
+                "state": "ACTIVE"
             }
         }
     }
@@ -47,17 +56,18 @@ These states are specific to the version of the database of the Sequins node,
 so identical versions can have different states depending on which node they
 are on.
 
-- ACTIVE: The version is actively being served. Only one version within a
-  database should hold this state at a time. For a given Sequins node, its
-  version won't be upgraded to ACTIVE from AVAILABLE until all of its peers
-  also mark the same version as AVAILABLE. The result of this is that all of
-  the nodes in a cluster should be in agreement as to which version is ACTIVE.
+- ACTIVE: The version is actively being served on every node within the
+  cluster. For a given node, it will only mark a version as ACTIVE if all of
+  its partitions have met the minimum replication target and all of its peers
+  are also ready to mark the version as ACTIVE. The result of this is that all
+  nodes in a cluster should be in agreement about which versions are ACTIVE.
+  Generally, only one version within each db should be ACTIVE at a given time,
+  but an exception to this is when a node is waiting for its peers to stop
+  using an old version after marking a newer one as ACTIVE.
 
-- AVAILABLE: The version has been fully built and is capable of being served by
-  the node.
-
-- BUILDING: The existence of the version has been noted and is currently being
-  downloaded and indexed.
+- BUILDING: The existence of the version has been noted and it is currently
+  being downloaded and indexed. This version is also capable of being served,
+  but does not yet have all of its data.
 
 - REMOVING: The version is in the process of being removed from Sequins as a
   newer version has taken its place and is ACTIVE.

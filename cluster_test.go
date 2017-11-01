@@ -198,7 +198,7 @@ func (tc *testCluster) removeAvailableVersion(version testVersion) {
 }
 
 func (ts *testSequins) getPartitions(version testVersion) []int {
-	url := fmt.Sprintf("http://%s/healthcheck", ts.name)
+	url := fmt.Sprintf("http://%s/healthz", ts.name)
 	res, err := ts.testClient.Get(url)
 	require.NoError(ts, err)
 
@@ -846,7 +846,7 @@ func TestClusterMin(t *testing.T) {
 }
 
 func (ts *testSequins) getShardID(t *testing.T) string {
-	url := fmt.Sprintf("http://%s/healthcheck", ts.name)
+	url := fmt.Sprintf("http://%s/healthz", ts.name)
 
 	resp, err := ts.testClient.Get(url)
 	assert.NoError(t, err)

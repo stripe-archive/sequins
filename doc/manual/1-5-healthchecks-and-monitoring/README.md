@@ -21,10 +21,10 @@ with `Accept: application/json`:
             "flights": {
               ...
 
-A simplified healthcheck interface is available at the `/healthz` and
-`/healthcheck` endpoints which will return a JSON representation of the state
-of each node. The status code will either be `200` if at least one version is
-marked as `ACTIVE` or `404` if this isn't the case.
+A simplified healthcheck interface is available at the `/healthz` endpoint
+which will return a JSON representation of the state of each node. The status
+code will either be `200` if at least one version is marked as `ACTIVE` or
+`404` if this isn't the case:
 
     $ http localhost:9599/healthz
     HTTP/1.1 200 OK

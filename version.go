@@ -128,6 +128,10 @@ func (vs *version) initBlockStore(path string) error {
 		}
 
 		vs.partitions.UpdateLocal(have)
+
+		// Assume that if we have a manifest, we have successfully fetched this version at some point.
+		// We don't want to re-calculate partition assignment, but just use what the manifest told us.
+		vs.built = true
 	}
 
 	vs.blockStore = blockStore

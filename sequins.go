@@ -28,14 +28,6 @@ import (
 
 const defaultMaxLoads = 10
 
-// While we wait to pick a shard ID, other nodes are prohibited from joining the cluster because
-// we're holding a lock. This timeout can therefore be pretty short.
-//
-// Indeed, it needs to be shorter than the regular cluster convergence timeout, or
-// the cluster will be seen to "converge" when it's really just waiting for someone to release
-// the lock.
-const shardIDConvergenceMax = 3 * time.Second
-
 var errDirLocked = errors.New("failed to acquire lock")
 
 type sequins struct {
@@ -134,15 +126,10 @@ func (s *sequins) init() error {
 	return nil
 }
 
-func (s *sequins) ensureShardID(zkWatcher *zk.Watcher, routableIpAddress string) (*sharding.Peers, error) {
+func (s *sequins) joinCluster(zkWatcher *zk.Watcher, routableIpAddress string) (*sharding.Peers, error) {
 	lock := zkWatcher.CreateIDAssignmentLock()
 	lock.Lock()
 	defer lock.Unlock()
-
-	convergenceTime := s.config.Sharding.TimeToConverge.Duration
-	if convergenceTime > shardIDConvergenceMax {
-		convergenceTime = shardIDConvergenceMax
-	}
 
 	shardID := s.config.Sharding.ShardID
 	if shardID == "" {
@@ -153,7 +140,7 @@ func (s *sequins) ensureShardID(zkWatcher *zk.Watcher, routableIpAddress string)
 				log.Print("No self-assigned ID file found")
 
 				peersNotJoined := sharding.WatchPeersNoJoin(zkWatcher)
-				peersNotJoined.WaitToConverge(convergenceTime)
+				peersNotJoined.WaitToConverge(s.config.Sharding.TimeToConverge.Duration)
 
 				shardID, err = peersNotJoined.SmallestAvailableShardID()
 				if err != nil {
@@ -169,7 +156,7 @@ func (s *sequins) ensureShardID(zkWatcher *zk.Watcher, routableIpAddress string)
 				return nil, fmt.Errorf("Could not check %q exists: %q", fp, err)
 			}
 		} else {
-			log.Print("Self-assigned ID file found. Attempting to read.")
+			log.Print("Self-assigned ID file found. Attemtping to read.")
 			bytes, err := ioutil.ReadFile(fp)
 			if err != nil {
 				return nil, fmt.Errorf("Could not read %q: %q", fp, err)
@@ -179,17 +166,10 @@ func (s *sequins) ensureShardID(zkWatcher *zk.Watcher, routableIpAddress string)
 		}
 	}
 	log.Printf("Using %q as shardID", shardID)
-	peers := sharding.WatchPeers(zkWatcher, shardID, routableIpAddress)
-	return peers, nil
-}
 
-func (s *sequins) joinCluster(zkWatcher *zk.Watcher, routableIpAddress string) (*sharding.Peers, error) {
-	// The shard-ID lock is released inside here--we don't need that lock to be held while we wait to converge.
-	peers, err := s.ensureShardID(zkWatcher, routableIpAddress)
-	if err != nil {
-		return nil, err
-	}
+	peers := sharding.WatchPeers(zkWatcher, shardID, routableIpAddress)
 	peers.WaitToConverge(s.config.Sharding.TimeToConverge.Duration)
+
 	return peers, nil
 }
 

@@ -432,7 +432,7 @@ func (vs *version) status() versionStatus {
 		CreatedAt:  vs.created.UTC().Truncate(time.Second),
 		State:      vs.state,
 		Partitions: partitions,
-		ShardID:    vs.sequins.config.Sharding.ShardID,
+		ShardID:    vs.sequins.peers.ShardID,
 	}
 
 	if !vs.available.IsZero() {

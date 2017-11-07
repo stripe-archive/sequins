@@ -422,8 +422,10 @@ func (vs *version) status() versionStatus {
 	}
 
 	hostname := "localhost"
+	shardID := ""
 	if vs.sequins.peers != nil {
 		hostname = vs.sequins.address
+		shardID = vs.sequins.peers.ShardID
 	}
 
 	sort.Ints(partitions)
@@ -432,7 +434,7 @@ func (vs *version) status() versionStatus {
 		CreatedAt:  vs.created.UTC().Truncate(time.Second),
 		State:      vs.state,
 		Partitions: partitions,
-		ShardID:    vs.sequins.config.Sharding.ShardID,
+		ShardID:    shardID,
 	}
 
 	if !vs.available.IsZero() {

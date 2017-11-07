@@ -95,8 +95,9 @@ backfills them. To do that, it
     a. Creating an array of all partitions in sorted order * the replication
        factor. (e.g. [1, 1, 1, 2, 2, 2, ...])
 
-    b. Creating an array of all nodes it knows about in sorted order based on
-       their shard id.
+    b. Creating an array of all shard ids it knows about in sorted order. If
+       multiple nodes share the same shard id, the shard id will only show up
+       once in the array.
 
     c. For all of the partitions at index `idx`, if `idx % len(nodes)` is equal
        to its position in the node array, we assign it that partition.

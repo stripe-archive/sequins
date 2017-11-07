@@ -90,11 +90,23 @@ func (p *Partitions) pickLocal() {
 				toAssign = append(toAssign, i)
 			}
 		}
-		nodes := append(p.peers.GetShardIds(), p.peers.ShardID)
-		sort.Strings(nodes)
+
+		// only keep unique shardIDs so that nodes with the same
+		// shardID will get the same partition assignments
+		ids := make(map[string]bool)
+		for _, id := range append(p.peers.GetShardIds(), p.peers.ShardID) {
+			ids[id] = true
+		}
+
+		uniqueIds := make([]string, 0, len(ids))
+		for id := range ids {
+			uniqueIds = append(uniqueIds, id)
+		}
+		sort.Strings(uniqueIds)
+
 		for i, id := range toAssign {
-			assignee := i % len(nodes)
-			if nodes[assignee] == p.peers.ShardID {
+			assignee := i % len(uniqueIds)
+			if uniqueIds[assignee] == p.peers.ShardID {
 				selected[id] = true
 			}
 		}

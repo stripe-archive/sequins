@@ -94,6 +94,7 @@ type nodeVersionStatus struct {
 	Current     bool         `json:"current"`
 	State       versionState `json:"state"`
 	Partitions  []int        `json:"partitions"`
+	ShardID     string       `json:"shard_id"`
 }
 
 type versionState string
@@ -424,6 +425,7 @@ func (vs *version) status() versionStatus {
 		CreatedAt:  vs.created.UTC().Truncate(time.Second),
 		State:      vs.state,
 		Partitions: partitions,
+		ShardID:    vs.sequins.config.Sharding.ShardID,
 	}
 
 	if !vs.available.IsZero() {

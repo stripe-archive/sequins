@@ -130,7 +130,7 @@
         color: #fa755a;
       }
 
-      div.nodename {
+      div.nodename, div.nodeid {
         display: inline-block;
         font-weight: bold;
       }
@@ -318,6 +318,7 @@
                   <div class="nodes">
                     {{ range $nodeName, $node := $version.Nodes }}
                       <div class="node {{ if $node.Current }}nodecurrent{{else}}nodenotcurrent{{end}}{{ if eq $node.State "ERROR" }} nodeerror{{end}}">
+                        <div class="nodeid">{{$node.ShardID}}: </div>
                         <div class="nodename">{{$nodeName}}</div>
                         <div class="nodestate {{ $node.State }}">{{ $node.State }}</div>
                         <div class="nodetimestamp">

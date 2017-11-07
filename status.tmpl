@@ -216,8 +216,11 @@
             var nodeHeight =  Math.floor(totalHeight / (Object.keys(version.nodes).length)),
               partitionWidth = Math.floor(totalWidth / numPartitions);
 
-            var n = 0;
             for (nodeName in version.nodes) {
+              var nodeId = "node_" + dbName + "_" + versionName + "_" + nodeName;
+              var nodeElem = document.getElementById(nodeId);
+              var idx = Array.prototype.indexOf.call(nodeElem.parentElement.children, nodeElem);
+
               var node = version.nodes[nodeName];
 
               if (node.state === "ACTIVE") {
@@ -239,10 +242,8 @@
                 if (node.state !== "BUILDING")
                   replication[p] += 1;
 
-                ctx.fillRect(partitionWidth * p-1, nodeHeight * n, partitionWidth+1, nodeHeight);
+                ctx.fillRect(partitionWidth * p-1, nodeHeight * idx, partitionWidth+1, nodeHeight);
               });
-
-              n += 1;
             }
           }
         }
@@ -316,10 +317,13 @@
                 <div class="versionpath">{{ $version.Path }}</div>
                 <div class="versionwrapper">
                   <div class="nodes">
-                    {{ range $nodeName, $node := $version.Nodes }}
-                      <div class="node {{ if $node.Current }}nodecurrent{{else}}nodenotcurrent{{end}}{{ if eq $node.State "ERROR" }} nodeerror{{end}}">
-                        <div class="nodeid">{{$node.ShardID}}: </div>
-                        <div class="nodename">{{$nodeName}}</div>
+                    {{ range $node := $version.SortedNodes }}
+                      <div class="node {{ if $node.Current }}nodecurrent{{else}}nodenotcurrent{{end}}{{ if eq $node.State "ERROR" }} nodeerror{{end}}"
+                          id="node_{{$dbName}}_{{$versionName}}_{{$node.Name}}">
+                        {{ if ne $node.ShardID "" }}
+                          <div class="nodeid">{{$node.ShardID}}: </div>
+                        {{ end }}
+                        <div class="nodename">{{$node.Name}}</div>
                         <div class="nodestate {{ $node.State }}">{{ $node.State }}</div>
                         <div class="nodetimestamp">
                           {{ if eq $node.State "BUILDING" }}

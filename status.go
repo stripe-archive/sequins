@@ -89,6 +89,7 @@ type versionStatus struct {
 }
 
 type nodeVersionStatus struct {
+	Name        string       `json:"name"`
 	CreatedAt   time.Time    `json:"created_at"`
 	AvailableAt time.Time    `json:"available_at,omitempty"`
 	Current     bool         `json:"current"`
@@ -420,8 +421,14 @@ func (vs *version) status() versionStatus {
 		partitions = append(partitions, p)
 	}
 
+	hostname := "localhost"
+	if vs.sequins.peers != nil {
+		hostname = vs.sequins.address
+	}
+
 	sort.Ints(partitions)
 	nodeStatus := nodeVersionStatus{
+		Name:       hostname,
 		CreatedAt:  vs.created.UTC().Truncate(time.Second),
 		State:      vs.state,
 		Partitions: partitions,
@@ -430,11 +437,6 @@ func (vs *version) status() versionStatus {
 
 	if !vs.available.IsZero() {
 		nodeStatus.AvailableAt = vs.available.UTC().Truncate(time.Second)
-	}
-
-	hostname := "localhost"
-	if vs.sequins.peers != nil {
-		hostname = vs.sequins.address
 	}
 
 	st.Nodes[hostname] = nodeStatus
@@ -457,4 +459,30 @@ func (vs *version) setState(state versionState) {
 			}
 		}
 	}
+}
+
+type nodeVersionStatuses []nodeVersionStatus
+
+func (nvs nodeVersionStatuses) Len() int {
+	return len(nvs)
+}
+
+func (nvs nodeVersionStatuses) Swap(i, j int) {
+	nvs[i], nvs[j] = nvs[j], nvs[i]
+}
+
+func (nvs nodeVersionStatuses) Less(i, j int) bool {
+	if cmp := strings.Compare(nvs[i].ShardID, nvs[j].ShardID); cmp != 0 {
+		return cmp < 0
+	}
+	return strings.Compare(nvs[i].Name, nvs[j].Name) < 0
+}
+
+func (vs versionStatus) SortedNodes() nodeVersionStatuses {
+	nvs := make(nodeVersionStatuses, 0, len(vs.Nodes))
+	for _, n := range vs.Nodes {
+		nvs = append(nvs, n)
+	}
+	sort.Sort(nvs)
+	return nvs
 }

@@ -141,7 +141,6 @@ func (db *db) refresh() error {
 func (db *db) switchVersion(version *version) bool {
 	// Prepare the version, so that during the switching period we can respond
 	// to requests for it.
-	version.setState(versionAvailable)
 	db.mux.prepare(version)
 
 	// Build any partitions we're missing in the background.

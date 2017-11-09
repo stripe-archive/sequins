@@ -147,10 +147,6 @@
         background-color: #3ecf8e;
       }
 
-      .available {
-        background-color: #aff1b6;
-      }
-
       .removing {
         background-color: #ffcca5;
       }
@@ -225,8 +221,6 @@
 
               if (node.state === "ACTIVE") {
                 ctx.fillStyle = "#3ecf8e";
-              } else if (node.state === "AVAILABLE") {
-                ctx.fillStyle = "#aff1b6";
               } else if (node.state === "BUILDING") {
                 ctx.fillStyle = "#f5be58";
               } else if (node.state === "REMOVING") {
@@ -328,8 +322,8 @@
                         <div class="nodetimestamp">
                           {{ if eq $node.State "BUILDING" }}
                             building since <b>{{ $node.CreatedAt }}</b>
-                          {{ else if (eq $node.State "ACTIVE" "AVAILABLE" "REMOVING") }}
-                            available since <b>{{ $node.AvailableAt }}</b>
+                          {{ else if (eq $node.State "ACTIVE" "REMOVING") }}
+                            active since <b>{{ $node.ActiveAt }}</b>
                           {{ end }}
                         </div>
                       </div>

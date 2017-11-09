@@ -89,23 +89,22 @@ type versionStatus struct {
 }
 
 type nodeVersionStatus struct {
-	Name        string       `json:"name"`
-	CreatedAt   time.Time    `json:"created_at"`
-	AvailableAt time.Time    `json:"available_at,omitempty"`
-	Current     bool         `json:"current"`
-	State       versionState `json:"state"`
-	Partitions  []int        `json:"partitions"`
-	ShardID     string       `json:"shard_id"`
+	Name       string       `json:"name"`
+	CreatedAt  time.Time    `json:"created_at"`
+	ActiveAt   time.Time    `json:"active_at,omitempty"`
+	Current    bool         `json:"current"`
+	State      versionState `json:"state"`
+	Partitions []int        `json:"partitions"`
+	ShardID    string       `json:"shard_id"`
 }
 
 type versionState string
 
 const (
-	versionActive    versionState = "ACTIVE"
-	versionAvailable              = "AVAILABLE"
-	versionRemoving               = "REMOVING"
-	versionBuilding               = "BUILDING"
-	versionError                  = "ERROR"
+	versionActive   versionState = "ACTIVE"
+	versionRemoving              = "REMOVING"
+	versionBuilding              = "BUILDING"
+	versionError                 = "ERROR"
 )
 
 func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
@@ -138,11 +137,11 @@ func (s *sequins) serveHealth(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// We return a 200 when any database has an ACTIVE or AVAILABLE version
+	// We return a 200 when any database has an ACTIVE or BUILDING version
 	versionsAvailable := false
 	for _, db := range statuses {
 		for _, version := range db {
-			if version.State == versionActive || version.State == versionAvailable {
+			if version.State == versionActive || version.State == versionBuilding {
 				versionsAvailable = true
 				break
 			}
@@ -339,7 +338,7 @@ func copyDBStatus(status dbStatus) dbStatus {
 func calculateReplicationStats(vst versionStatus) versionStatus {
 	partitionReplication := make(map[int]int)
 	for _, node := range vst.Nodes {
-		if node.State == versionActive || node.State == versionAvailable || node.State == versionRemoving {
+		if node.State == versionBuilding || node.State == versionActive || node.State == versionRemoving {
 			for _, p := range node.Partitions {
 				partitionReplication[p]++
 			}
@@ -437,8 +436,8 @@ func (vs *version) status() versionStatus {
 		ShardID:    shardID,
 	}
 
-	if !vs.available.IsZero() {
-		nodeStatus.AvailableAt = vs.available.UTC().Truncate(time.Second)
+	if !vs.active.IsZero() {
+		nodeStatus.ActiveAt = vs.active.UTC().Truncate(time.Second)
 	}
 
 	st.Nodes[hostname] = nodeStatus
@@ -451,12 +450,12 @@ func (vs *version) setState(state versionState) {
 
 	if vs.state != versionError {
 		vs.state = state
-		if state == versionAvailable || state == versionActive {
-			vs.available = time.Now()
+		if state == versionActive {
+			vs.active = time.Now()
 
 			if vs.stats != nil {
 				tags := []string{fmt.Sprintf("sequins_db:%s", vs.db.name)}
-				duration := vs.available.Sub(vs.created)
+				duration := vs.active.Sub(vs.created)
 				vs.stats.Timing("db_creation_time", duration, tags, 1)
 			}
 		}

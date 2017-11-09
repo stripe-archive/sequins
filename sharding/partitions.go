@@ -127,7 +127,7 @@ func (p *Partitions) sync(updates chan []string) {
 	}
 }
 
-// FindPeers returns the list of peers who have the given partition available.
+// FindPeers returns the list of peers who have the given partition.
 func (p *Partitions) FindPeers(partition int) []string {
 	if p.peers == nil {
 		return nil

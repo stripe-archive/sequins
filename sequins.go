@@ -28,6 +28,8 @@ import (
 
 const defaultMaxLoads = 10
 
+const localhost = "127.0.0.1"
+
 // While we wait to pick a shard ID, other nodes are prohibited from joining the cluster because
 // we're holding a lock. This timeout can therefore be pretty short.
 //
@@ -375,6 +377,11 @@ func (s *sequins) refreshAll() {
 }
 
 func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/fetch" && strings.HasPrefix(r.RemoteAddr, localhost) && r.Method == "POST" {
+		s.serveFetch(w, r)
+		return
+	}
+
 	if r.Method != "GET" {
 		w.WriteHeader(http.StatusBadRequest)
 		return

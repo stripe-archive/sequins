@@ -122,7 +122,7 @@ func (db *db) refresh() error {
 	if existingVersion != nil {
 		// If the build succeeded or is in progress, this is a noop. If it errored
 		// before, this will retry.
-		go existingVersion.build()
+		go existingVersion.build(false)
 		return nil
 	}
 
@@ -144,7 +144,7 @@ func (db *db) switchVersion(version *version) bool {
 	db.mux.prepare(version)
 
 	// Build any partitions we're missing in the background.
-	go version.build()
+	go version.build(false)
 
 	// Start advertising our partitions to peers.
 	go version.partitions.Advertise()

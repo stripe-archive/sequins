@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 
+	"log"
+
 	"github.com/stripe/sequins/zk"
 )
 
@@ -110,6 +112,22 @@ func (p *Partitions) pickLocal() {
 				selected[id] = true
 			}
 		}
+
+		mine := -1
+		for i, u := range uniqueIds {
+			if u == p.peers.ShardID {
+				mine = i
+			}
+		}
+		log.Printf("pickLocal params: %s/%s shard %s => %d parts, shard %d/%d\n",
+			p.db, p.version, p.peers.ShardID, p.numPartitions, mine, len(uniqueIds))
+
+		picked := []int{}
+		for s, _ := range selected {
+			picked = append(picked, s)
+		}
+		sort.Ints(picked)
+		log.Printf("pickLocal result: %s/%s shard %s => %v\n", p.db, p.version, p.peers.ShardID, picked)
 	}
 	p.selected = selected
 }

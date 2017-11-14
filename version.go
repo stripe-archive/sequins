@@ -106,6 +106,8 @@ func newVersion(sequins *sequins, db *db, path, name string) (*version, error) {
 				close(vs.ready)
 			}()
 		}
+	} else {
+		log.Printf("vs.partitions is nil?! for %s of %s", vs.name, db.name)
 	}
 
 	return vs, nil

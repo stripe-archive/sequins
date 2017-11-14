@@ -69,6 +69,8 @@ func WatchPartitions(zkWatcher *zk.Watcher, peers *Peers, db, version string, nu
 		updates, _ := zkWatcher.WatchChildren(p.zkPath)
 		p.updateRemote(<-updates)
 		go p.sync(updates)
+	} else {
+		log.Printf("peers is nil?! for %s of %s", version, db)
 	}
 
 	p.updateReplicationStatus()
@@ -241,12 +243,14 @@ func (p *Partitions) Unadvertise() {
 
 func (p *Partitions) updateRemote(nodes []string) {
 	if p.peers == nil {
+		log.Printf("p.peers is nil?! for %s of %s", p.version, p.db)
 		return
 	}
 
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
+	log.Printf("Got nodes for %s of %s: %+v", p.version, p.db, nodes)
 	remote := make(map[int][]string)
 	for _, node := range nodes {
 		parts := strings.SplitN(node, "@", 2)

@@ -57,6 +57,7 @@ func (vs *version) build() {
 	vs.buildLock.Lock()
 	defer vs.buildLock.Unlock()
 	if vs.built {
+		log.Printf("Version %s of %s already built", vs.name, vs.db.name)
 		return
 	}
 
@@ -65,6 +66,7 @@ func (vs *version) build() {
 	defer vs.db.buildLock.Unlock()
 
 	partitions := vs.partitions.NeededLocal()
+	log.Printf("Need partitoins for %s of %s: %v", vs.name, vs.db.name, partitions)
 	if len(partitions) == 0 {
 		vs.built = true
 		return

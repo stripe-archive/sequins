@@ -53,8 +53,10 @@ func (db *db) backfillVersions() error {
 
 	versions, err := db.listVersions("")
 	if err != nil {
+		log.Printf("Error listing versions for %s: %v", db.name, err)
 		return err
 	} else if len(versions) == 0 {
+		log.Printf("No versions for %s", db.name)
 		return nil
 	}
 
@@ -82,6 +84,7 @@ func (db *db) backfillVersions() error {
 			continue
 		}
 
+		log.Printf("Trying to switch to version %s of %s", db.name, v)
 		if db.switchVersion(version) {
 			break
 		}
@@ -155,6 +158,7 @@ func (db *db) switchVersion(version *version) bool {
 	// set of partitions, then we want to start up being able to proxy to them.
 	select {
 	case <-version.ready:
+		log.Printf("Trying to upgrade (A) to version %s of %s", db.name, version.name)
 		db.upgrade(version)
 		return true
 	default:
@@ -169,6 +173,7 @@ func (db *db) switchVersion(version *version) bool {
 	// deleting it.
 	go func() {
 		<-version.ready
+		log.Printf("Trying to upgrade (B) to version %s of %s", db.name, version.name)
 		db.upgrade(version)
 	}()
 

@@ -74,10 +74,12 @@ type dbStatus struct {
 }
 
 type versionStatus struct {
-	Path                 string      `json:"path"`
-	NumPartitions        int         `json:"num_partitions"`
+	Path              string `json:"path"`
+	NumPartitions     int    `json:"num_partitions"`
+	TargetReplication int    `json:"target_replication"`
+
+	// Values that are recalculated with calculateReplicationStats
 	ReplicationHistogram map[int]int `json:"replication_histogram"`
-	TargetReplication    int         `json:"target_replication"`
 	AverageReplication   float32     `json:"average_replication"`
 
 	// For backwards compatibility
@@ -201,8 +203,10 @@ func (s *sequins) serveStatus(w http.ResponseWriter, r *http.Request) {
 		}
 
 		for _, db := range status.DBs {
-			for versionName, version := range db.Versions {
-				db.Versions[versionName] = calculateReplicationStats(version)
+			for versionName := range db.Versions {
+				vst := db.Versions[versionName]
+				vst.calculateReplicationStats()
+				db.Versions[versionName] = vst
 			}
 		}
 	}
@@ -245,8 +249,10 @@ func (db *db) serveStatus(w http.ResponseWriter, r *http.Request) {
 			s = mergeDBStatus(peerDBStatus, s)
 		}
 
-		for versionName, version := range s.Versions {
-			s.Versions[versionName] = calculateReplicationStats(version)
+		for versionName := range s.Versions {
+			vst := s.Versions[versionName]
+			vst.calculateReplicationStats()
+			s.Versions[versionName] = vst
 		}
 	}
 
@@ -335,41 +341,6 @@ func copyDBStatus(status dbStatus) dbStatus {
 	return mergeDBStatus(fresh, status)
 }
 
-func calculateReplicationStats(vst versionStatus) versionStatus {
-	partitionReplication := make(map[int]int)
-	for _, node := range vst.Nodes {
-		if node.State == versionBuilding || node.State == versionActive || node.State == versionRemoving {
-			for _, p := range node.Partitions {
-				partitionReplication[p]++
-			}
-		}
-	}
-
-	totalReplication := 0
-	for _, replication := range partitionReplication {
-		vst.ReplicationHistogram[replication]++
-		totalReplication += replication
-	}
-
-	if vst.NumPartitions == 0 {
-		vst.AverageReplication = 0
-	} else {
-		vst.AverageReplication = float32(totalReplication) / float32(vst.NumPartitions)
-	}
-
-	for replication, count := range vst.ReplicationHistogram {
-		if replication == 0 {
-			vst.MissingPartitions += count
-		} else if replication < vst.TargetReplication {
-			vst.UnderreplicatedPartitions += count
-		} else if replication > vst.TargetReplication {
-			vst.OverreplicatedPartitions += count
-		}
-	}
-
-	return vst
-}
-
 func acceptsJSON(r *http.Request) bool {
 	for _, accept := range r.Header["Accept"] {
 		if accept == "application/json" {
@@ -441,6 +412,8 @@ func (vs *version) status() versionStatus {
 	}
 
 	st.Nodes[hostname] = nodeStatus
+	st.calculateReplicationStats()
+
 	return st
 }
 
@@ -477,6 +450,48 @@ func (nvs nodeVersionStatuses) Less(i, j int) bool {
 		return cmp < 0
 	}
 	return strings.Compare(nvs[i].Name, nvs[j].Name) < 0
+}
+
+// calculateReplicationStats will populate the versionStatus with replication
+// information based on all of the nodes it contains. This should only be
+// called once for a given versionStatus.
+func (vs *versionStatus) calculateReplicationStats() {
+	// Reset the initial values
+	vs.ReplicationHistogram = make(map[int]int)
+	vs.MissingPartitions = 0
+	vs.UnderreplicatedPartitions = 0
+	vs.OverreplicatedPartitions = 0
+
+	partitionReplication := make(map[int]int)
+	for _, node := range vs.Nodes {
+		if node.State == versionBuilding || node.State == versionActive || node.State == versionRemoving {
+			for _, p := range node.Partitions {
+				partitionReplication[p]++
+			}
+		}
+	}
+
+	totalReplication := 0
+	for _, replication := range partitionReplication {
+		vs.ReplicationHistogram[replication]++
+		totalReplication += replication
+	}
+
+	if vs.NumPartitions == 0 {
+		vs.AverageReplication = 0
+	} else {
+		vs.AverageReplication = float32(totalReplication) / float32(vs.NumPartitions)
+	}
+
+	for replication, count := range vs.ReplicationHistogram {
+		if replication == 0 {
+			vs.MissingPartitions += count
+		} else if replication < vs.TargetReplication {
+			vs.UnderreplicatedPartitions += count
+		} else if replication > vs.TargetReplication {
+			vs.OverreplicatedPartitions += count
+		}
+	}
 }
 
 func (vs versionStatus) SortedNodes() nodeVersionStatuses {

@@ -29,7 +29,7 @@ type Partitions struct {
 	zkPath  string
 
 	NumPartitions int
-	replication   int
+	Replication   int
 
 	// The minimum replication to stop counting a partition as "missing".
 	minReplication int
@@ -55,7 +55,7 @@ func WatchPartitions(zkWatcher *zk.Watcher, peers *Peers, db, version string, nu
 		version:        version,
 		zkPath:         path.Join("partitions", db, version),
 		NumPartitions:  numPartitions,
-		replication:    replication,
+		Replication:    replication,
 		minReplication: minReplication,
 		selected:       make(map[int]bool),
 		local:          make(map[int]bool),
@@ -85,9 +85,9 @@ func (p *Partitions) pickLocal() {
 			selected[i] = true
 		}
 	} else {
-		toAssign := make([]int, 0, p.NumPartitions*p.replication)
+		toAssign := make([]int, 0, p.NumPartitions*p.Replication)
 		for i := 0; i < p.NumPartitions; i++ {
-			for j := 0; j < p.replication; j++ {
+			for j := 0; j < p.Replication; j++ {
 				toAssign = append(toAssign, i)
 			}
 		}
@@ -299,24 +299,41 @@ func (p *Partitions) updateRemote(nodes []string) {
 	p.updateReplicationStatus()
 }
 
-func (p *Partitions) updateReplicationStatus() {
-	// Check for each partition. If every one is available on at least minReplication node,
-	// then we're ready to rumble.
+// GlobalReplication returns a mapping of partitions to their replication
+// factor across all nodes in the cluster and the number of missing partitions
+func (p *Partitions) GlobalReplication() map[int]int {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	replication, _ := p.globalReplicationMap()
+	return replication
+}
+
+func (p *Partitions) globalReplicationMap() (map[int]int, int) {
+	replicationMap := make(map[int]int)
 	missing := 0
+
 	for i := 0; i < p.NumPartitions; i++ {
-		replication := 0
 		if _, ok := p.local[i]; ok {
-			replication++
+			replicationMap[i]++
 		}
 
 		if remotes, ok := p.remote[i]; ok {
-			replication += len(remotes)
+			replicationMap[i] += len(remotes)
 		}
 
-		if replication < p.minReplication {
-			missing += 1
+		if replicationMap[i] < p.minReplication {
+			missing++
 		}
 	}
+
+	return replicationMap, missing
+}
+
+func (p *Partitions) updateReplicationStatus() {
+	// Check for each partition. If every one is available on at least minReplication node,
+	// then we're ready to rumble.
+	_, missing := p.globalReplicationMap()
 
 	if missing == 0 && !p.readyClosed {
 		close(p.Ready)

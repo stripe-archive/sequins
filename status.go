@@ -261,14 +261,17 @@ func (s *sequins) serveFetch(w http.ResponseWriter, r *http.Request) {
 
 			log.Printf("Requesting partitions %v for %s/%s...", partitions, dbName, versionName)
 
+			replication := version.partitions.GlobalReplication()
+
 			// Filter out partitions that can't exist and those
 			// that are already local to avoid needless fetching.
 			partitionMap := make(map[int]bool, len(partitions))
 			for _, p := range partitions {
 				validPartition := p >= 0 && p < version.partitions.NumPartitions
 				existingPartition := version.partitions.HaveSelected(p) && version.partitions.HaveLocal(p)
+				underreplicated := replication[p] < version.partitions.Replication
 
-				if validPartition && !existingPartition {
+				if validPartition && !existingPartition && underreplicated {
 					partitionMap[p] = true
 				}
 			}

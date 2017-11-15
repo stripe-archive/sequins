@@ -174,6 +174,22 @@ upgrading.
 You probably don't want this to be equal to `replication`,
 or sequins will never upgrade versions if any node at all is down.
 
+### max_replication
+Type | Default
+:--: | -------
+int  | 0 (disabled)
+
+This is the maximum number of replicas that sequins will allow to exist for a
+given partition. This can come into play if ZK starts flapping while nodes
+are coming online, causing partition assignments to be inconsistent. You
+probably don't want this to be equal to `replication` as it will make it hard
+to replace a node that is having issues (since the replacement node will see
+all partitions as already properly replicated and refuse to fetch them
+again).
+
+A value of less than `replication` means that `max_replication` is
+ignored and no limit is imposed.
+
 ### time_to_converge
 
 Type   | Default

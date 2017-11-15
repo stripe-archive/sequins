@@ -109,9 +109,21 @@ func minRepl(r int) configOption {
 	}
 }
 
+func maxRepl(r int) configOption {
+	return func(config *sequinsConfig) {
+		config.Sharding.MaxReplication = r
+	}
+}
+
 func noShardID() configOption {
 	return func(config *sequinsConfig) {
 		config.Sharding.ShardID = ""
+	}
+}
+
+func shardID(id string) configOption {
+	return func(config *sequinsConfig) {
+		config.Sharding.ShardID = id
 	}
 }
 
@@ -842,6 +854,65 @@ func TestClusterMin(t *testing.T) {
 			t.Parallel()
 			testMinReplication(t, testCase.MinReplication, testCase.Progression)
 		})
+	}
+}
+
+// TestMaxReplication tests that nodes within the cluster will respect
+// partition replication limits.
+func TestMaxReplication(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+	t.Parallel()
+
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	// Create a partially full cluster. Both nodes should grab all the partitions.
+	s := tc.addSequins(repl(2), maxRepl(2), shardID("1"))
+	s.makeVersionAvailable(v1)
+	s.expectProgression(v1)
+	s.startTest()
+	time.Sleep(expectTimeout)
+
+	s = tc.addSequins(repl(2), maxRepl(2), shardID("2"))
+	s.makeVersionAvailable(v1)
+	s.expectProgression(v1)
+	s.startTest()
+	time.Sleep(expectTimeout)
+
+	expectedAssignments := [][]int{{0, 1, 2, 3, 4}, {0, 1, 2, 3, 4}}
+	for i, host := range tc.sequinses {
+		id := host.getShardID(t)
+		require.Equal(t, expectedAssignments[i], host.getPartitions(v1), "partition assignment for node (%s) should be correct", id)
+	}
+
+	// Add a node that will respect the maximum replication and thus fetch
+	// no nodes.
+	s = tc.addSequins(repl(2), maxRepl(2), shardID("3"))
+	s.makeVersionAvailable(v1)
+	s.expectProgression(v1)
+	s.startTest()
+	time.Sleep(expectTimeout)
+
+	expectedAssignments = [][]int{{0, 1, 2, 3, 4}, {0, 1, 2, 3, 4}, {}}
+	for i, host := range tc.sequinses {
+		id := host.getShardID(t)
+		require.Equal(t, expectedAssignments[i], host.getPartitions(v1), "partition assignment for node (%s) should be correct", id)
+	}
+
+	// Add a node that will have the maximum replication limit disabled and
+	// thus fetch partitions as normal.
+	s = tc.addSequins(repl(2), maxRepl(0), shardID("4"))
+	s.makeVersionAvailable(v1)
+	s.expectProgression(v1)
+	s.startTest()
+	time.Sleep(expectTimeout)
+
+	expectedAssignments = [][]int{{0, 1, 2, 3, 4}, {0, 1, 2, 3, 4}, {}, {1, 3}}
+	for i, host := range tc.sequinses {
+		id := host.getShardID(t)
+		require.Equal(t, expectedAssignments[i], host.getPartitions(v1), "partition assignment for node (%s) should be correct", id)
 	}
 }
 

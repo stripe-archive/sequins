@@ -78,12 +78,14 @@ func newVersion(sequins *sequins, db *db, path, name string) (*version, error) {
 	}
 
 	minReplication := 1
+	maxReplication := 0
 	if sequins.config.Sharding.Enabled {
 		minReplication = sequins.config.Sharding.MinReplication
+		maxReplication = sequins.config.Sharding.MaxReplication
 	}
 
 	vs.partitions = sharding.WatchPartitions(sequins.zkWatcher, sequins.peers,
-		db.name, name, vs.numPartitions, sequins.config.Sharding.Replication, minReplication)
+		db.name, name, vs.numPartitions, sequins.config.Sharding.Replication, minReplication, maxReplication)
 
 	err = vs.initBlockStore(path)
 	if err != nil {

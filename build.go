@@ -50,13 +50,13 @@ func compressionCodecString(c sequencefile.CompressionCodec) string {
 	}
 }
 
-func (vs *version) build() {
+func (vs *version) build(rebuild bool) {
 	// Welcome to the sequins museum of lock acquisition. First, we grab the lock
 	// for this version, and check that the previous holder didn't finish
 	// building.
 	vs.buildLock.Lock()
 	defer vs.buildLock.Unlock()
-	if vs.built {
+	if !rebuild && vs.built {
 		return
 	}
 
@@ -159,7 +159,7 @@ func (vs *version) addFiles(partitions map[int]bool) error {
 	case err := <-errs:
 		return err
 	case <-c:
-		return vs.blockStore.Save(vs.partitions.SelectedLocal())
+		return vs.blockStore.Save(vs.partitions.Selected())
 	}
 }
 

@@ -105,7 +105,7 @@ func (store *BlockStore) Add(key, value []byte) error {
 
 // Save saves flushes any newly created blocks, and writes a manifest file to
 // the directory.
-func (store *BlockStore) Save(selectedPartitions map[int]bool) error {
+func (store *BlockStore) Save(selectedPartitions []int) error {
 	store.blockMapLock.Lock()
 	defer store.blockMapLock.Unlock()
 
@@ -127,17 +127,11 @@ func (store *BlockStore) Save(selectedPartitions map[int]bool) error {
 	store.newSparkeyBlocks = make(map[int][]*Block)
 
 	// Save the manifest.
-	var partitions []int
-	partitions = make([]int, 0, len(selectedPartitions))
-	for partition := range selectedPartitions {
-		partitions = append(partitions, partition)
-	}
-
 	manifest := Manifest{
 		Version:            manifestVersion,
 		Blocks:             make([]BlockManifest, len(store.Blocks)),
 		NumPartitions:      store.numPartitions,
-		SelectedPartitions: partitions,
+		SelectedPartitions: selectedPartitions,
 	}
 
 	for i, block := range store.Blocks {

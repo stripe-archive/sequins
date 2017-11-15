@@ -28,8 +28,8 @@ type Partitions struct {
 	version string
 	zkPath  string
 
-	numPartitions int
-	replication   int
+	NumPartitions int
+	Replication   int
 
 	// The minimum replication to stop counting a partition as "missing".
 	minReplication int
@@ -54,9 +54,10 @@ func WatchPartitions(zkWatcher *zk.Watcher, peers *Peers, db, version string, nu
 		db:             db,
 		version:        version,
 		zkPath:         path.Join("partitions", db, version),
-		numPartitions:  numPartitions,
-		replication:    replication,
+		NumPartitions:  numPartitions,
+		Replication:    replication,
 		minReplication: minReplication,
+		selected:       make(map[int]bool),
 		local:          make(map[int]bool),
 		remote:         make(map[int][]string),
 	}
@@ -77,16 +78,16 @@ func WatchPartitions(zkWatcher *zk.Watcher, peers *Peers, db, version string, nu
 // in order, each repeated by the target replication, and sequentially assigning each
 // partition to a node.
 func (p *Partitions) pickLocal() {
-	selected := make(map[int]bool, p.numPartitions)
+	selected := make(map[int]bool, p.NumPartitions)
 
 	if p.peers == nil {
-		for i := 0; i < p.numPartitions; i++ {
+		for i := 0; i < p.NumPartitions; i++ {
 			selected[i] = true
 		}
 	} else {
-		toAssign := make([]int, 0, p.numPartitions*p.replication)
-		for i := 0; i < p.numPartitions; i++ {
-			for j := 0; j < p.replication; j++ {
+		toAssign := make([]int, 0, p.NumPartitions*p.Replication)
+		for i := 0; i < p.NumPartitions; i++ {
+			for j := 0; j < p.Replication; j++ {
 				toAssign = append(toAssign, i)
 			}
 		}
@@ -111,7 +112,8 @@ func (p *Partitions) pickLocal() {
 			}
 		}
 	}
-	p.selected = selected
+
+	p.SetSelected(selected)
 }
 
 // sync runs in the background, and syncs the remote partitions from zookeeper
@@ -141,7 +143,29 @@ func (p *Partitions) FindPeers(partition int) []string {
 	return peers
 }
 
-// Update updates the list of local partitions to the given list.
+// SetSelected sets the list of selected partitions to the one given.
+func (p *Partitions) SetSelected(selected map[int]bool) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	p.selected = make(map[int]bool)
+	for partition, sel := range selected {
+		p.selected[partition] = sel
+	}
+}
+
+// UpdateSelected udpates the list of selected partitions to include the given
+// list.
+func (p *Partitions) UpdateSelected(selected map[int]bool) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	for partition, sel := range selected {
+		p.selected[partition] = sel
+	}
+}
+
+// UpdateLocal updates the list of local partitions to include the given list.
 func (p *Partitions) UpdateLocal(local map[int]bool) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
@@ -158,10 +182,42 @@ func (p *Partitions) UpdateLocal(local map[int]bool) {
 	}
 }
 
-// SelectedLocal returns the set of partitions that were selected to have
+// Selected returns the set of partitions that were selected to have
 // locally.
-func (p *Partitions) SelectedLocal() map[int]bool {
-	return p.selected
+func (p *Partitions) Selected() []int {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	selected := make([]int, 0, len(p.selected))
+	for partition, sel := range p.selected {
+		if sel {
+			selected = append(selected, partition)
+		}
+	}
+	return selected
+}
+
+// HaveSelected returns true if the partitions is selected to be available
+// locally.
+func (p *Partitions) HaveSelected(partition int) bool {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	return p.selected[partition]
+}
+
+// Local returns the set of partitions that are in the blockstore.
+func (p *Partitions) Local() []int {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	local := make([]int, 0, len(p.local))
+	for partition, sel := range p.local {
+		if sel {
+			local = append(local, partition)
+		}
+	}
+	return local
 }
 
 // NeededLocal returns the set of partitions that were selected to have locally,
@@ -243,24 +299,41 @@ func (p *Partitions) updateRemote(nodes []string) {
 	p.updateReplicationStatus()
 }
 
-func (p *Partitions) updateReplicationStatus() {
-	// Check for each partition. If every one is available on at least minReplication node,
-	// then we're ready to rumble.
+// GlobalReplication returns a mapping of partitions to their replication
+// factor across all nodes in the cluster and the number of missing partitions
+func (p *Partitions) GlobalReplication() map[int]int {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	replication, _ := p.globalReplicationMap()
+	return replication
+}
+
+func (p *Partitions) globalReplicationMap() (map[int]int, int) {
+	replicationMap := make(map[int]int)
 	missing := 0
-	for i := 0; i < p.numPartitions; i++ {
-		replication := 0
+
+	for i := 0; i < p.NumPartitions; i++ {
 		if _, ok := p.local[i]; ok {
-			replication++
+			replicationMap[i]++
 		}
 
 		if remotes, ok := p.remote[i]; ok {
-			replication += len(remotes)
+			replicationMap[i] += len(remotes)
 		}
 
-		if replication < p.minReplication {
-			missing += 1
+		if replicationMap[i] < p.minReplication {
+			missing++
 		}
 	}
+
+	return replicationMap, missing
+}
+
+func (p *Partitions) updateReplicationStatus() {
+	// Check for each partition. If every one is available on at least minReplication node,
+	// then we're ready to rumble.
+	_, missing := p.globalReplicationMap()
 
 	if missing == 0 && !p.readyClosed {
 		close(p.Ready)

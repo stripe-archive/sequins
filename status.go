@@ -233,6 +233,59 @@ func (s *sequins) serveStatus(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type fetchRequest map[string]map[string][]int
+
+func (s *sequins) serveFetch(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	decoder := json.NewDecoder(r.Body)
+
+	var fetchReq fetchRequest
+	err := decoder.Decode(&fetchReq)
+	if err != nil {
+		log.Printf("Error parsing json body of fetchRequest: %s", err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Iterate through all db/versions, fetching the specified partitions
+	// and skipping the ones that don't exist.
+	for dbName, versions := range fetchReq {
+		db, ok := s.dbs[dbName]
+		if !ok {
+			log.Printf("Skipping nonexistent db: %s...", dbName)
+			continue
+		}
+
+		for versionName, partitions := range versions {
+			version := db.mux.getVersion(versionName)
+			if version == nil {
+				log.Printf("Skipping nonexistent version %s in db %s...", versionName, dbName)
+				continue
+			}
+
+			log.Printf("Requesting partitions %v for %s/%s...", partitions, dbName, versionName)
+
+			replication := version.partitions.GlobalReplication()
+
+			// Filter out partitions that can't exist and those
+			// that are already local to avoid needless fetching.
+			partitionMap := make(map[int]bool, len(partitions))
+			for _, p := range partitions {
+				validPartition := p >= 0 && p < version.partitions.NumPartitions
+				existingPartition := version.partitions.HaveSelected(p) && version.partitions.HaveLocal(p)
+				underreplicated := replication[p] < version.partitions.Replication
+
+				if validPartition && !existingPartition && underreplicated {
+					partitionMap[p] = true
+				}
+			}
+
+			version.partitions.UpdateSelected(partitionMap)
+			go version.build(true)
+		}
+	}
+}
+
 func (db *db) serveStatus(w http.ResponseWriter, r *http.Request) {
 	s := db.status()
 
@@ -386,11 +439,6 @@ func (vs *version) status() versionStatus {
 		TargetReplication:    vs.sequins.config.Sharding.Replication,
 	}
 
-	partitions := make([]int, 0, len(vs.partitions.SelectedLocal()))
-	for p := range vs.partitions.SelectedLocal() {
-		partitions = append(partitions, p)
-	}
-
 	hostname := "localhost"
 	shardID := ""
 	if vs.sequins.peers != nil {
@@ -398,7 +446,9 @@ func (vs *version) status() versionStatus {
 		shardID = vs.sequins.peers.ShardID
 	}
 
+	partitions := vs.partitions.Selected()
 	sort.Ints(partitions)
+
 	nodeStatus := nodeVersionStatus{
 		Name:       hostname,
 		CreatedAt:  vs.created.UTC().Truncate(time.Second),

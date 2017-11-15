@@ -78,7 +78,7 @@ func TestBlockStoreSparkey(t *testing.T) {
 	require.NoError(t, err)
 	err = store.AddSparkeyBlock(nonEmpty0, 0)
 	require.NoError(t, err)
-	err = store.Save(map[int]bool{0: true, 1: true})
+	err = store.Save([]int{0, 1})
 	require.NoError(t, err)
 
 	// Internal properties
@@ -134,7 +134,7 @@ func TestBlockStoreSparkey(t *testing.T) {
 	err = store.AddSparkeyBlock(revertBlock, 0)
 	require.NoError(t, err)
 	store.Revert()
-	err = store.Save(map[int]bool{0: true, 1: true})
+	err = store.Save([]int{0, 1})
 	require.NoError(t, err)
 	rec, err = store.Get("Alice")
 	assert.NoError(t, err)

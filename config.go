@@ -53,6 +53,7 @@ type shardingConfig struct {
 	Enabled            bool     `toml:"enabled"`
 	Replication        int      `toml:"replication"`
 	MinReplication     int      `toml:"min_replication"`
+	MaxReplication     int      `toml:"max_replication"`
 	TimeToConverge     duration `toml:"time_to_converge"`
 	ProxyTimeout       duration `toml:"proxy_timeout"`
 	ProxyStageTimeout  duration `toml:"proxy_stage_timeout"`
@@ -115,6 +116,7 @@ func defaultConfig() sequinsConfig {
 			Enabled:            false,
 			Replication:        2,
 			MinReplication:     1,
+			MaxReplication:     0,
 			TimeToConverge:     duration{10 * time.Second},
 			ProxyTimeout:       duration{100 * time.Millisecond},
 			ProxyStageTimeout:  duration{time.Duration(0)},

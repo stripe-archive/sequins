@@ -34,6 +34,9 @@ type Partitions struct {
 	// The minimum replication to stop counting a partition as "missing".
 	minReplication int
 
+	// The maximum replication factor allowed for a given partition.
+	maxReplication int
+
 	selected        map[int]bool
 	local           map[int]bool
 	remote          map[int][]string
@@ -45,7 +48,7 @@ type Partitions struct {
 
 // WatchPartitions creates a watch on the partitions prefix in zookeeper, and
 // returns a Partitions object for managing local and remote partitions.
-func WatchPartitions(zkWatcher *zk.Watcher, peers *Peers, db, version string, numPartitions, replication, minReplication int) *Partitions {
+func WatchPartitions(zkWatcher *zk.Watcher, peers *Peers, db, version string, numPartitions, replication, minReplication int, maxReplication int) *Partitions {
 	p := &Partitions{
 		Ready: make(chan bool),
 
@@ -57,17 +60,18 @@ func WatchPartitions(zkWatcher *zk.Watcher, peers *Peers, db, version string, nu
 		numPartitions:  numPartitions,
 		replication:    replication,
 		minReplication: minReplication,
+		maxReplication: maxReplication,
 		local:          make(map[int]bool),
 		remote:         make(map[int][]string),
 	}
-
-	p.pickLocal()
 
 	if peers != nil {
 		updates, _ := zkWatcher.WatchChildren(p.zkPath)
 		p.updateRemote(<-updates)
 		go p.sync(updates)
 	}
+
+	p.pickLocal()
 
 	p.updateReplicationStatus()
 	return p
@@ -108,6 +112,16 @@ func (p *Partitions) pickLocal() {
 			assignee := i % len(uniqueIds)
 			if uniqueIds[assignee] == p.peers.ShardID {
 				selected[id] = true
+			}
+		}
+
+		// unselect partitions that would be overreplicated
+		if p.maxReplication >= p.replication {
+			remoteReplication := p.remoteReplicationMap()
+			for partition := range selected {
+				if count := remoteReplication[partition]; count >= p.maxReplication {
+					delete(selected, partition)
+				}
 			}
 		}
 	}
@@ -243,26 +257,78 @@ func (p *Partitions) updateRemote(nodes []string) {
 	p.updateReplicationStatus()
 }
 
-func (p *Partitions) updateReplicationStatus() {
-	// Check for each partition. If every one is available on at least minReplication node,
-	// then we're ready to rumble.
-	missing := 0
+// GlobalReplication returns a mapping of partitions to their replication
+// factor across all nodes in the cluster.
+func (p *Partitions) GlobalReplication() map[int]int {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	return p.globalReplicationMap()
+}
+
+// RemoteReplication returns a mapping of partitions to their replication
+// factor across all remote nodes.
+func (p *Partitions) RemoteReplication() map[int]int {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	return p.remoteReplicationMap()
+}
+
+// RemoteReplication returns a mapping of partitions to their replication
+// factor for this node.
+func (p *Partitions) LocalReplication() map[int]int {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	return p.localReplicationMap()
+}
+
+func (p *Partitions) globalReplicationMap() map[int]int {
+	local := p.localReplicationMap()
+	for p, replication := range p.remoteReplicationMap() {
+		local[p] += replication
+	}
+	return local
+}
+
+func (p *Partitions) localReplicationMap() map[int]int {
+	replicationMap := make(map[int]int)
 	for i := 0; i < p.numPartitions; i++ {
-		replication := 0
-		if _, ok := p.local[i]; ok {
-			replication++
+		if local, ok := p.local[i]; ok && local {
+			replicationMap[i]++
 		}
+	}
+	return replicationMap
+}
 
+func (p *Partitions) remoteReplicationMap() map[int]int {
+	replicationMap := make(map[int]int)
+	for i := 0; i < p.numPartitions; i++ {
 		if remotes, ok := p.remote[i]; ok {
-			replication += len(remotes)
+			replicationMap[i] += len(remotes)
 		}
+	}
+	return replicationMap
+}
 
-		if replication < p.minReplication {
-			missing += 1
+func (p *Partitions) numMissing() int {
+	globalReplication := p.globalReplicationMap()
+	missing := 0
+
+	for i := 0; i < p.numPartitions; i++ {
+		if globalReplication[i] < p.minReplication {
+			missing++
 		}
 	}
 
-	if missing == 0 && !p.readyClosed {
+	return missing
+}
+
+func (p *Partitions) updateReplicationStatus() {
+	// Check for each partition. If every one is available on at least minReplication node,
+	// then we're ready to rumble.
+	if p.numMissing() == 0 && !p.readyClosed {
 		close(p.Ready)
 		p.readyClosed = true
 	}

@@ -159,7 +159,7 @@ func (vs *version) addFiles(partitions map[int]bool) error {
 	case err := <-errs:
 		return err
 	case <-c:
-		return vs.blockStore.Save(vs.partitions.SelectedLocal())
+		return vs.blockStore.Save(vs.partitions.Selected())
 	}
 }
 

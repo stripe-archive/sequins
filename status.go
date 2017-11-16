@@ -386,11 +386,6 @@ func (vs *version) status() versionStatus {
 		TargetReplication:    vs.sequins.config.Sharding.Replication,
 	}
 
-	partitions := make([]int, 0, len(vs.partitions.SelectedLocal()))
-	for p := range vs.partitions.SelectedLocal() {
-		partitions = append(partitions, p)
-	}
-
 	hostname := "localhost"
 	shardID := ""
 	if vs.sequins.peers != nil {
@@ -398,7 +393,9 @@ func (vs *version) status() versionStatus {
 		shardID = vs.sequins.peers.ShardID
 	}
 
+	partitions := vs.partitions.Selected()
 	sort.Ints(partitions)
+
 	nodeStatus := nodeVersionStatus{
 		Name:       hostname,
 		CreatedAt:  vs.created.UTC().Truncate(time.Second),

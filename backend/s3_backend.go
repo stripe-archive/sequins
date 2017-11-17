@@ -3,6 +3,7 @@ package backend
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"path"
 	"sort"
@@ -20,6 +21,7 @@ type S3Backend struct {
 	path       string
 	maxRetries int
 	svc        s3iface.S3API
+	revisions  map[string]map[string]string
 }
 
 func NewS3Backend(bucket string, s3path string, maxRetries int, svc s3iface.S3API) *S3Backend {
@@ -28,6 +30,7 @@ func NewS3Backend(bucket string, s3path string, maxRetries int, svc s3iface.S3AP
 		path:       strings.TrimPrefix(path.Clean(s3path), "/"),
 		maxRetries: maxRetries,
 		svc:        svc,
+		revisions:  make(map[string]map[string]string),
 	}
 }
 
@@ -36,14 +39,14 @@ func (s *S3Backend) ListDBs() ([]string, error) {
 }
 
 func (s *S3Backend) ListVersions(db, after string, checkForSuccess bool) ([]string, error) {
-	versions, err := s.listDirs(path.Join(s.path, db), after)
+	versionsWithoutRevisions, err := s.listDirs(path.Join(s.path, db), after)
 	if err != nil {
 		return nil, err
 	}
 
 	if checkForSuccess {
 		var filtered []string
-		for _, version := range versions {
+		for _, version := range versionsWithoutRevisions {
 			successFile := path.Join(s.path, db, version, "_SUCCESS")
 			exists := s.exists(successFile)
 
@@ -52,8 +55,44 @@ func (s *S3Backend) ListVersions(db, after string, checkForSuccess bool) ([]stri
 			}
 		}
 
-		versions = filtered
+		versionsWithoutRevisions = filtered
 	}
+
+	versions := make([]string, 0, len(versionsWithoutRevisions))
+	for _, version := range versionsWithoutRevisions {
+		revisionFile := path.Join(s.path, db, version, "_REVISION")
+		exists := s.exists(revisionFile)
+
+		log.Printf("LOOKING AT REVISION OF VERSION: %s/%s", db, version)
+
+		// if exists {
+		// 	revision, _ := s.OpenAsString(db, version, "_REVISION")
+		// 	if err != nil {
+		// 		versions = append(versions, fmt.Sprintf("%s:%s", version, revision))
+		// 		continue
+		// 	}
+		// 	log.Printf("Error reading _REVISION file of %s/%s, using no revision...", db, version)
+		// }
+		// versions = append(versions, version)
+
+		if exists {
+			revision, _ := s.OpenAsString(db, version, "_REVISION")
+			id := fmt.Sprintf("%s/%s-r%s", db, version, revision)
+			if _, ok := s.revisions[db][id]; !ok {
+				s.revisions[db] = make(map[string]string)
+			}
+			s.revisions[db][id] = version
+			versions = append(versions, id)
+
+			log.Println("ADDING VERSION: ", id)
+		} else {
+			versions = append(versions, version)
+			log.Println("ADDING VERSION: ", version)
+		}
+
+	}
+
+	log.Println("LIST OF VERSIONS 1: ", versions)
 
 	return versions, nil
 }
@@ -122,6 +161,11 @@ func (s *S3Backend) listDirs(dir, after string) ([]string, error) {
 }
 
 func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
+	// Replace mapping if it exists
+	if id, ok := s.revisions[db][version]; ok {
+		version = id
+	}
+
 	versionPrefix := path.Join(s.path, db, version)
 
 	// We use a set here because S3 sometimes returns duplicate keys.
@@ -156,7 +200,6 @@ func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 
 	log.Printf("call_site=s3.ListFiles sequins_db=%q sequins_db_version=%q dataset_size=%d file_count=%d", db, version, datasetSize, numFiles)
 
-
 	sorted := make([]string, 0, len(res))
 	for name := range res {
 		sorted = append(sorted, name)
@@ -167,6 +210,11 @@ func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 }
 
 func (s *S3Backend) Open(db, version, file string) (io.ReadCloser, error) {
+	// Replace mapping if it exists
+	if id, ok := s.revisions[db][version]; ok {
+		version = id
+	}
+
 	src := path.Join(s.path, db, version, file)
 	params := &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
@@ -194,6 +242,21 @@ func (s *S3Backend) Open(db, version, file string) (io.ReadCloser, error) {
 	}
 
 	return resp.Body, nil
+}
+
+func (s *S3Backend) OpenAsString(db, version, file string) (string, error) {
+	f, err := s.Open(db, version, file)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	b, err := ioutil.ReadAll(f)
+	// if err != nil {
+	// 	return "", err
+	// }
+
+	return string(b), nil
 }
 
 func (s *S3Backend) DisplayPath(parts ...string) string {

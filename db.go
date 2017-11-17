@@ -39,6 +39,7 @@ func (db *db) listVersions(after string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	log.Println("LIST OF VERSIONS 2: ", filterPaths(versions))
 	return filterPaths(versions), nil
 }
 

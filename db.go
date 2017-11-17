@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -9,6 +10,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-go/statsd"
 )
 
 var errNoVersions = errors.New("no versions available")
@@ -202,6 +205,14 @@ func (db *db) upgrade(version *version) {
 	log.Printf("Switching to version %s of %s!", version.name, db.name)
 	db.mux.upgrade(version)
 	version.setState(versionActive)
+
+	if version.stats != nil {
+		title := fmt.Sprintf("A new version is active in %s.", db.name)
+		text := fmt.Sprintf("Version %s has been set to active in db %s.", version.name, db.name)
+		event := statsd.NewEvent(title, text)
+		event.Tags = []string{fmt.Sprintf("sequins_db:%s", db.name)}
+		version.stats.Event(event)
+	}
 
 	// Close the current version, and any older versions that were
 	// also being prepared (effectively preempting them).

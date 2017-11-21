@@ -3,6 +3,7 @@ package backend
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"path"
 	"sort"
@@ -45,9 +46,9 @@ func (s *S3Backend) ListVersions(db, after string, checkForSuccess bool) ([]stri
 		var filtered []string
 		for _, version := range versions {
 			successFile := path.Join(s.path, db, version, "_SUCCESS")
-			exists := s.exists(successFile)
+			symlinkFile := path.Join(s.path, db, version, "_SYMLINK")
 
-			if exists {
+			if s.exists(successFile) || s.exists(symlinkFile) {
 				filtered = append(filtered, version)
 			}
 		}
@@ -122,7 +123,13 @@ func (s *S3Backend) listDirs(dir, after string) ([]string, error) {
 }
 
 func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
-	versionPrefix := path.Join(s.path, db, version)
+	// If this directory is a symlink (denoted with the _SYMLINK file), we
+	// should return the contents of the directory it is linking to.
+	targetVersion, err := s.getTargetVersion(db, version)
+	if err != nil {
+		return nil, err
+	}
+	versionPrefix := path.Join(s.path, db, targetVersion)
 
 	// We use a set here because S3 sometimes returns duplicate keys.
 	res := make(map[string]bool)
@@ -137,7 +144,7 @@ func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 	datasetSize := int64(0)
 	numFiles := int64(0)
 
-	err := s.svc.ListObjectsPages(params, func(page *s3.ListObjectsOutput, isLastPage bool) bool {
+	err = s.svc.ListObjectsPages(params, func(page *s3.ListObjectsOutput, isLastPage bool) bool {
 		for _, key := range page.Contents {
 			name := path.Base(*key.Key)
 			// S3 sometimes has keys that are the same as the "directory"
@@ -154,8 +161,11 @@ func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 		return nil, s.s3error(err)
 	}
 
-	log.Printf("call_site=s3.ListFiles sequins_db=%q sequins_db_version=%q dataset_size=%d file_count=%d", db, version, datasetSize, numFiles)
-
+	if version != targetVersion {
+		log.Printf("call_site=s3.ListFiles sequins_db=%q sequins_db_version=%q symlinked_version=%q dataset_size=%d file_count=%d", db, version, targetVersion, datasetSize, numFiles)
+	} else {
+		log.Printf("call_site=s3.ListFiles sequins_db=%q sequins_db_version=%q symlinked_version=\"nil\" dataset_size=%d file_count=%d", db, version, datasetSize, numFiles)
+	}
 
 	sorted := make([]string, 0, len(res))
 	for name := range res {
@@ -166,7 +176,7 @@ func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 	return sorted, nil
 }
 
-func (s *S3Backend) Open(db, version, file string) (io.ReadCloser, error) {
+func (s *S3Backend) open(db, version, file string) (io.ReadCloser, error) {
 	src := path.Join(s.path, db, version, file)
 	params := &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
@@ -194,6 +204,40 @@ func (s *S3Backend) Open(db, version, file string) (io.ReadCloser, error) {
 	}
 
 	return resp.Body, nil
+}
+
+func (s *S3Backend) Open(db, version, file string) (io.ReadCloser, error) {
+	// If this is a symlinked version, we should open the file at the
+	// target version directory.
+	targetVersion, err := s.getTargetVersion(db, version)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.open(db, targetVersion, file)
+}
+
+// getTargetVersion returns the target version of a symlinked version if the
+// _SYMLINK file exists or the same version otherwise.
+func (s *S3Backend) getTargetVersion(db, version string) (string, error) {
+	src := path.Join(s.path, db, version, "_SYMLINK")
+	params := &s3.GetObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(src),
+	}
+
+	resp, err := s.svc.GetObject(params)
+	if err != nil {
+		return version, nil
+	}
+	defer resp.Body.Close()
+
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	return string(b), nil
 }
 
 func (s *S3Backend) DisplayPath(parts ...string) string {

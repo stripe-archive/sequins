@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -21,21 +22,20 @@ import (
 
 type S3ClientMock struct {
 	s3iface.S3API
-	toggle             bool
+	counter            int
 	returnGenericError bool
 }
 
 func (c *S3ClientMock) GetObject(*s3.GetObjectInput) (*s3.GetObjectOutput, error) {
-	c.toggle = !c.toggle
-
-	if c.toggle {
+	if c.counter < 3 {
+		c.counter++
 		if c.returnGenericError {
 			return nil, errors.New("this is a mocked generic error")
 		}
 		return nil, awserr.New(s3.ErrCodeNoSuchKey, "this is a mocked NoSuchKey error", nil)
 	}
 
-	return &s3.GetObjectOutput{}, nil
+	return &s3.GetObjectOutput{Body: ioutil.NopCloser(bytes.NewReader([]byte("")))}, nil
 }
 
 func setupS3(t *testing.T) *backend.S3Backend {
@@ -98,11 +98,11 @@ func TestS3Backend(t *testing.T) {
 }
 
 func TestS3Retries(t *testing.T) {
-	retryBackend := backend.NewS3Backend("", "test", 1, &S3ClientMock{})
+	retryBackend := backend.NewS3Backend("", "test", 3, &S3ClientMock{})
 	_, err := retryBackend.Open("", "", "")
 	require.NoError(t, err, "backend should retry and succeed the second time")
 
-	retryBackend = backend.NewS3Backend("", "test", 1, &S3ClientMock{returnGenericError: true})
+	retryBackend = backend.NewS3Backend("", "test", 3, &S3ClientMock{returnGenericError: true})
 	_, err = retryBackend.Open("", "", "")
 	require.Error(t, err, "backend should not retry for errors other than s3.ErrCodeNoSuchKey")
 

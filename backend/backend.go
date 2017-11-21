@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"path"
 )
 
 type Backend interface {
@@ -30,6 +31,11 @@ type Backend interface {
 	// DisplayPath returns a human-readable path indicating where the backend
 	// is rooted.
 	DisplayPath(parts ...string) string
+
+	// Returns the current revision of the db version.  Returns "0" if no
+	// revision file is aval.
+	GetRevision(db, version string) (string, error)
+
 }
 
 // A basic backend for the local filesystem
@@ -101,6 +107,25 @@ func (lb *LocalBackend) ListFiles(db, version string) ([]string, error) {
 	log.Printf("call_site=files.ListFiles sequins_db=%q sequins_db_version=%q dataset_size=%d file_count=%d", db, version, datasetSize, numFiles)
 
 	return res, nil
+}
+
+func (lb *LocalBackend) GetRevision(db, version string) (string, error) {
+	src := filepath.Join(lb.path, db, version, "_REVISION")
+	if _, err := os.Stat(src); os.IsNotExist(err) {
+
+		resp, err := lb.Open(db, version, "_REVISION")
+
+		if err != nil {
+			return "", err
+		}
+
+		revBytes, err := ioutil.ReadAll(resp)
+		if err != nil {
+			return "", err
+		}
+		return string(revBytes), nil
+	}
+	return "0", nil
 }
 
 func (lb *LocalBackend) Open(db, version, file string) (io.ReadCloser, error) {

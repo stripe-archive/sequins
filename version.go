@@ -36,6 +36,7 @@ type version struct {
 	partitions    *sharding.Partitions
 	numPartitions int
 	files         []string
+	revision      string
 
 	state     versionState
 	created   time.Time
@@ -60,6 +61,10 @@ func newVersion(sequins *sequins, db *db, path, name string) (*version, error) {
 		return nil, err
 	}
 
+	revision, err := sequins.backend.GetRevision(db.name, name)
+	if err != nil {
+		log.Printf("Error getting revision for db=%q version=%q", db.name, name)
+	}
 	vs := &version{
 		sequins:       sequins,
 		db:            db,
@@ -67,6 +72,7 @@ func newVersion(sequins *sequins, db *db, path, name string) (*version, error) {
 		name:          name,
 		files:         files,
 		numPartitions: numPartitions,
+		revision:      revision,
 
 		created: time.Now(),
 		state:   versionBuilding,

@@ -78,8 +78,12 @@ func (db *db) backfillVersions() error {
 	// 404ing while we load versions asynchronously.
 	for i := len(versions) - 1; i >= 0; i-- {
 		v := versions[i]
+		rev, err := db.sequins.backend.GetRevision(db.name, v)
+		if err != nil {
+			return err
+		}
 
-		version, err := newVersion(db.sequins, db, db.localPath(v), v)
+		version, err := newVersion(db.sequins, db, db.localPath(v, rev), v)
 		if err != nil {
 			log.Printf("Error initializing version %s of %s: %s", db.name, v, err)
 			continue
@@ -113,6 +117,14 @@ func (db *db) refresh() error {
 		if after == "" {
 			return errNoVersions
 		} else {
+			rev, err := db.sequins.backend.GetRevision(currentVersion.db.name, currentVersion.name)
+			if err != nil {
+				log.Printf("Error getting revision db=%q version=%q", currentVersion.db.name, currentVersion.name)
+			}
+			if rev > currentVersion.revision {
+				// do a thing
+			}
+
 			return nil
 		}
 	}
@@ -128,8 +140,12 @@ func (db *db) refresh() error {
 		go existingVersion.build()
 		return nil
 	}
+	rev, err := db.sequins.backend.GetRevision(db.name, latest)
+	if err != nil {
+		log.Printf("Error getting revision db=%q version=%q", currentVersion.db.name, currentVersion.name)
+	}
 
-	vs, err := newVersion(db.sequins, db, db.localPath(latest), latest)
+	vs, err := newVersion(db.sequins, db, db.localPath(latest, rev), latest)
 	if err != nil {
 		return err
 	}
@@ -253,7 +269,7 @@ func (db *db) cleanupStore() {
 	db.cleanupLock.Lock()
 	defer db.cleanupLock.Unlock()
 
-	dirs, err := ioutil.ReadDir(db.localPath(""))
+	dirs, err := ioutil.ReadDir(db.localPath("", ""))
 	if os.IsNotExist(err) {
 		return
 	} else if err != nil {
@@ -274,13 +290,16 @@ func (db *db) cleanupStore() {
 		}
 
 		log.Println("Clearing defunct version", v, "of", db.name)
-		os.RemoveAll(db.localPath(v))
+		os.RemoveAll(db.localPath(v, ""))
 	}
 }
 
 // localPath returns the path where local data for the given version should be
 // stored.
-func (db *db) localPath(version string) string {
+func (db *db) localPath(version, revision string) string {
+	if revision != "" {
+		version = fmt.Sprintf("%s_%s", version, revision)
+	}
 	return filepath.Join(db.sequins.config.LocalStore, "data", db.name, version)
 }
 

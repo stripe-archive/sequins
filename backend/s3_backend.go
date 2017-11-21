@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"io/ioutil"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -121,6 +123,24 @@ func (s *S3Backend) listDirs(dir, after string) ([]string, error) {
 	return res, nil
 }
 
+func (s *S3Backend) GetRevision(db, version string) (string, error) {
+	src := path.Join(s.path, db, version, "_REVISION")
+	if s.exists(src) {
+		resp, err := s.Open(db, version, "_REVISION")
+
+		if err != nil {
+			return "", err
+		}
+
+		revBytes, err := ioutil.ReadAll(resp)
+		if err != nil {
+			return "", err
+		}
+		return string(revBytes), nil
+	}
+	return "0", nil
+}
+
 func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 	versionPrefix := path.Join(s.path, db, version)
 
@@ -155,7 +175,6 @@ func (s *S3Backend) ListFiles(db, version string) ([]string, error) {
 	}
 
 	log.Printf("call_site=s3.ListFiles sequins_db=%q sequins_db_version=%q dataset_size=%d file_count=%d", db, version, datasetSize, numFiles)
-
 
 	sorted := make([]string, 0, len(res))
 	for name := range res {

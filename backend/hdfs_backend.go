@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/colinmarc/hdfs"
+	"io/ioutil"
 )
 
 type HdfsBackend struct {
@@ -115,4 +116,9 @@ func (h *HdfsBackend) checkForSuccessFile(versionPath string) bool {
 	} else {
 		return false
 	}
+}
+
+func (h *HdfsBackend) GetRevision(db, version string) (string, error) {
+	//TODO scottjab: Implement this.
+	return "0", nil
 }

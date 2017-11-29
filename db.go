@@ -10,8 +10,6 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
-
-	"github.com/DataDog/datadog-go/statsd"
 )
 
 var errNoVersions = errors.New("no versions available")
@@ -207,11 +205,9 @@ func (db *db) upgrade(version *version) {
 	version.setState(versionActive)
 
 	if version.stats != nil {
-		title := fmt.Sprintf("A new version is active in %s.", db.name)
-		text := fmt.Sprintf("Version %s has been set to active in db %s.", version.name, db.name)
-		event := statsd.NewEvent(title, text)
-		event.Tags = []string{fmt.Sprintf("sequins_db:%s", db.name)}
-		version.stats.Event(event)
+		duration := version.active.Sub(version.created)
+		tags := []string{fmt.Sprintf("sequins_db:%s", db.name), fmt.Sprintf("version:%s", version.name)}
+		version.stats.Timing("time_to_active", duration, tags, 1)
 	}
 
 	// Close the current version, and any older versions that were

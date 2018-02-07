@@ -48,8 +48,20 @@ func (s *S3Backend) ListVersions(db, after string, checkForSuccess bool) ([]stri
 			successFile := path.Join(s.path, db, version, "_SUCCESS")
 			symlinkFile := path.Join(s.path, db, version, "_SYMLINK")
 
-			if s.exists(successFile) || s.exists(symlinkFile) {
+			if s.exists(successFile) {
 				filtered = append(filtered, version)
+			} else if s.exists(symlinkFile) {
+				// For symlinked versions, we check that the
+				// target version has a success file.
+				targetVersion, err := s.getTargetVersion(db, version)
+				if err != nil {
+					continue
+				}
+
+				targetSuccessFile := path.Join(s.path, db, targetVersion, "_SUCCESS")
+				if s.exists(targetSuccessFile) {
+					filtered = append(filtered, version)
+				}
 			}
 		}
 

@@ -218,7 +218,8 @@ func (s *S3Backend) Open(db, version, file string) (io.ReadCloser, error) {
 }
 
 // getTargetVersion returns the target version of a symlinked version if the
-// _SYMLINK file exists or the same version otherwise.
+// _SYMLINK file exists or the same version otherwise. Whitespace is trimmed
+// when reading the file in case it was manually generated.
 func (s *S3Backend) getTargetVersion(db, version string) (string, error) {
 	src := path.Join(s.path, db, version, "_SYMLINK")
 	params := &s3.GetObjectInput{
@@ -237,7 +238,7 @@ func (s *S3Backend) getTargetVersion(db, version string) (string, error) {
 		return "", err
 	}
 
-	return string(b), nil
+	return strings.TrimSpace(string(b)), nil
 }
 
 func (s *S3Backend) DisplayPath(parts ...string) string {

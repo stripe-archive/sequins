@@ -33,7 +33,3 @@ env:
   global:
     # Region
     - secure: "giM8b/a4JfCDh6cpUyKo1uNUlNXZ28/PN3fnIN28s2GGvuipRCv+8BiqyxG6ukwPyQluHNxpsRcLFeXG2noSelHXY4HwdYZY5bDZ2xiWHTudphQD7gnQMoa8jSOx/66rLjMmx5UmtzlYfmsY9Rw1SshORWlgBmMeIYNWYu1NJiw="
-    # Test bucket
-    - secure: "zBxttvSia8TL43USnZuVP9btWyXDFMm7N3fspFrL1+iJlZbWT/2d3MRtBbKc29NTeKwYcrh/b1N64lM5X2RR4tGZ0T+Qms7RzGQEiUmkEqbn5JVVqvXBBBSkGv5hVNaZjHkYW4ZwUe6u278k+LDTNsydtNA8gWy1PZUV/kRtOH4="
-    # AWS credentials
-    - secure: "LVr7PRiCCYRPGlxr5HaZb4cmemF3GOtcqwttPBAkNSBox2RzihC7s+h0zsvXGi39UUokOrK8HNIRJws7LYMG/LoREdgPAmRatXs4+knDIKe3bf/KYWuBhtTW81x2hP3aoTTkJbxF69sk4qRIt0iw7E2PMulR3N2Y8kJPTRQCM2o="

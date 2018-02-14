@@ -114,7 +114,7 @@ func (w *Watcher) reconnect() error {
 		for ev := range events {
 			if ev.State != zk.StateConnected && ev.State != zk.StateConnecting {
 				if ev.Err != nil {
-					sendErr(w.errs, ev.Err, ev.Path, ev.Server)
+					sendErr("reconnecting", w.errs, ev.Err, ev.Path, ev.Server)
 					return
 				}
 			}
@@ -235,7 +235,7 @@ func (w *Watcher) CreateEphemeral(node string) {
 	// It's fine if we're currently reconnecting to zookeeper, since `runHooks`
 	// will create the node for us.
 	if err != nil && err != zk.ErrClosing {
-		sendErr(w.errs, err, node, "")
+		sendErr("creating new ephmeral node", w.errs, err, node, "")
 	}
 }
 
@@ -299,7 +299,7 @@ func (w *Watcher) WatchChildren(node string) (chan []string, chan bool) {
 	// It's fine if we're currently reconnecting to zookeeper, since `runHooks`
 	// will set up the watch for us.
 	if err != nil && err != zk.ErrClosing {
-		sendErr(w.errs, err, node, "")
+		sendErr("adding watch", w.errs, err, node, "")
 		go func() {
 			<-cancel
 		}()
@@ -341,7 +341,7 @@ func (w *Watcher) watchChildren(node string, wn watchedNode) error {
 				return
 			case ev := <-events:
 				if ev.Err != nil {
-					sendErr(w.errs, ev.Err, ev.Path, ev.Server)
+					sendErr("checking for watch results", w.errs, ev.Err, ev.Path, ev.Server)
 					<-wn.cancel
 					return
 				}
@@ -352,7 +352,7 @@ func (w *Watcher) watchChildren(node string, wn watchedNode) error {
 			w.lock.RUnlock()
 
 			if err != nil {
-				sendErr(w.errs, err, node, "")
+				sendErr("re-adding watch", w.errs, err, node, "")
 				reconnecting = <-wn.cancel
 				return
 			}
@@ -450,8 +450,8 @@ func (w *Watcher) Close() {
 }
 
 // sendErr sends the error over the channel, or discards it if the error is full.
-func sendErr(errs chan error, err error, path string, server string) {
-	log.Printf("Zookeeper error: err=%q, path=%q, server=%q", err, path, server)
+func sendErr(where string, errs chan error, err error, path string, server string) {
+	log.Printf("Zookeeper error while %s: err=%q, path=%q, server=%q", where, err, path, server)
 
 	select {
 	case errs <- err:

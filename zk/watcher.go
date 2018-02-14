@@ -16,6 +16,14 @@ const (
 	coordinationVersion = "v1"
 	defaultZKPort       = 2181
 	maxCreateRetries    = 5
+
+	// What ratio of sessionTimeout should we initially backoff.
+	// Should be > 1, to be longer than the ZK client session timeout.
+	backoffInitial = 2.0
+	// How much to scale backoff if a connection fails quickly
+	backoffRatio = 2.0
+	// What multiple of backoff is considered a "quick failure"
+	backoffFailureRatio = 10.0
 )
 
 var defaultZkACL = zk.WorldACL(zk.PermAll)
@@ -37,6 +45,10 @@ type Watcher struct {
 	hooksLock      sync.Mutex
 	ephemeralNodes map[string]bool
 	watchedNodes   map[string]watchedNode
+
+	currentBackoff  time.Duration
+	connectionStart time.Time
+
 }
 
 type watchedNode struct {
@@ -58,6 +70,7 @@ func Connect(zkServers []string, prefix string, connectTimeout, sessionTimeout t
 		shutdown:       make(chan bool),
 		ephemeralNodes: make(map[string]bool),
 		watchedNodes:   make(map[string]watchedNode),
+		currentBackoff: sessionTimeout * backoffInitial,
 	}
 
 	err := w.reconnect()
@@ -83,6 +96,7 @@ func (w *Watcher) reconnect() error {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
+	w.connectionStart = time.Now()
 	servers := strings.Join(w.zkServers, ",")
 	log.Println("Connecting to zookeeper at", servers)
 	conn, events, err = zk.Connect(w.zkServers, w.sessionTimeout)
@@ -172,6 +186,32 @@ func (w *Watcher) cancelWatches() {
 	}
 }
 
+// Attempt to backoff before reconnecting.
+// Return true if we're shutting down.
+func (w *Watcher) backoff() bool {
+	timeSinceConnect := time.Now().Sub(w.connectionStart)
+	var op string
+	if timeSinceConnect < w.currentBackoff * backoffFailureRatio {
+		// There was a rapid failure, increase our backoff
+		w.currentBackoff *= backoffRatio
+		op = "Increasing"
+	} else {
+		// We've run successfully for awhile, reset our backoff
+		w.currentBackoff = w.sessionTimeout * backoffInitial
+		op = "Resetting"
+	}
+	log.Printf("%s ZK backoff: errorInterval=%f, backoff=%f\n", op,
+		timeSinceConnect.Seconds(), w.currentBackoff.Seconds())
+
+	wait := time.NewTimer(w.currentBackoff)
+	select {
+	case <-w.shutdown:
+		return true
+	case <-wait.C:
+	}
+	return false
+}
+
 // run runs the main loop. On any errors, it resets the connection.
 func (w *Watcher) run() {
 	first := true
@@ -179,13 +219,8 @@ func (w *Watcher) run() {
 Reconnect:
 	for {
 		if !first {
-			// Wait before trying to reconnect again.
-			// Let's wait longer than the ZK client.
-			wait := time.NewTimer(w.sessionTimeout * 2)
-			select {
-			case <-w.shutdown:
+			if w.backoff() {
 				break Reconnect
-			case <-wait.C:
 			}
 
 			err := w.reconnect()

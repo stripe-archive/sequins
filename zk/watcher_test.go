@@ -15,7 +15,8 @@ import (
 func connectTest(t *testing.T) (*Watcher, *zk.TestCluster) {
 	tzk := zktest.New(t)
 
-	zkWatcher, err := Connect([]string{fmt.Sprintf("localhost:%d", tzk.Servers[0].Port)}, "/sequins-test", 5*time.Second, 5*time.Second)
+	zkWatcher, err := Connect([]string{fmt.Sprintf("localhost:%d", tzk.Servers[0].Port)}, "/sequins-test", 5*time.Second, 5*time.Second,
+		10*time.Minute)
 	require.NoError(t, err, "zkWatcher should connect")
 
 	return zkWatcher, tzk

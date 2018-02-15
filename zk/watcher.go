@@ -17,13 +17,11 @@ const (
 	defaultZKPort       = 2181
 	maxCreateRetries    = 5
 
-	// What ratio of sessionTimeout should we initially backoff.
+	// What multiple of sessionTimeout should we initially backoff.
 	// Should be > 1, to be longer than the ZK client session timeout.
 	backoffInitial = 2.0
 	// How much to scale backoff if a connection fails quickly
 	backoffRatio = 2.0
-	// What multiple of backoff is considered a "quick failure"
-	backoffFailureRatio = 10.0
 )
 
 var defaultZkACL = zk.WorldACL(zk.PermAll)
@@ -37,6 +35,7 @@ type Watcher struct {
 	zkServers      []string
 	connectTimeout time.Duration
 	sessionTimeout time.Duration
+	backoffTime    time.Duration
 	prefix         string
 	conn           *zk.Conn
 	errs           chan error
@@ -48,7 +47,6 @@ type Watcher struct {
 
 	currentBackoff  time.Duration
 	connectionStart time.Time
-
 }
 
 type watchedNode struct {
@@ -60,11 +58,13 @@ type watchedNode struct {
 // Connect connects to the zookeeper cluster specified by zkServers, and returns
 // a Watcher. All future operations on the Watcher are rooted at the given
 // prefix.
-func Connect(zkServers []string, prefix string, connectTimeout, sessionTimeout time.Duration) (*Watcher, error) {
+func Connect(zkServers []string, prefix string, connectTimeout, sessionTimeout,
+	backoffTime time.Duration) (*Watcher, error) {
 	w := &Watcher{
 		zkServers:      zkServers,
 		connectTimeout: connectTimeout,
 		sessionTimeout: sessionTimeout,
+		backoffTime:    backoffTime,
 		prefix:         path.Join(prefix, coordinationVersion),
 		errs:           make(chan error, 1),
 		shutdown:       make(chan bool),
@@ -191,17 +191,19 @@ func (w *Watcher) cancelWatches() {
 func (w *Watcher) backoff() bool {
 	timeSinceConnect := time.Now().Sub(w.connectionStart)
 	var op string
-	if timeSinceConnect < w.currentBackoff * backoffFailureRatio {
+	if w.backoffTime != 0 && timeSinceConnect < w.backoffTime {
 		// There was a rapid failure, increase our backoff
 		w.currentBackoff *= backoffRatio
 		op = "Increasing"
-	} else {
+	} else if w.currentBackoff != w.sessionTimeout*backoffInitial {
 		// We've run successfully for awhile, reset our backoff
 		w.currentBackoff = w.sessionTimeout * backoffInitial
 		op = "Resetting"
 	}
-	log.Printf("%s ZK backoff: errorInterval=%f, backoff=%f\n", op,
-		timeSinceConnect.Seconds(), w.currentBackoff.Seconds())
+	if op != "" {
+		log.Printf("%s ZK backoff: errorInterval=%f, backoff=%f\n", op,
+			timeSinceConnect.Seconds(), w.currentBackoff.Seconds())
+	}
 
 	wait := time.NewTimer(w.currentBackoff)
 	select {

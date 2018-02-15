@@ -26,7 +26,7 @@ import (
 var (
 	errWrongPartition = errors.New("the file is cleanly partitioned, but doesn't contain a partition we want")
 	errCanceled       = errors.New("build canceled")
-	downloadBufferSize = 256 * 1024
+	downloadBufferSize = 10 * 1024 * 1024
 )
 
 func compressionString(c sequencefile.Compression) string {

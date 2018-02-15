@@ -48,6 +48,9 @@ type version struct {
 	buildLock sync.Mutex
 
 	stats *statsd.Client
+
+	closeOnce  sync.Once
+	deleteOnce sync.Once
 }
 
 func newVersion(sequins *sequins, db *db, path, name string) (*version, error) {
@@ -141,6 +144,10 @@ func (vs *version) initBlockStore(path string) error {
 }
 
 func (vs *version) close() {
+	vs.closeOnce.Do(vs.closeUnsafe)
+}
+
+func (vs *version) closeUnsafe() {
 	close(vs.cancel)
 
 	// This happens once the building goroutine gets the cancel and exits.
@@ -154,6 +161,15 @@ func (vs *version) close() {
 }
 
 func (vs *version) delete() error {
+	vs.close()
+	var err error
+	vs.deleteOnce.Do(func() {
+		err = vs.deleteUnsafe()
+	})
+	return err
+}
+
+func (vs *version) deleteUnsafe() error {
 	return vs.blockStore.Delete()
 }
 

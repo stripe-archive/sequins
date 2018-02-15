@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
+	"github.com/juju/ratelimit"
 	"github.com/nightlyone/lockfile"
 	"github.com/tylerb/graceful"
 
@@ -27,6 +28,7 @@ import (
 )
 
 const defaultMaxLoads = 10
+const defaultMaxDownloadBandwidth = 100 * 1024 * 1024 // 100 MB
 
 // While we wait to pick a shard ID, other nodes are prohibited from joining the cluster because
 // we're holding a lock. This timeout can therefore be pretty short.
@@ -58,6 +60,8 @@ type sequins struct {
 	stats *statsd.Client
 
 	storeLock lockfile.Lockfile
+
+	downloadRateLimitBucket *ratelimit.Bucket
 }
 
 func newSequins(backend backend.Backend, config sequinsConfig) *sequins {
@@ -99,6 +103,13 @@ func (s *sequins) init() error {
 		maxLoads = defaultMaxLoads
 	}
 	s.workQueue = workqueue.NewWorkQueue(maxLoads)
+
+	// Set up token bucket for download bandwidth throttling
+	maxDownloadBandwidth := s.config.MaxDownloadBandwidthMBPerSecond * 1024 * 1024
+	if maxDownloadBandwidth == 0 {
+		maxDownloadBandwidth = defaultMaxDownloadBandwidth
+	}
+	s.downloadRateLimitBucket = ratelimit.NewBucketWithRate(float64(maxDownloadBandwidth), int64(maxDownloadBandwidth))
 
 	// Trigger loads before we start up.
 	s.refreshAll()

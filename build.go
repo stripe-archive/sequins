@@ -17,6 +17,7 @@ import (
 	"github.com/bsm/go-sparkey"
 	"github.com/colinmarc/sequencefile"
 	"github.com/golang/snappy"
+	"github.com/juju/ratelimit"
 
 	"github.com/stripe/sequins/blocks"
 )
@@ -176,6 +177,8 @@ func (vs *version) sparkeyDownload(src, dst, fileType string, transform func(io.
 	}
 	defer stream.Close()
 
+	rateLimitedStream := ratelimit.Reader(stream, vs.sequins.downloadRateLimitBucket)
+
 	out, err := os.Create(dst)
 	if err != nil {
 		return fmt.Errorf("creating sparkey %s file for %s: %s", fileType, disp, err)
@@ -187,7 +190,7 @@ func (vs *version) sparkeyDownload(src, dst, fileType string, transform func(io.
 		}
 	}()
 
-	var trStream io.Reader = stream
+	var trStream = rateLimitedStream
 	if transform != nil {
 		trStream = transform(trStream)
 	}
@@ -245,7 +248,9 @@ func (vs *version) addSequenceFile(file string, disp string, partitions map[int]
 	}
 	defer stream.Close()
 
-	sf := sequencefile.NewReader(bufio.NewReader(stream))
+	rateLimitedStream := ratelimit.Reader(stream, vs.sequins.downloadRateLimitBucket)
+
+	sf := sequencefile.NewReader(bufio.NewReader(rateLimitedStream))
 	err = sf.ReadHeader()
 	if err != nil {
 		return fmt.Errorf("reading header from %s: %s", disp, err)

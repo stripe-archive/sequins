@@ -16,6 +16,12 @@ const (
 	coordinationVersion = "v1"
 	defaultZKPort       = 2181
 	maxCreateRetries    = 5
+
+	// What multiple of sessionTimeout should we initially backoff.
+	// Should be > 1, to be longer than the ZK client session timeout.
+	backoffInitial = 2.0
+	// How much to scale backoff if a connection fails quickly
+	backoffRatio = 2.0
 )
 
 var defaultZkACL = zk.WorldACL(zk.PermAll)
@@ -29,6 +35,7 @@ type Watcher struct {
 	zkServers      []string
 	connectTimeout time.Duration
 	sessionTimeout time.Duration
+	backoffTime    time.Duration
 	prefix         string
 	conn           *zk.Conn
 	errs           chan error
@@ -37,6 +44,9 @@ type Watcher struct {
 	hooksLock      sync.Mutex
 	ephemeralNodes map[string]bool
 	watchedNodes   map[string]watchedNode
+
+	currentBackoff  time.Duration
+	connectionStart time.Time
 }
 
 type watchedNode struct {
@@ -48,16 +58,19 @@ type watchedNode struct {
 // Connect connects to the zookeeper cluster specified by zkServers, and returns
 // a Watcher. All future operations on the Watcher are rooted at the given
 // prefix.
-func Connect(zkServers []string, prefix string, connectTimeout, sessionTimeout time.Duration) (*Watcher, error) {
+func Connect(zkServers []string, prefix string, connectTimeout, sessionTimeout,
+	backoffTime time.Duration) (*Watcher, error) {
 	w := &Watcher{
 		zkServers:      zkServers,
 		connectTimeout: connectTimeout,
 		sessionTimeout: sessionTimeout,
+		backoffTime:    backoffTime,
 		prefix:         path.Join(prefix, coordinationVersion),
 		errs:           make(chan error, 1),
 		shutdown:       make(chan bool),
 		ephemeralNodes: make(map[string]bool),
 		watchedNodes:   make(map[string]watchedNode),
+		currentBackoff: sessionTimeout * backoffInitial,
 	}
 
 	err := w.reconnect()
@@ -83,6 +96,7 @@ func (w *Watcher) reconnect() error {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
+	w.connectionStart = time.Now()
 	servers := strings.Join(w.zkServers, ",")
 	log.Println("Connecting to zookeeper at", servers)
 	conn, events, err = zk.Connect(w.zkServers, w.sessionTimeout)
@@ -114,7 +128,7 @@ func (w *Watcher) reconnect() error {
 		for ev := range events {
 			if ev.State != zk.StateConnected && ev.State != zk.StateConnecting {
 				if ev.Err != nil {
-					sendErr(w.errs, ev.Err, ev.Path, ev.Server)
+					sendErr("reconnecting", w.errs, ev.Err, ev.Path, ev.Server)
 					return
 				}
 			}
@@ -172,6 +186,34 @@ func (w *Watcher) cancelWatches() {
 	}
 }
 
+// Attempt to backoff before reconnecting.
+// Return true if we're shutting down.
+func (w *Watcher) backoff() bool {
+	timeSinceConnect := time.Now().Sub(w.connectionStart)
+	var op string
+	if w.backoffTime != 0 && timeSinceConnect < w.backoffTime {
+		// There was a rapid failure, increase our backoff
+		w.currentBackoff *= backoffRatio
+		op = "Increasing"
+	} else if w.currentBackoff != w.sessionTimeout*backoffInitial {
+		// We've run successfully for awhile, reset our backoff
+		w.currentBackoff = w.sessionTimeout * backoffInitial
+		op = "Resetting"
+	}
+	if op != "" {
+		log.Printf("%s ZK backoff: errorInterval=%f, backoff=%f\n", op,
+			timeSinceConnect.Seconds(), w.currentBackoff.Seconds())
+	}
+
+	wait := time.NewTimer(w.currentBackoff)
+	select {
+	case <-w.shutdown:
+		return true
+	case <-wait.C:
+	}
+	return false
+}
+
 // run runs the main loop. On any errors, it resets the connection.
 func (w *Watcher) run() {
 	first := true
@@ -179,13 +221,8 @@ func (w *Watcher) run() {
 Reconnect:
 	for {
 		if !first {
-			// Wait before trying to reconnect again.
-			// Let's wait longer than the ZK client.
-			wait := time.NewTimer(w.sessionTimeout * 2)
-			select {
-			case <-w.shutdown:
+			if w.backoff() {
 				break Reconnect
-			case <-wait.C:
 			}
 
 			err := w.reconnect()
@@ -235,7 +272,7 @@ func (w *Watcher) CreateEphemeral(node string) {
 	// It's fine if we're currently reconnecting to zookeeper, since `runHooks`
 	// will create the node for us.
 	if err != nil && err != zk.ErrClosing {
-		sendErr(w.errs, err, node, "")
+		sendErr("creating new ephmeral node", w.errs, err, node, "")
 	}
 }
 
@@ -299,7 +336,7 @@ func (w *Watcher) WatchChildren(node string) (chan []string, chan bool) {
 	// It's fine if we're currently reconnecting to zookeeper, since `runHooks`
 	// will set up the watch for us.
 	if err != nil && err != zk.ErrClosing {
-		sendErr(w.errs, err, node, "")
+		sendErr("adding watch", w.errs, err, node, "")
 		go func() {
 			<-cancel
 		}()
@@ -341,7 +378,7 @@ func (w *Watcher) watchChildren(node string, wn watchedNode) error {
 				return
 			case ev := <-events:
 				if ev.Err != nil {
-					sendErr(w.errs, ev.Err, ev.Path, ev.Server)
+					sendErr("checking for watch results", w.errs, ev.Err, ev.Path, ev.Server)
 					<-wn.cancel
 					return
 				}
@@ -352,7 +389,7 @@ func (w *Watcher) watchChildren(node string, wn watchedNode) error {
 			w.lock.RUnlock()
 
 			if err != nil {
-				sendErr(w.errs, err, node, "")
+				sendErr("re-adding watch", w.errs, err, node, "")
 				reconnecting = <-wn.cancel
 				return
 			}
@@ -450,8 +487,8 @@ func (w *Watcher) Close() {
 }
 
 // sendErr sends the error over the channel, or discards it if the error is full.
-func sendErr(errs chan error, err error, path string, server string) {
-	log.Printf("Zookeeper error: err=%q, path=%q, server=%q", err, path, server)
+func sendErr(where string, errs chan error, err error, path string, server string) {
+	log.Printf("Zookeeper error while %s: err=%q, path=%q, server=%q", where, err, path, server)
 
 	select {
 	case errs <- err:

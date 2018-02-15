@@ -202,7 +202,8 @@ func (s *sequins) initCluster() error {
 
 	prefix := path.Join("/", s.config.Sharding.ClusterName)
 	zkWatcher, err := zk.Connect(s.config.ZK.Servers, prefix,
-		s.config.ZK.ConnectTimeout.Duration, s.config.ZK.SessionTimeout.Duration)
+		s.config.ZK.ConnectTimeout.Duration, s.config.ZK.SessionTimeout.Duration,
+		s.config.ZK.BackoffTime.Duration)
 	if err != nil {
 		return err
 	}

@@ -148,6 +148,12 @@ source = "hdfs://namenode:8020/path/to/sequins"
 # actual timeout is negotiated between server and client, but will never be
 # lower than this number.
 
+# backoff_time = "0"
+# This specifies the minimum time that a zookeeper connection should last,
+# before sequins tries exponential backoff for reconnects. Setting this to
+# eg: "10m" can help if zookeeper connects are unstable.
+# Setting this to "0" disables exponential backoff.
+
 [datadog]
 
 # url = "localhost:8200"

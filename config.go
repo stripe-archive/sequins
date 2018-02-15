@@ -66,6 +66,7 @@ type zkConfig struct {
 	Servers        []string `toml:"servers"`
 	ConnectTimeout duration `toml:"connect_timeout"`
 	SessionTimeout duration `toml:"session_timeout"`
+	BackoffTime    duration `toml:"backoff_time"`
 }
 
 type debugConfig struct {
@@ -128,6 +129,7 @@ func defaultConfig() sequinsConfig {
 			Servers:        []string{"localhost:2181"},
 			ConnectTimeout: duration{1 * time.Second},
 			SessionTimeout: duration{10 * time.Second},
+			BackoffTime:    duration{0},
 		},
 		Debug: debugConfig{
 			Bind:       "",

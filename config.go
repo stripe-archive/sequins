@@ -28,6 +28,8 @@ type sequinsConfig struct {
 	RequireSuccessFile bool     `toml:"require_success_file"`
 	ContentType        string   `toml:"content_type"`
 
+	DownloadThrottledRate int `toml:"download_throttled_rate"`
+
 	Storage  storageConfig  `toml:"storage"`
 	S3       s3Config       `toml:"s3"`
 	Sharding shardingConfig `toml:"sharding"`

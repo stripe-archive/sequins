@@ -24,6 +24,7 @@ import (
 	"github.com/stripe/sequins/sharding"
 	"github.com/stripe/sequins/workqueue"
 	"github.com/stripe/sequins/zk"
+	"golang.org/x/time/rate"
 )
 
 const defaultMaxLoads = 10
@@ -42,6 +43,7 @@ type sequins struct {
 	config  sequinsConfig
 	http    http.Handler
 	backend backend.Backend
+	downloadRateLimiter *rate.Limiter
 
 	dbs     map[string]*db
 	dbsLock sync.RWMutex
@@ -91,6 +93,11 @@ func (s *sequins) init() error {
 	err := s.initLocalStore()
 	if err != nil {
 		return fmt.Errorf("error initializing local store: %s", err)
+	}
+
+	// Create a ratelimiter if the download throttle speed is set.
+	if s.config.DownloadThrottledRate > 0 {
+		s.downloadRateLimiter = rate.NewLimiter(rate.Limit(s.config.DownloadThrottledRate), 0)
 	}
 
 	// This lock limits load parallelism across all dbs.

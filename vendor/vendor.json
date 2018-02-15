@@ -1619,6 +1619,12 @@
 			"revisionTime": "2018-01-30T19:37:22Z"
 		},
 		{
+			"checksumSHA1": "wRLo86qqt/7IwI8X43IjXLvveU0=",
+			"path": "golang.org/x/net/context",
+			"revision": "f5dfe339be1d06f81b22525fe34671ee7d2c8904",
+			"revisionTime": "2018-02-04T03:50:36Z"
+		},
+		{
 			"checksumSHA1": "dcOJtT2YpM6/qNQUa+IGGjFUy0k=",
 			"path": "golang.org/x/net/html",
 			"revision": "ab5485076ff3407ad2d02db054635913f017b0ed",
@@ -1659,7 +1665,13 @@
 			"path": "golang.org/x/net/lex/httplex",
 			"revision": "dd2d9a67c97da0afa00d5726e28086007a0acce5",
 			"revisionTime": "2017-02-23T02:43:42Z"
+		},
+		{
+			"checksumSHA1": "4gkzaJGGMcr+pwOGk/WJGKbiZU4=",
+			"path": "golang.org/x/time/rate",
+			"revision": "6dc17368e09b0e8634d71cac8168d853e869a0c7",
+			"revisionTime": "2017-07-19T03:46:07Z"
 		}
 	],
-	"rootPath": "github.com/stripe/sequins"
+	"rootPath": "sequins"
 }

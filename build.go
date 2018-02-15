@@ -19,11 +19,13 @@ import (
 	"github.com/golang/snappy"
 
 	"github.com/stripe/sequins/blocks"
+	"golang.org/x/time/rate"
 )
 
 var (
 	errWrongPartition = errors.New("the file is cleanly partitioned, but doesn't contain a partition we want")
 	errCanceled       = errors.New("build canceled")
+	downloadBufferSize = 256 * 1024
 )
 
 func compressionString(c sequencefile.Compression) string {
@@ -48,6 +50,32 @@ func compressionCodecString(c sequencefile.CompressionCodec) string {
 	default:
 		return strconv.Itoa(int(c))
 	}
+}
+
+type rateLimitedReader struct {
+	reader   io.Reader
+	limiter *rate.Limiter
+	vs      *version
+}
+
+func (r *rateLimitedReader) Read(buf []byte) (int, error) {
+	n, err := r.Read(buf)
+	if n <= 0 {
+		return n, err
+	}
+
+	now := time.Now()
+	rv := r.limiter.ReserveN(now, n)
+	if !rv.OK() {
+		// This would mean that it would exceed the limiter's burst.  As this should  never happen in theory based
+		// on configuration, we would just sleep 1 sec.
+		fmt.Print("download exceeded limiter burst: db=%s, name=%s", r.vs.db, r.vs.path)
+		time.Sleep(time.Second)
+	} else {
+		delay := rv.DelayFrom(now)
+		time.Sleep(delay)
+	}
+	return n, err
 }
 
 func (vs *version) build() {
@@ -192,12 +220,33 @@ func (vs *version) sparkeyDownload(src, dst, fileType string, transform func(io.
 		trStream = transform(trStream)
 	}
 
-	_, err = io.Copy(out, trStream)
+	if vs.sequins.downloadRateLimiter != nil {
+		err = vs.copyStreamWithRateLimiter(out, trStream)
+	} else {
+		_, err = io.Copy(out, trStream)
+	}
 	if err != nil {
 		return fmt.Errorf("reading sparkey %s file %s: %s", fileType, disp, err)
 	}
 
 	success = true
+	return nil
+}
+
+func (vs* version) copyStreamWithRateLimiter(out *os.File, trStream io.Reader) error {
+	buf := make([]byte, downloadBufferSize)
+
+	// Copy source to destination, but wrap our reader with rate limited one
+	// io.CopyBuffer(dst, NewReader(src, limit), buf)
+	r := &rateLimitedReader{reader: trStream, limiter: vs.sequins.downloadRateLimiter, vs: vs}
+	for{
+		if n, err := r.Read(buf); err == nil {
+			out.Write(buf[0:n])
+		}else{
+			break
+		}
+	}
+
 	return nil
 }
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -17,9 +18,9 @@ import (
 	"github.com/bsm/go-sparkey"
 	"github.com/colinmarc/sequencefile"
 	"github.com/golang/snappy"
+	"golang.org/x/time/rate"
 
 	"github.com/stripe/sequins/blocks"
-	"golang.org/x/time/rate"
 )
 
 var (
@@ -59,23 +60,12 @@ type rateLimitedReader struct {
 }
 
 func (r *rateLimitedReader) Read(buf []byte) (int, error) {
-	n, err := r.Read(buf)
-	if n <= 0 {
-		return n, err
+	err := r.limiter.WaitN(context.Background(), len(buf))
+	if err != nil {
+		return 0, err
 	}
 
-	now := time.Now()
-	rv := r.limiter.ReserveN(now, n)
-	if !rv.OK() {
-		// This would mean that it would exceed the limiter's burst. As this should never happen in theory based
-		// on configuration, we would just sleep 1 sec.
-		fmt.Print("download exceeded limiter burst: path=%s", r.name)
-		time.Sleep(time.Second)
-	} else {
-		delay := rv.DelayFrom(now)
-		time.Sleep(delay)
-	}
-	return n, err
+	return r.reader.Read(buf)
 }
 
 func (vs *version) build() {

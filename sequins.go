@@ -19,12 +19,12 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/nightlyone/lockfile"
 	"github.com/tylerb/graceful"
+	"golang.org/x/time/rate"
 
 	"github.com/stripe/sequins/backend"
 	"github.com/stripe/sequins/sharding"
 	"github.com/stripe/sequins/workqueue"
 	"github.com/stripe/sequins/zk"
-	"golang.org/x/time/rate"
 )
 
 const defaultMaxLoads = 10
@@ -70,6 +70,13 @@ func newSequins(backend backend.Backend, config sequinsConfig) *sequins {
 	}
 }
 
+func downloadThrottle(bytesPerSec int) *rate.Limiter {
+	limiter := rate.NewLimiter(0, bytesPerSec)
+	// Start counting from now, not a second ago.
+	limiter.SetLimit(rate.Limit(bytesPerSec))
+	return limiter
+}
+
 func (s *sequins) init() error {
 	// Start Datadog client if configured
 	if s.config.Datadog.Url != "" {
@@ -97,7 +104,7 @@ func (s *sequins) init() error {
 
 	// Create a ratelimiter if the download throttle speed is set.
 	if s.config.DownloadThrottledRate > 0 {
-		s.downloadRateLimiter = rate.NewLimiter(rate.Limit(s.config.DownloadThrottledRate), 0)
+		s.downloadRateLimiter = downloadThrottle(s.config.DownloadThrottledRate)
 	}
 
 	// This lock limits load parallelism across all dbs.

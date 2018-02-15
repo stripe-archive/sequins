@@ -239,15 +239,8 @@ func (vs* version) copyStreamWithRateLimiter(out *os.File, trStream io.Reader) e
 	// Copy source to destination, but wrap our reader with rate limited one
 	// io.CopyBuffer(dst, NewReader(src, limit), buf)
 	r := &rateLimitedReader{reader: trStream, limiter: vs.sequins.downloadRateLimiter, vs: vs}
-	for{
-		if n, err := r.Read(buf); err == nil {
-			out.Write(buf[0:n])
-		}else{
-			break
-		}
-	}
-
-	return nil
+	_, err := io.CopyBuffer(out, r, buf)
+	return err
 }
 
 // Add a Sparkey file to this version.

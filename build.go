@@ -53,9 +53,9 @@ func compressionCodecString(c sequencefile.CompressionCodec) string {
 }
 
 type rateLimitedReader struct {
-	reader   io.Reader
+	reader  io.Reader
 	limiter *rate.Limiter
-	vs      *version
+	name    string
 }
 
 func (r *rateLimitedReader) Read(buf []byte) (int, error) {
@@ -67,9 +67,9 @@ func (r *rateLimitedReader) Read(buf []byte) (int, error) {
 	now := time.Now()
 	rv := r.limiter.ReserveN(now, n)
 	if !rv.OK() {
-		// This would mean that it would exceed the limiter's burst.  As this should  never happen in theory based
+		// This would mean that it would exceed the limiter's burst. As this should never happen in theory based
 		// on configuration, we would just sleep 1 sec.
-		fmt.Print("download exceeded limiter burst: db=%s, name=%s", r.vs.db, r.vs.path)
+		fmt.Print("download exceeded limiter burst: path=%s", r.name)
 		time.Sleep(time.Second)
 	} else {
 		delay := rv.DelayFrom(now)
@@ -220,11 +220,7 @@ func (vs *version) sparkeyDownload(src, dst, fileType string, transform func(io.
 		trStream = transform(trStream)
 	}
 
-	if vs.sequins.downloadRateLimiter != nil {
-		err = vs.copyStreamWithRateLimiter(out, trStream)
-	} else {
-		_, err = io.Copy(out, trStream)
-	}
+	err = copyStreamWithRateLimiter(disp, vs.sequins.downloadRateLimiter, out, trStream)
 	if err != nil {
 		return fmt.Errorf("reading sparkey %s file %s: %s", fileType, disp, err)
 	}
@@ -233,13 +229,14 @@ func (vs *version) sparkeyDownload(src, dst, fileType string, transform func(io.
 	return nil
 }
 
-func (vs* version) copyStreamWithRateLimiter(out *os.File, trStream io.Reader) error {
+func copyStreamWithRateLimiter(name string, limiter *rate.Limiter, out io.Writer, in io.Reader) error {
 	buf := make([]byte, downloadBufferSize)
 
 	// Copy source to destination, but wrap our reader with rate limited one
-	// io.CopyBuffer(dst, NewReader(src, limit), buf)
-	r := &rateLimitedReader{reader: trStream, limiter: vs.sequins.downloadRateLimiter, vs: vs}
-	_, err := io.CopyBuffer(out, r, buf)
+	if limiter != nil {
+		in = &rateLimitedReader{reader: in, limiter: limiter, name: name}
+	}
+	_, err := io.CopyBuffer(out, in, buf)
 	return err
 }
 

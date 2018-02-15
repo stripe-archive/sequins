@@ -15,6 +15,10 @@ else
 	CGO_PREAMBLE_LDFLAGS = -lrt -lm -lstdc++
 endif
 
+ifneq ($(VERBOSE),)
+  VERBOSITY=-v
+endif
+
 CGO_PREAMBLE = CGO_CFLAGS="-I$(BUILD)/include -I$(BUILD)/include/zookeeper" CGO_LDFLAGS="$(VENDORED_LIBS) $(CGO_PREAMBLE_LDFLAGS)"
 
 
@@ -63,16 +67,16 @@ release: sequins
 	tar -cvzf $(RELEASE_NAME).tar.gz $(RELEASE_NAME)
 
 test: $(TEST_SOURCES)
-	$(CGO_PREAMBLE) go test -short -race -timeout 2m $(shell go list ./... | grep -v vendor)
+	$(CGO_PREAMBLE) go test $(VERBOSITY) -short -race -timeout 2m $(shell go list ./... | grep -v vendor)
 	# This test exercises some sync.Pool code, so it should be run without -race
 	# as well (sync.Pool doesn't ever share objects under -race).
-	$(CGO_PREAMBLE) go test -timeout 30s ./blocks -run TestBlockParallelReads
+	$(CGO_PREAMBLE) go test $(VERBOSITY) -timeout 30s ./blocks -run TestBlockParallelReads
 
 vet:
 	$(CGO_PREAMBLE) go vet $(shell go list ./... | grep -v vendor)
 
 test_functional: sequins $(TEST_SOURCES)
-	$(CGO_PREAMBLE) go test -timeout 10m -run "^TestCluster"
+	$(CGO_PREAMBLE) go test $(VERBOSITY) -timeout 10m -run "^TestCluster"
 
 clean:
 	rm -rf $(BUILD)

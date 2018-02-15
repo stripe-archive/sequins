@@ -12,6 +12,7 @@ import (
 )
 
 const size = 10 * 1000 * 1000
+const delta = 0.15
 
 type mockReader struct {
 	remain uint64
@@ -44,22 +45,22 @@ func TestNoRateLimit(t *testing.T) {
 	t.Parallel()
 
 	dur := testRead(t, nil)
-	assert.InDelta(t, 0.01, dur, 0.01)
+	assert.InDelta(t, 0, dur, delta)
 }
 
 func TestRateLimit(t *testing.T) {
 	t.Parallel()
 
-	r := 5
+	r := 2
 	lim := downloadThrottle(r * size)
 	dur := testRead(t, lim)
-	assert.InDelta(t, 1.0 / float32(r), dur, 0.01)
+	assert.InDelta(t, 1.0 / float32(r), dur, delta)
 }
 
 func TestConcurrentRateLimit(t *testing.T) {
 	t.Parallel()
 
-	r := 5
+	r := 10
 	cnt := 5
 
 	lim := downloadThrottle(r * size)
@@ -75,5 +76,5 @@ func TestConcurrentRateLimit(t *testing.T) {
 
 	wg.Wait()
 	dur := time.Now().Sub(start).Seconds()
-	assert.InDelta(t, 1.0 / float32(r) * float32(cnt), dur, 0.01)
+	assert.InDelta(t, 1.0 / float32(r) * float32(cnt), dur, delta)
 }

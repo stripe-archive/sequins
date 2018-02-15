@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"io/ioutil"
 	"sync"
@@ -33,7 +32,7 @@ func (m *mockReader) Read(p []byte) (n int, err error) {
 }
 
 func testRead(t *testing.T, limiter *rate.Limiter) float64 {
-	in := &mockReader{10 * size}
+	in := &mockReader{size}
 	out := ioutil.Discard
 
 	start := time.Now()
@@ -77,6 +76,5 @@ func TestConcurrentRateLimit(t *testing.T) {
 
 	wg.Wait()
 	dur := time.Now().Sub(start).Seconds()
-	fmt.Printf("Passed seconds: %f", dur)
 	assert.InDelta(t, 1.0 / float32(r) * float32(cnt), dur, delta)
 }

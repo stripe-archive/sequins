@@ -26,7 +26,6 @@ import (
 var (
 	errWrongPartition = errors.New("the file is cleanly partitioned, but doesn't contain a partition we want")
 	errCanceled       = errors.New("build canceled")
-	downloadBufferSize = 10 * 1024 * 1024
 )
 
 func compressionString(c sequencefile.Compression) string {
@@ -220,13 +219,11 @@ func (vs *version) sparkeyDownload(src, dst, fileType string, transform func(io.
 }
 
 func copyStreamWithRateLimiter(name string, limiter *rate.Limiter, out io.Writer, in io.Reader) error {
-	buf := make([]byte, downloadBufferSize)
-
 	// Copy source to destination, but wrap our reader with rate limited one
 	if limiter != nil {
 		in = &rateLimitedReader{reader: in, limiter: limiter, name: name}
 	}
-	_, err := io.CopyBuffer(out, in, buf)
+	_, err := io.Copy(out, in)
 	return err
 }
 

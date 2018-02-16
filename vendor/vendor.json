@@ -1665,12 +1665,6 @@
 			"path": "golang.org/x/net/lex/httplex",
 			"revision": "dd2d9a67c97da0afa00d5726e28086007a0acce5",
 			"revisionTime": "2017-02-23T02:43:42Z"
-		},
-		{
-			"checksumSHA1": "538I8ghUdvZa25NxgMUDpq14Qic=",
-			"path": "gopkg.in/check.v1",
-			"revision": "20d25e2804050c1cd24a7eea1e7a6447dd0e74ec",
-			"revisionTime": "2016-12-08T18:13:25Z"
 		}
 	],
 	"rootPath": "github.com/stripe/sequins"

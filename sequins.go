@@ -29,9 +29,9 @@ import (
 
 const defaultMaxLoads = 10
 
-// We don't ratelimit downloads by default unless it is explicitly set in the configuration file.
+// By default we don't ratelimit downloads unless it is set explicitly in the sequins configuration file.
 // So set defaultMaxDownloadBandwidth to very high.
-const defaultMaxDownloadBandwidth = 100 * 1024 * 1024 * 1024 // 100 GB
+const defaultMaxDownloadBandwidth = 100 * 1024 * 1024 * 1024 // 100 GB/s
 
 // While we wait to pick a shard ID, other nodes are prohibited from joining the cluster because
 // we're holding a lock. This timeout can therefore be pretty short.

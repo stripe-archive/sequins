@@ -185,8 +185,6 @@ func (vs *version) sparkeyDownload(src, dst, fileType string, transform func(io.
 	}
 	defer stream.Close()
 
-	rateLimitedStream := vs.rateLimitedDownloadStream(stream)
-
 	out, err := os.Create(dst)
 	if err != nil {
 		return fmt.Errorf("creating sparkey %s file for %s: %s", fileType, disp, err)
@@ -198,7 +196,7 @@ func (vs *version) sparkeyDownload(src, dst, fileType string, transform func(io.
 		}
 	}()
 
-	var trStream = rateLimitedStream
+	var trStream = vs.rateLimitedDownloadStream(stream)
 	if transform != nil {
 		trStream = transform(trStream)
 	}

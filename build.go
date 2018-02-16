@@ -164,6 +164,14 @@ func (vs *version) addFiles(partitions map[int]bool) error {
 	}
 }
 
+// Create a ratelimited download stream
+func (vs *version) rateLimitedDownloadStream(r io.Reader) io.Reader {
+	if vs.sequins.downloadRateLimitBucket == nil {
+		return r
+	}
+	return ratelimit.Reader(r, vs.sequins.downloadRateLimitBucket)
+}
+
 // Download a sparkey file into a local file
 func (vs *version) sparkeyDownload(src, dst, fileType string, transform func(io.Reader) io.Reader) error {
 	success := false
@@ -177,7 +185,7 @@ func (vs *version) sparkeyDownload(src, dst, fileType string, transform func(io.
 	}
 	defer stream.Close()
 
-	rateLimitedStream := ratelimit.Reader(stream, vs.sequins.downloadRateLimitBucket)
+	rateLimitedStream := vs.rateLimitedDownloadStream(stream)
 
 	out, err := os.Create(dst)
 	if err != nil {
@@ -248,7 +256,7 @@ func (vs *version) addSequenceFile(file string, disp string, partitions map[int]
 	}
 	defer stream.Close()
 
-	rateLimitedStream := ratelimit.Reader(stream, vs.sequins.downloadRateLimitBucket)
+	rateLimitedStream := vs.rateLimitedDownloadStream(stream)
 
 	sf := sequencefile.NewReader(bufio.NewReader(rateLimitedStream))
 	err = sf.ReadHeader()

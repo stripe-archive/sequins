@@ -50,8 +50,13 @@ func testRead(t *testing.T, fileSize uint64, rateLimitBucket *ratelimit.Bucket) 
 
 	start := time.Now()
 
-	ratelimitedIn := ratelimit.Reader(in, rateLimitBucket)
-	_, err := io.Copy(out, ratelimitedIn)
+	var rateLimitedIn io.Reader
+	if rateLimitBucket == nil {
+		rateLimitedIn = in
+	} else {
+		rateLimitedIn = ratelimit.Reader(in, rateLimitBucket)
+	}
+	_, err := io.Copy(out, rateLimitedIn)
 	assert.NoError(t, err)
 	return time.Now().Sub(start).Seconds()
 }
@@ -59,8 +64,7 @@ func testRead(t *testing.T, fileSize uint64, rateLimitBucket *ratelimit.Bucket) 
 func TestNoRateLimit(t *testing.T) {
 	t.Parallel()
 
-	rateLimitBucket := ratelimit.NewBucketWithRate(float64(defaultMaxDownloadBandwidth), bucketCapacity)
-	dur := testRead(t, size, rateLimitBucket)
+	dur := testRead(t, size, nil)
 	assert.InDelta(t, 0, dur, delta)
 }
 

@@ -1613,6 +1613,12 @@
 			"revisionTime": "2016-11-17T03:31:26Z"
 		},
 		{
+			"checksumSHA1": "I+hTEC8adupUYdvJW6UcPd2xmuA=",
+			"path": "github.com/juju/ratelimit",
+			"revision": "59fac5042749a5afb9af70e813da1dd5474f0167",
+			"revisionTime": "2017-10-26T09:04:26Z"
+		},
+		{
 			"checksumSHA1": "1EnbYalrCwjXws9L0Z7ONMXV/0M=",
 			"path": "github.com/samuel/go-zookeeper/zk",
 			"revision": "c4fab1ac1bec58281ad0667dc3f0907a9476ac47",

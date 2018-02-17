@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
+	"github.com/juju/ratelimit"
 	"github.com/nightlyone/lockfile"
 	"github.com/tylerb/graceful"
 
@@ -58,6 +59,8 @@ type sequins struct {
 	stats *statsd.Client
 
 	storeLock lockfile.Lockfile
+
+	downloadRateLimitBucket *ratelimit.Bucket
 }
 
 func newSequins(backend backend.Backend, config sequinsConfig) *sequins {
@@ -99,6 +102,12 @@ func (s *sequins) init() error {
 		maxLoads = defaultMaxLoads
 	}
 	s.workQueue = workqueue.NewWorkQueue(maxLoads)
+
+	// Create a token bucket if we need download bandwidth throttling
+	maxDownloadBandwidth := int64(s.config.MaxDownloadBandwidthMBPerSecond * 1024 * 1024)
+	if maxDownloadBandwidth > 0 {
+		s.downloadRateLimitBucket = ratelimit.NewBucketWithRate(float64(maxDownloadBandwidth), maxDownloadBandwidth)
+	}
 
 	// Trigger loads before we start up.
 	s.refreshAll()

@@ -37,6 +37,13 @@ type Watcher struct {
 	hooksLock      sync.Mutex
 	ephemeralNodes map[string]bool
 	watchedNodes   map[string]watchedNode
+
+	// How much flapping is allowed before we just die?
+	flapLock     sync.Mutex
+	flapMax      uint
+	flapDuration time.Duration
+	flaps        []time.Time
+	flapNotify   chan bool
 }
 
 type watchedNode struct {
@@ -114,7 +121,7 @@ func (w *Watcher) reconnect() error {
 		for ev := range events {
 			if ev.State != zk.StateConnected && ev.State != zk.StateConnecting {
 				if ev.Err != nil {
-					sendErr(w.errs, ev.Err, ev.Path, ev.Server)
+					sendErr("reconnecting", w.errs, ev.Err, ev.Path, ev.Server)
 					return
 				}
 			}
@@ -172,6 +179,39 @@ func (w *Watcher) cancelWatches() {
 	}
 }
 
+func (w *Watcher) SetFlapThreshold(max uint, duration time.Duration) chan bool {
+	w.flapLock.Lock()
+	defer w.flapLock.Unlock()
+
+	w.flapMax = max
+	w.flapDuration = duration
+	w.flapNotify = make(chan bool)
+	return w.flapNotify
+}
+
+// Update that we flapped, and check if we exceeded our threshold.
+func (w *Watcher) isFlapping() bool {
+	w.flapLock.Lock()
+	defer w.flapLock.Unlock()
+
+	if w.flapNotify == nil {
+		return false
+	}
+
+	now := time.Now()
+
+	var newFlaps []time.Time
+	for _, flap := range w.flaps {
+		if now.Sub(flap) < w.flapDuration {
+			newFlaps = append(newFlaps, flap)
+		}
+	}
+	newFlaps = append(newFlaps, now)
+	w.flaps = newFlaps
+
+	return uint(len(newFlaps)) > w.flapMax
+}
+
 // run runs the main loop. On any errors, it resets the connection.
 func (w *Watcher) run() {
 	first := true
@@ -179,6 +219,15 @@ func (w *Watcher) run() {
 Reconnect:
 	for {
 		if !first {
+			if w.isFlapping() {
+				w.lock.Lock()
+				defer w.lock.Unlock()
+				log.Println("ZK flapping, shutting down watcher")
+				w.flapNotify <- true
+				w.shutdown = nil
+				return
+			}
+
 			// Wait before trying to reconnect again.
 			// Let's wait longer than the ZK client.
 			wait := time.NewTimer(w.sessionTimeout * 2)
@@ -235,7 +284,7 @@ func (w *Watcher) CreateEphemeral(node string) {
 	// It's fine if we're currently reconnecting to zookeeper, since `runHooks`
 	// will create the node for us.
 	if err != nil && err != zk.ErrClosing {
-		sendErr(w.errs, err, node, "")
+		sendErr("creating new ephmeral node", w.errs, err, node, "")
 	}
 }
 
@@ -299,7 +348,7 @@ func (w *Watcher) WatchChildren(node string) (chan []string, chan bool) {
 	// It's fine if we're currently reconnecting to zookeeper, since `runHooks`
 	// will set up the watch for us.
 	if err != nil && err != zk.ErrClosing {
-		sendErr(w.errs, err, node, "")
+		sendErr("adding watch", w.errs, err, node, "")
 		go func() {
 			<-cancel
 		}()
@@ -341,7 +390,7 @@ func (w *Watcher) watchChildren(node string, wn watchedNode) error {
 				return
 			case ev := <-events:
 				if ev.Err != nil {
-					sendErr(w.errs, ev.Err, ev.Path, ev.Server)
+					sendErr("checking for watch results", w.errs, ev.Err, ev.Path, ev.Server)
 					<-wn.cancel
 					return
 				}
@@ -352,7 +401,7 @@ func (w *Watcher) watchChildren(node string, wn watchedNode) error {
 			w.lock.RUnlock()
 
 			if err != nil {
-				sendErr(w.errs, err, node, "")
+				sendErr("re-adding watch", w.errs, err, node, "")
 				reconnecting = <-wn.cancel
 				return
 			}
@@ -445,13 +494,15 @@ func (w *Watcher) Close() {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
-	w.shutdown <- true
+	if w.shutdown != nil {
+		w.shutdown <- true
+	}
 	w.conn.Close()
 }
 
 // sendErr sends the error over the channel, or discards it if the error is full.
-func sendErr(errs chan error, err error, path string, server string) {
-	log.Printf("Zookeeper error: err=%q, path=%q, server=%q", err, path, server)
+func sendErr(where string, errs chan error, err error, path string, server string) {
+	log.Printf("Zookeeper error while %s: err=%q, path=%q, server=%q", where, err, path, server)
 
 	select {
 	case errs <- err:

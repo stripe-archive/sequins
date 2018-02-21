@@ -39,6 +39,11 @@ const shardIDConvergenceMax = 3 * time.Second
 
 var errDirLocked = errors.New("failed to acquire lock")
 
+const (
+	flapMax      = 10
+	flapDuration = 5 * time.Minute
+)
+
 type sequins struct {
 	config  sequinsConfig
 	http    http.Handler
@@ -215,6 +220,12 @@ func (s *sequins) initCluster() error {
 	if err != nil {
 		return err
 	}
+
+	flapNotify := zkWatcher.SetFlapThreshold(flapMax, flapDuration)
+	go func() {
+		<-flapNotify
+		log.Fatal("Dying due to ZK flapping")
+	}()
 
 	go zkWatcher.TriggerCleanup()
 

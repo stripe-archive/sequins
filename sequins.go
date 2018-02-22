@@ -19,9 +19,9 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/juju/ratelimit"
 	"github.com/nightlyone/lockfile"
+	"github.com/stripe/goforit"
 	"github.com/tylerb/graceful"
 
-	"github.com/stripe/goforit"
 	"github.com/stripe/sequins/backend"
 	"github.com/stripe/sequins/sharding"
 	"github.com/stripe/sequins/workqueue"
@@ -128,6 +128,8 @@ func (s *sequins) init() error {
 	if s.config.GoforitFlagJsonPath != nil {
 		log.Printf("Enabling Goforit: GoforitFlagJsonPath=%s", s.GoforitFlagJsonPath)
 		backend := goforit.BackendFromJSONFile(s.config.GoforitFlagJsonPath)
+
+		// TODO(amith): make constant
 		goforit.Init(30*time.Second, backend)
 	}
 
@@ -174,7 +176,7 @@ func (s *sequins) remoteRefresh() bool {
 	if s.config.Sharding.ClusterName != nil {
 		flagName += "." + s.config.Sharding.ClusterName
 	}
-	if s.config.Goforit != nil && goforit.Enabled(flagName) {
+	if s.config.GoforitFlagJsonPath != nil && goforit.Enabled(flagName) {
 		log.Printf("Not allowing remote refresh: cluster=%s, flag=%s\n",
 			s.config.Sharding.ClusterName, flagName)
 		if s.stats != nil {

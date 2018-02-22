@@ -21,6 +21,7 @@ import (
 	"github.com/nightlyone/lockfile"
 	"github.com/tylerb/graceful"
 
+	"github.com/stripe/goforit"
 	"github.com/stripe/sequins/backend"
 	"github.com/stripe/sequins/sharding"
 	"github.com/stripe/sequins/workqueue"
@@ -36,6 +37,15 @@ const defaultMaxLoads = 10
 // the cluster will be seen to "converge" when it's really just waiting for someone to release
 // the lock.
 const shardIDConvergenceMax = 3 * time.Second
+
+// Remote refresh of the underlying data store is toggle-able
+// through a simple integration with goforit.  Before each refresh,
+// Sequins will inspect a local JSON file (specified by
+// RemoteRefreshFlagJsonPath in the goforitConfig) for the state
+// of the flag sequins.prevent_download.<CLUSTER NAME>.  If the flag is
+// not defined or is set to FALSE, remote refresh will proceed as expected.
+// If it's set to TRUE, remote refresh will be prevented.
+const disableRemoteRefreshFlagPrefix = "sequins.prevent_download."
 
 var errDirLocked = errors.New("failed to acquire lock")
 
@@ -114,6 +124,14 @@ func (s *sequins) init() error {
 		s.downloadRateLimitBucket = ratelimit.NewBucketWithRate(float64(maxDownloadBandwidth), maxDownloadBandwidth)
 	}
 
+	// Kick off feature flag cache refresh if remote refresh toggle path configured
+  if s.config.Goforit != nil {
+		log.Printf("Enabling Goforit backed by %s in %s",
+			s.config.Goforit.RemoteRefreshFlagJsonPath, s.config.Sharding.ShardID)
+    backend := goforit.BackendFromJSONFile(s.config.Goforit.RemoteRefreshFlagJsonPath)
+    goforit.Init(30*time.Second, backend)
+  }
+
 	// Trigger loads before we start up.
 	s.refreshAll(!s.remoteRefresh())
 	s.refreshLock.Lock()
@@ -126,7 +144,7 @@ func (s *sequins) init() error {
 		go func() {
 			log.Println("Automatically checking for new versions every", refresh.String())
 			for range s.refreshTicker.C {
-				if s.remoteRefresh() {
+				if s.remoteRefresh("REFRESH PERIOD") {
 					s.refreshAll(false)
 				}
 			}
@@ -138,7 +156,7 @@ func (s *sequins) init() error {
 	signal.Notify(sighups, syscall.SIGHUP)
 	go func() {
 		for range sighups {
-			if s.remoteRefresh() {
+			if s.remoteRefresh("SIGHUP") {
 				s.refreshAll(false)
 			}
 		}
@@ -152,9 +170,16 @@ func (s *sequins) init() error {
 	return nil
 }
 
-func (s *sequins) remoteRefresh() bool {
-	// TODO: Check a feature flag
-	return true
+func (s *sequins) remoteRefresh(cause string) bool {
+	flagName := disableRemoteRefreshFlagPrefix + s.config.Sharding.ClusterName
+  if s.config.Goforit != nil && goforit.Enabled(flagName) {
+    log.Printf("Not allowing remote refresh %s in cluster %s because flag %s is
+			enabled", s.config.Sharding.ShardID, s.config.Sharding.ClusterName, flagName)
+		s.stats.Count(flagName, 1, []string{"cause:" + cause}, 1.0)
+		return false
+  } else {
+		return true
+  }
 }
 
 func (s *sequins) ensureShardID(zkWatcher *zk.Watcher, routableIpAddress string) (*sharding.Peers, error) {

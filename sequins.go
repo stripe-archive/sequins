@@ -40,8 +40,8 @@ const shardIDConvergenceMax = 3 * time.Second
 var errDirLocked = errors.New("failed to acquire lock")
 
 const (
-	flapMax      = 10
-	flapDuration = 5 * time.Minute
+	flapMax      = 5
+	flapDuration = 20 * time.Minute
 )
 
 type sequins struct {

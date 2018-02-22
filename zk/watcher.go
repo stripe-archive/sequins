@@ -208,8 +208,10 @@ func (w *Watcher) isFlapping() bool {
 	}
 	newFlaps = append(newFlaps, now)
 	w.flaps = newFlaps
+	flapCount := uint(len(newFlaps))
 
-	return uint(len(newFlaps)) > w.flapMax
+	log.Printf("ZK flap check: flaps=%d flapMax=%d flapDuration=%v\n", flapCount, w.flapMax, w.flapDuration)
+	return flapCount > w.flapMax
 }
 
 // run runs the main loop. On any errors, it resets the connection.

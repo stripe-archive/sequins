@@ -36,6 +36,7 @@ type sequinsConfig struct {
 	Debug    debugConfig    `toml:"debug"`
 	Test     testConfig     `toml:"test"`
 	Datadog  datadogConfig  `toml:"datadog"`
+	Goforit  goforitConfig  `toml:"goforit"`
 }
 
 type storageConfig struct {
@@ -92,6 +93,10 @@ type testConfig struct {
 
 type datadogConfig struct {
 	Url string `toml:"url"`
+}
+
+type goforitConfig struct {
+	RemoteRefreshFlagJsonPath string `toml:"remote_refresh_flag_path"`
 }
 
 func defaultConfig() sequinsConfig {

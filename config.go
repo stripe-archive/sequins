@@ -28,6 +28,7 @@ type sequinsConfig struct {
 	RequireSuccessFile              bool     `toml:"require_success_file"`
 	ContentType                     string   `toml:"content_type"`
 	MaxDownloadBandwidthMBPerSecond int      `toml:"max_download_bandwidth_mb_per_second"`
+	GoforitFlagJsonPath             string   `toml:"goforit_flag_json_path"`
 
 	Storage  storageConfig  `toml:"storage"`
 	S3       s3Config       `toml:"s3"`
@@ -36,7 +37,6 @@ type sequinsConfig struct {
 	Debug    debugConfig    `toml:"debug"`
 	Test     testConfig     `toml:"test"`
 	Datadog  datadogConfig  `toml:"datadog"`
-	Goforit  goforitConfig  `toml:"goforit"`
 }
 
 type storageConfig struct {
@@ -93,10 +93,6 @@ type testConfig struct {
 
 type datadogConfig struct {
 	Url string `toml:"url"`
-}
-
-type goforitConfig struct {
-	RemoteRefreshFlagJsonPath string `toml:"remote_refresh_flag_path"`
 }
 
 func defaultConfig() sequinsConfig {

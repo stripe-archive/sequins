@@ -125,12 +125,12 @@ func (s *sequins) init() error {
 	}
 
 	// Kick off feature flag cache refresh if remote refresh toggle path configured
-  if s.config.Goforit != nil {
+	if s.config.Goforit != nil {
 		log.Printf("Enabling Goforit backed by %s in %s",
 			s.config.Goforit.RemoteRefreshFlagJsonPath, s.config.Sharding.ShardID)
-    backend := goforit.BackendFromJSONFile(s.config.Goforit.RemoteRefreshFlagJsonPath)
-    goforit.Init(30*time.Second, backend)
-  }
+		backend := goforit.BackendFromJSONFile(s.config.Goforit.RemoteRefreshFlagJsonPath)
+		goforit.Init(30*time.Second, backend)
+	}
 
 	// Trigger loads before we start up.
 	s.refreshAll(!s.remoteRefresh())
@@ -172,14 +172,14 @@ func (s *sequins) init() error {
 
 func (s *sequins) remoteRefresh(trigger string) bool {
 	flagName := disableRemoteRefreshFlagPrefix + s.config.Sharding.ClusterName
-  if s.config.Goforit != nil && goforit.Enabled(flagName) {
-    log.Printf("Not allowing remote refresh %s in cluster %s because flag %s is
-			enabled", s.config.Sharding.ShardID, s.config.Sharding.ClusterName, flagName)
+	if s.config.Goforit != nil && goforit.Enabled(flagName) {
+		log.Printf("Not allowing remote refresh %s in cluster %s because flag %s is"+
+			"enabled", s.config.Sharding.ShardID, s.config.Sharding.ClusterName, flagName)
 		s.stats.Count(flagName, 1, []string{"trigger:" + trigger}, 1.0)
 		return false
-  } else {
+	} else {
 		return true
-  }
+	}
 }
 
 func (s *sequins) ensureShardID(zkWatcher *zk.Watcher, routableIpAddress string) (*sharding.Peers, error) {

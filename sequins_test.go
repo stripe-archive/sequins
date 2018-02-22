@@ -283,7 +283,7 @@ func TestSequinsThreadsafe(t *testing.T) {
 
 	for i := 1; i < 100; i++ {
 		createTestIndex(t, scratch, i)
-		ts.refreshAll()
+		ts.refreshAll(false)
 	}
 	wg.Wait()
 	os.RemoveAll(scratch)

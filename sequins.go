@@ -115,7 +115,7 @@ func (s *sequins) init() error {
 	}
 
 	// Trigger loads before we start up.
-	s.refreshAll()
+	s.refreshAll(!s.remoteRefresh())
 	s.refreshLock.Lock()
 	defer s.refreshLock.Unlock()
 
@@ -126,7 +126,9 @@ func (s *sequins) init() error {
 		go func() {
 			log.Println("Automatically checking for new versions every", refresh.String())
 			for range s.refreshTicker.C {
-				s.refreshAll()
+				if s.remoteRefresh() {
+					s.refreshAll(false)
+				}
 			}
 		}()
 	}
@@ -136,7 +138,9 @@ func (s *sequins) init() error {
 	signal.Notify(sighups, syscall.SIGHUP)
 	go func() {
 		for range sighups {
-			s.refreshAll()
+			if s.remoteRefresh() {
+				s.refreshAll(false)
+			}
 		}
 	}()
 
@@ -146,6 +150,11 @@ func (s *sequins) init() error {
 	s.http = trackQueries(s)
 
 	return nil
+}
+
+func (s *sequins) remoteRefresh() bool {
+	// TODO: Check a feature flag
+	return true
 }
 
 func (s *sequins) ensureShardID(zkWatcher *zk.Watcher, routableIpAddress string) (*sharding.Peers, error) {
@@ -326,7 +335,10 @@ func (s *sequins) listDBs() ([]string, error) {
 	return filterPaths(dbs), nil
 }
 
-func (s *sequins) refreshAll() {
+// Refresh all datasets.
+//
+// An initial load can refrain from checking for new DBs/versions by setting initialLocal.
+func (s *sequins) refreshAll(initialLocal bool) {
 	s.refreshLock.Lock()
 	defer s.refreshLock.Unlock()
 
@@ -350,7 +362,7 @@ func (s *sequins) refreshAll() {
 
 			backfills.Add(1)
 			go func() {
-				db.backfillVersions()
+				db.backfillVersions(initialLocal)
 				backfills.Done()
 			}()
 		} else {

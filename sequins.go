@@ -1,8 +1,8 @@
 package main
 
 import (
-	"errors"
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/juju/ratelimit"
 	"github.com/nightlyone/lockfile"
 	"github.com/stripe/goforit"
@@ -48,6 +49,8 @@ const shardIDConvergenceMax = 3 * time.Second
 // remote refresh will proceed as expected. If it's set to TRUE, it won't.
 const disableRemoteRefreshFlagPrefix = "sequins.prevent_download"
 
+const goforitRefresh = goforit.DefaultInterval
+
 var errDirLocked = errors.New("failed to acquire lock")
 
 const (
@@ -77,6 +80,8 @@ type sequins struct {
 	storeLock lockfile.Lockfile
 
 	downloadRateLimitBucket *ratelimit.Bucket
+
+	goforit goforit.Backend
 }
 
 func newSequins(backend backend.Backend, config sequinsConfig) *sequins {
@@ -128,10 +133,8 @@ func (s *sequins) init() error {
 	// Kick off feature flag cache refresh if GoforitFlagJsonPath configured
 	if s.config.GoforitFlagJsonPath != "" {
 		log.Printf("Enabling Goforit: GoforitFlagJsonPath=%s", s.config.GoforitFlagJsonPath)
-		backend := goforit.BackendFromJSONFile(s.config.GoforitFlagJsonPath)
-
-		// TODO(amith): make constant
-		goforit.Init(30*time.Second, backend)
+		s.goforit = goforit.BackendFromJSONFile(s.config.GoforitFlagJsonPath)
+		goforit.Init(goforitRefresh, s.goforit)
 	}
 
 	// Trigger loads before we start up.
@@ -158,6 +161,10 @@ func (s *sequins) init() error {
 	signal.Notify(sighups, syscall.SIGHUP)
 	go func() {
 		for range sighups {
+			// Refresh any feature flags on HUP
+			if s.goforit != nil {
+				goforit.RefreshFlags(s.goforit)
+			}
 			if s.remoteRefresh() {
 				s.refreshAll(false)
 			}
@@ -177,7 +184,7 @@ func (s *sequins) remoteRefresh() bool {
 	if s.config.Sharding.ClusterName != "" {
 		flagName += "." + s.config.Sharding.ClusterName
 	}
-	if s.config.GoforitFlagJsonPath != "" && goforit.Enabled(context.Background(), flagName) {
+	if s.goforit != nil && goforit.Enabled(context.Background(), flagName) {
 		log.Printf("Not allowing remote refresh: cluster=%s, flag=%s\n",
 			s.config.Sharding.ClusterName, flagName)
 		if s.stats != nil {

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"net"
@@ -124,6 +125,12 @@ func noShardID() configOption {
 func shardID(id string) configOption {
 	return func(config *sequinsConfig) {
 		config.Sharding.ShardID = id
+	}
+}
+
+func featureFlags(file *os.File) configOption {
+	return func(config *sequinsConfig) {
+		config.GoforitFlagJsonPath = file.Name()
 	}
 }
 
@@ -531,6 +538,56 @@ func TestClusterUpgrading(t *testing.T) {
 	tc.makeVersionAvailable(v2)
 	tc.hup()
 
+	time.Sleep(expectTimeout)
+	tc.makeVersionAvailable(v3)
+	tc.hup()
+
+	tc.assertProgression()
+}
+
+func writeFlag(t *testing.T, file *os.File, flag string, status bool) {
+	_, err := file.Seek(0, io.SeekStart)
+	require.NoError(t, err)
+
+	rate := 0
+	if status {
+		rate = 1
+	}
+	s := fmt.Sprintf("{flags: [{\"Name\": %q, \"Rate\": %d}]}", flag, rate)
+	_, err = file.WriteString(s)
+	require.NoError(t, err)
+
+	err = file.Sync()
+	require.NoError(t, err)
+}
+
+// TestClusterDisabledUpgrading tests that we can turn checking for new versions on and off.
+func TestClusterDisabledUpgrading(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+	t.Parallel()
+
+	// Create an empty feature flags file
+	flagsFile, err := ioutil.TempFile("", "sequins-test-cluster-flags-")
+	require.NoError(t, err)
+	defer os.Remove(flagsFile.Name())
+	writeFlag(t, flagsFile, "sequins.prevent_download", false)
+
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	tc.addSequinses(3, minRepl(2), featureFlags(flagsFile))
+	tc.makeVersionAvailable(v1)
+	tc.expectProgression(v1, v3)
+	tc.startTest()
+
+	writeFlag(t, flagsFile, "sequins.prevent_download", true)
+	time.Sleep(expectTimeout)
+	tc.makeVersionAvailable(v2)
+	tc.hup()
+
+	writeFlag(t, flagsFile, "sequins.prevent_download", false)
 	time.Sleep(expectTimeout)
 	tc.makeVersionAvailable(v3)
 	tc.hup()

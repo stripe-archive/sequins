@@ -131,6 +131,7 @@ func shardID(id string) configOption {
 func featureFlags(file *os.File) configOption {
 	return func(config *sequinsConfig) {
 		config.GoforitFlagJsonPath = file.Name()
+		config.Sharding.ClusterName = ""
 	}
 }
 
@@ -370,8 +371,8 @@ func (ts *testSequins) start() {
 
 		ts.log = log
 		ts.process = exec.Command(ts.binary, "--config", ts.configPath)
-		ts.process.Stdout = log
-		ts.process.Stderr = log
+		ts.process.Stdout = os.Stdout
+		ts.process.Stderr = os.Stderr
 
 		ts.process.Start()
 		ts.cmdError = make(chan error, 1)
@@ -549,16 +550,23 @@ func writeFlag(t *testing.T, file *os.File, flag string, status bool) {
 	_, err := file.Seek(0, io.SeekStart)
 	require.NoError(t, err)
 
+	err = file.Truncate(0)
+	require.NoError(t, err)
+
 	rate := 0
 	if status {
 		rate = 1
 	}
-	s := fmt.Sprintf("{flags: [{\"Name\": %q, \"Rate\": %d}]}", flag, rate)
+	s := fmt.Sprintf("{\"flags\": [{\"Name\": %q, \"Rate\": %d}]}", flag, rate)
+	fmt.Printf("Feature flags: %s\n", s)
 	_, err = file.WriteString(s)
 	require.NoError(t, err)
 
 	err = file.Sync()
 	require.NoError(t, err)
+
+	b, _ := ioutil.ReadFile(file.Name())
+	fmt.Printf("READ: %s\n", b)
 }
 
 // TestClusterDisabledUpgrading tests that we can turn checking for new versions on and off.
@@ -577,7 +585,7 @@ func TestClusterDisabledUpgrading(t *testing.T) {
 	tc := newTestCluster(t)
 	defer tc.tearDown()
 
-	tc.addSequinses(3, minRepl(2), featureFlags(flagsFile))
+	tc.addSequinses(1, featureFlags(flagsFile))
 	tc.makeVersionAvailable(v1)
 	tc.expectProgression(v1, v3)
 	tc.startTest()

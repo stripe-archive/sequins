@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/juju/ratelimit"
 	"github.com/nightlyone/lockfile"
 	"github.com/stripe/goforit"
@@ -163,8 +162,13 @@ func (s *sequins) init() error {
 		for range sighups {
 			// Refresh any feature flags on HUP
 			if s.goforit != nil {
-				goforit.RefreshFlags(s.goforit)
+				log.Printf("HUP!\n")
+				err := goforit.RefreshFlags(s.goforit)
+				if err != nil {
+					log.Printf("Error refreshing flags on HUP: %s\n", err)
+				}
 			}
+
 			if s.remoteRefresh() {
 				s.refreshAll(false)
 			}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -125,8 +126,8 @@ func (s *sequins) init() error {
 	}
 
 	// Kick off feature flag cache refresh if GoforitFlagJsonPath configured
-	if s.config.GoforitFlagJsonPath != nil {
-		log.Printf("Enabling Goforit: GoforitFlagJsonPath=%s", s.GoforitFlagJsonPath)
+	if s.config.GoforitFlagJsonPath != "" {
+		log.Printf("Enabling Goforit: GoforitFlagJsonPath=%s", s.config.GoforitFlagJsonPath)
 		backend := goforit.BackendFromJSONFile(s.config.GoforitFlagJsonPath)
 
 		// TODO(amith): make constant
@@ -173,10 +174,10 @@ func (s *sequins) init() error {
 
 func (s *sequins) remoteRefresh() bool {
 	flagName := disableRemoteRefreshFlagPrefix
-	if s.config.Sharding.ClusterName != nil {
+	if s.config.Sharding.ClusterName != "" {
 		flagName += "." + s.config.Sharding.ClusterName
 	}
-	if s.config.GoforitFlagJsonPath != nil && goforit.Enabled(flagName) {
+	if s.config.GoforitFlagJsonPath != "" && goforit.Enabled(context.Background(), flagName) {
 		log.Printf("Not allowing remote refresh: cluster=%s, flag=%s\n",
 			s.config.Sharding.ClusterName, flagName)
 		if s.stats != nil {

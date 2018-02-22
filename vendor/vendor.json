@@ -1625,6 +1625,12 @@
 			"revisionTime": "2018-01-30T19:37:22Z"
 		},
 		{
+			"checksumSHA1": "yplPuRAwWroEt3ZCrUzpH/Wle2U=",
+			"path": "github.com/stripe/goforit",
+			"revision": "13c1dbb8ac77804cccf5dd67fc8ebaad639bb2e1",
+			"revisionTime": "2018-02-22T19:01:40Z"
+		},
+		{
 			"checksumSHA1": "dcOJtT2YpM6/qNQUa+IGGjFUy0k=",
 			"path": "golang.org/x/net/html",
 			"revision": "ab5485076ff3407ad2d02db054635913f017b0ed",

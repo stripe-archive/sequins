@@ -170,12 +170,12 @@ func (s *sequins) init() error {
 	return nil
 }
 
-func (s *sequins) remoteRefresh(cause string) bool {
+func (s *sequins) remoteRefresh(trigger string) bool {
 	flagName := disableRemoteRefreshFlagPrefix + s.config.Sharding.ClusterName
   if s.config.Goforit != nil && goforit.Enabled(flagName) {
     log.Printf("Not allowing remote refresh %s in cluster %s because flag %s is
 			enabled", s.config.Sharding.ShardID, s.config.Sharding.ClusterName, flagName)
-		s.stats.Count(flagName, 1, []string{"cause:" + cause}, 1.0)
+		s.stats.Count(flagName, 1, []string{"trigger:" + trigger}, 1.0)
 		return false
   } else {
 		return true

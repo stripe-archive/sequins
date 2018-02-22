@@ -371,8 +371,8 @@ func (ts *testSequins) start() {
 
 		ts.log = log
 		ts.process = exec.Command(ts.binary, "--config", ts.configPath)
-		ts.process.Stdout = os.Stdout
-		ts.process.Stderr = os.Stderr
+		ts.process.Stdout = log
+		ts.process.Stderr = log
 
 		ts.process.Start()
 		ts.cmdError = make(chan error, 1)
@@ -558,15 +558,11 @@ func writeFlag(t *testing.T, file *os.File, flag string, status bool) {
 		rate = 1
 	}
 	s := fmt.Sprintf("{\"flags\": [{\"Name\": %q, \"Rate\": %d}]}", flag, rate)
-	fmt.Printf("Feature flags: %s\n", s)
 	_, err = file.WriteString(s)
 	require.NoError(t, err)
 
 	err = file.Sync()
 	require.NoError(t, err)
-
-	b, _ := ioutil.ReadFile(file.Name())
-	fmt.Printf("READ: %s\n", b)
 }
 
 // TestClusterDisabledUpgrading tests that we can turn checking for new versions on and off.
@@ -576,7 +572,7 @@ func TestClusterDisabledUpgrading(t *testing.T) {
 	}
 	t.Parallel()
 
-	// Create an empty feature flags file
+	// Create an feature flags file where remote refreshes are allowed
 	flagsFile, err := ioutil.TempFile("", "sequins-test-cluster-flags-")
 	require.NoError(t, err)
 	defer os.Remove(flagsFile.Name())
@@ -590,15 +586,53 @@ func TestClusterDisabledUpgrading(t *testing.T) {
 	tc.expectProgression(v1, v3)
 	tc.startTest()
 
-	writeFlag(t, flagsFile, "sequins.prevent_download", true)
 	time.Sleep(expectTimeout)
 	tc.makeVersionAvailable(v2)
+	writeFlag(t, flagsFile, "sequins.prevent_download", true)
 	tc.hup()
 
-	writeFlag(t, flagsFile, "sequins.prevent_download", false)
 	time.Sleep(expectTimeout)
 	tc.makeVersionAvailable(v3)
+	writeFlag(t, flagsFile, "sequins.prevent_download", false)
 	tc.hup()
+
+	tc.assertProgression()
+}
+
+func TestRestartingNodeWhileDownloadDisabledRefreshesLocally(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+	t.Parallel()
+
+	// Create a feature flags file where remote refreshes are allowed
+	flagsFile, err := ioutil.TempFile("", "sequins-test-cluster-flags-")
+	require.NoError(t, err)
+	defer os.Remove(flagsFile.Name())
+	writeFlag(t, flagsFile, "sequins.prevent_download", false)
+
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	tc.addSequinses(1, featureFlags(flagsFile))
+	tc.makeVersionAvailable(v1)
+	tc.expectProgression(v1, down, v1)
+	tc.startTest()
+
+	// download initial dataset
+	time.Sleep(expectTimeout)
+
+	// stop node
+	tc.sequinses[0].stop()
+
+	// prevent download
+	writeFlag(t, flagsFile, "sequins.prevent_download", true)
+
+	// make new version available
+	tc.makeVersionAvailable(v2)
+
+	// restart node while downloads prevented
+	tc.sequinses[0].start()
 
 	tc.assertProgression()
 }

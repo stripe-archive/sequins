@@ -95,6 +95,13 @@ func (s *sequins) init() error {
 		s.stats = statsdClient
 	}
 
+	if s.config.Sharding.Enabled {
+		err := s.initCluster()
+		if err != nil {
+			return err
+		}
+	}
+
 	// Create local directories, and load any cached versions we have.
 	err := s.initLocalStore()
 	if err != nil {

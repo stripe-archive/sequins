@@ -471,15 +471,9 @@ func (w *Watcher) cleanupTree(node string) {
 		return
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(len(children))
 	for _, child := range children {
-		go func(c string) {
-			w.cleanupTree(path.Join(node, c))
-			wg.Done()
-		}(child)
+		w.cleanupTree(path.Join(node, child))
 	}
-	wg.Wait()
 
 	if err = w.conn.Delete(node, -1); err == nil {
 		log.Printf("sequins ZK deleted znode %s", node)

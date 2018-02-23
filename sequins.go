@@ -450,7 +450,7 @@ func (s *sequins) refreshAll(initialStartup bool) {
 
 	// Cleanup any zkNodes for deleted versions and dbs.
 	if s.zkWatcher != nil {
-		s.zkWatcher.TriggerCleanup()
+		go s.zkWatcher.TriggerCleanup()
 	}
 }
 

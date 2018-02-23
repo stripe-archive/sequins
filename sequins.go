@@ -48,7 +48,7 @@ type sequins struct {
 	config     sequinsConfig
 	http       http.Handler
 	backend    backend.Backend
-	httpClient http.Client
+	httpClient *http.Client
 
 	dbs     map[string]*db
 	dbsLock sync.RWMutex
@@ -73,7 +73,6 @@ func newSequins(backend backend.Backend, config sequinsConfig) *sequins {
 	return &sequins{
 		config:      config,
 		backend:     backend,
-		httpClient:  http.Client{Transport: &http.Transport{}},
 		refreshLock: sync.Mutex{},
 	}
 }
@@ -89,6 +88,17 @@ func (s *sequins) init() error {
 		statsdClient.Tags = append(statsdClient.Tags, fmt.Sprintf("sequins:%s", s.config.Sharding.ClusterName))
 		s.stats = statsdClient
 	}
+
+	// Create a new http client and a transport with a larger connection pool
+	defaultRoundTripper := http.DefaultTransport
+	defaultTransportPointer, ok := defaultRoundTripper.(*http.Transport)
+	if !ok {
+		panic(fmt.Sprintf("defaultRoundTripper not an *http.Transport"))
+	}
+	transport := *defaultTransportPointer // dereference it to get a copy of the struct that the pointer points to
+	transport.MaxIdleConns = 300
+	transport.MaxIdleConnsPerHost = 3
+	s.httpClient = &http.Client{Transport: &transport}
 
 	if s.config.Sharding.Enabled {
 		err := s.initCluster()

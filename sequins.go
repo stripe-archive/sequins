@@ -45,9 +45,9 @@ const (
 )
 
 type sequins struct {
-	config  sequinsConfig
-	http    http.Handler
-	backend backend.Backend
+	config     sequinsConfig
+	http       http.Handler
+	backend    backend.Backend
 	httpClient http.Client
 
 	dbs     map[string]*db
@@ -73,7 +73,7 @@ func newSequins(backend backend.Backend, config sequinsConfig) *sequins {
 	return &sequins{
 		config:      config,
 		backend:     backend,
-		httpClient:	http.Client{Transport: &http.Transport{}},
+		httpClient:  http.Client{Transport: &http.Transport{}},
 		refreshLock: sync.Mutex{},
 	}
 }

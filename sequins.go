@@ -404,6 +404,7 @@ func (s *sequins) refreshAll() {
 	if s.zkWatcher != nil {
 		s.zkWatcher.TriggerCleanup()
 	}
+	log.Println("Cleaned up Znodes")
 }
 
 func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {

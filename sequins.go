@@ -373,6 +373,8 @@ func (s *sequins) refreshAll() {
 
 	backfills.Wait()
 
+	log.Println("Finishing freshing DBs")
+
 	// Now, grab the full lock to switch the new map in.
 	s.dbsLock.RUnlock()
 	s.dbsLock.Lock()
@@ -384,6 +386,8 @@ func (s *sequins) refreshAll() {
 	s.dbsLock.Unlock()
 	s.dbsLock.RLock()
 
+	log.Println("Swapped DBs")
+
 	for name, db := range oldDBs {
 		if s.dbs[name] == nil {
 			log.Printf("Removing and clearing database %s", name)
@@ -393,6 +397,8 @@ func (s *sequins) refreshAll() {
 	}
 
 	s.dbsLock.RUnlock()
+
+	log.Println("Closed Old DBs")
 
 	// Cleanup any zkNodes for deleted versions and dbs.
 	if s.zkWatcher != nil {

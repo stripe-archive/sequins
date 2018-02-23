@@ -31,6 +31,8 @@ func main() {
 	kingpin.Version("sequins version " + sequinsVersion)
 	kingpin.Parse()
 
+	log.Printf("sequins version: %s", sequinsVersion)
+
 	config, err := loadConfig(*configPath)
 	if err == errNoConfig {
 		// If --source was specified, we can just use that and the default config.

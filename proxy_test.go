@@ -23,6 +23,7 @@ var proxyTestVersion = &version{
 				ProxyStageTimeout: duration{100 * time.Millisecond},
 			},
 		},
+		httpClient: &http.Client{},
 	},
 }
 

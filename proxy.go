@@ -112,7 +112,7 @@ func (vs *version) proxy(r *http.Request, peers []string) (*http.Response, strin
 }
 
 func (vs *version) proxyAttempt(proxyRequest *http.Request, peer string, res chan proxyResponse) {
-	resp, err := http.DefaultClient.Do(proxyRequest)
+	resp, err := vs.sequins.httpClient.Do(proxyRequest)
 	if err != nil {
 		res <- proxyResponse{nil, peer, err}
 		return

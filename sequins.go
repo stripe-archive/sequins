@@ -45,9 +45,10 @@ const (
 )
 
 type sequins struct {
-	config  sequinsConfig
-	http    http.Handler
-	backend backend.Backend
+	config     sequinsConfig
+	http       http.Handler
+	backend    backend.Backend
+	httpClient *http.Client
 
 	dbs     map[string]*db
 	dbsLock sync.RWMutex
@@ -70,8 +71,14 @@ type sequins struct {
 
 func newSequins(backend backend.Backend, config sequinsConfig) *sequins {
 	return &sequins{
-		config:      config,
-		backend:     backend,
+		config:  config,
+		backend: backend,
+		httpClient: &http.Client{
+			Transport: &http.Transport{
+				MaxIdleConns:        300,
+				MaxIdleConnsPerHost: 3,
+			},
+		},
 		refreshLock: sync.Mutex{},
 	}
 }
@@ -330,6 +337,7 @@ func (s *sequins) refreshAll() {
 	s.refreshLock.Lock()
 	defer s.refreshLock.Unlock()
 
+	log.Println("Refreshing all DBs")
 	dbs, err := s.listDBs()
 	if err != nil {
 		log.Printf("Error listing DBs from %s: %s", s.backend.DisplayPath(""), err)
@@ -354,18 +362,18 @@ func (s *sequins) refreshAll() {
 				backfills.Done()
 			}()
 		} else {
-			go func() {
-				err := db.refresh()
-				if err != nil {
-					log.Printf("Error refreshing %s: %s", db.name, err)
-				}
-			}()
+			err := db.refresh()
+			if err != nil {
+				log.Printf("Error refreshing %s: %s", db.name, err)
+			}
 		}
 
 		newDBs[name] = db
 	}
 
 	backfills.Wait()
+
+	log.Println("Finishing freshing DBs")
 
 	// Now, grab the full lock to switch the new map in.
 	s.dbsLock.RUnlock()
@@ -378,9 +386,11 @@ func (s *sequins) refreshAll() {
 	s.dbsLock.Unlock()
 	s.dbsLock.RLock()
 
+	log.Println("Swapped DBs")
+
 	for name, db := range oldDBs {
 		if s.dbs[name] == nil {
-			log.Println("Removing and clearing database", name)
+			log.Printf("Removing and clearing database %s", name)
 			db.close()
 			db.delete()
 		}
@@ -388,10 +398,13 @@ func (s *sequins) refreshAll() {
 
 	s.dbsLock.RUnlock()
 
+	log.Println("Closed Old DBs")
+
 	// Cleanup any zkNodes for deleted versions and dbs.
 	if s.zkWatcher != nil {
 		s.zkWatcher.TriggerCleanup()
 	}
+	log.Println("Cleaned up Znodes")
 }
 
 func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {

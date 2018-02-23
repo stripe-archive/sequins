@@ -90,15 +90,10 @@ func (s *sequins) init() error {
 	}
 
 	// Create a new http client and a transport with a larger connection pool
-	defaultRoundTripper := http.DefaultTransport
-	defaultTransportPointer, ok := defaultRoundTripper.(*http.Transport)
-	if !ok {
-		panic(fmt.Sprintf("defaultRoundTripper not an *http.Transport"))
-	}
-	transport := *defaultTransportPointer // dereference it to get a copy of the struct that the pointer points to
+	transport := &http.Transport{}
 	transport.MaxIdleConns = 300
 	transport.MaxIdleConnsPerHost = 3
-	s.httpClient = &http.Client{Transport: &transport}
+	s.httpClient = &http.Client{Transport: transport}
 
 	if s.config.Sharding.Enabled {
 		err := s.initCluster()

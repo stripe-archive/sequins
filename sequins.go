@@ -332,6 +332,7 @@ func (s *sequins) refreshAll() {
 	s.refreshLock.Lock()
 	defer s.refreshLock.Unlock()
 
+	log.Println("Refreshing all DBs")
 	dbs, err := s.listDBs()
 	if err != nil {
 		log.Printf("Error listing DBs from %s: %s", s.backend.DisplayPath(""), err)
@@ -382,7 +383,7 @@ func (s *sequins) refreshAll() {
 
 	for name, db := range oldDBs {
 		if s.dbs[name] == nil {
-			log.Println("Removing and clearing database", name)
+			log.Printf("Removing and clearing database %s", name)
 			db.close()
 			db.delete()
 		}

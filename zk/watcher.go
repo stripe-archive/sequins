@@ -469,17 +469,20 @@ func (w *Watcher) cleanupTree(node string) {
 		return
 	} else if stat.EphemeralOwner != 0 {
 		return
+	} else if stat.Ctime > (time.Now().Unix() - 3600) * 1000 {
+		// Skip the znodes created within last hour to avoid the race with creating
+		// the znode path for new db versions.
+		return
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(len(children))
 	for _, child := range children {
-		go func(c string) {
-			w.cleanupTree(path.Join(node, c))
-			wg.Done()
-		}(child)
+		w.cleanupTree(path.Join(node, child))
 	}
-	wg.Wait()
+
+	// Do not even attempt to delete if this znode has children
+	if len(children) != 0 {
+		return
+	}
 
 	if err = w.conn.Delete(node, -1); err == nil {
 		log.Printf("sequins ZK deleted znode %s", node)

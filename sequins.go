@@ -257,8 +257,6 @@ func (s *sequins) initCluster() error {
 		log.Fatal("Dying due to ZK flapping")
 	}()
 
-	go zkWatcher.TriggerCleanup()
-
 	hostname := s.config.Sharding.AdvertisedHostname
 	if hostname == "" {
 		hostname, err = os.Hostname()
@@ -450,7 +448,7 @@ func (s *sequins) refreshAll(initialStartup bool) {
 
 	// Cleanup any zkNodes for deleted versions and dbs.
 	if s.zkWatcher != nil {
-		s.zkWatcher.TriggerCleanup()
+		go s.zkWatcher.TriggerCleanup()
 	}
 }
 

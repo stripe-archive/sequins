@@ -71,8 +71,14 @@ type sequins struct {
 
 func newSequins(backend backend.Backend, config sequinsConfig) *sequins {
 	return &sequins{
-		config:      config,
-		backend:     backend,
+		config:  config,
+		backend: backend,
+		httpClient: &http.Client{
+			Transport: &http.Transport{
+				MaxIdleConns:        300,
+				MaxIdleConnsPerHost: 3,
+			},
+		},
 		refreshLock: sync.Mutex{},
 	}
 }
@@ -87,19 +93,6 @@ func (s *sequins) init() error {
 		statsdClient.Namespace = "sequins."
 		statsdClient.Tags = append(statsdClient.Tags, fmt.Sprintf("sequins:%s", s.config.Sharding.ClusterName))
 		s.stats = statsdClient
-	}
-
-	// Create a new http client and a transport with a larger connection pool
-	transport := &http.Transport{}
-	transport.MaxIdleConns = 300
-	transport.MaxIdleConnsPerHost = 3
-	s.httpClient = &http.Client{Transport: transport}
-
-	if s.config.Sharding.Enabled {
-		err := s.initCluster()
-		if err != nil {
-			return err
-		}
 	}
 
 	// Create local directories, and load any cached versions we have.

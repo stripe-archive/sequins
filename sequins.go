@@ -362,12 +362,10 @@ func (s *sequins) refreshAll() {
 				backfills.Done()
 			}()
 		} else {
-			go func() {
-				err := db.refresh()
-				if err != nil {
-					log.Printf("Error refreshing %s: %s", db.name, err)
-				}
-			}()
+			err := db.refresh()
+			if err != nil {
+				log.Printf("Error refreshing %s: %s", db.name, err)
+			}
 		}
 
 		newDBs[name] = db

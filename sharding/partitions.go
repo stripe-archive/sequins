@@ -125,7 +125,8 @@ func (p *Partitions) pickLocal() {
 			}
 		}
 	}
-	p.selected = selected
+
+	p.SetSelected(selected)
 }
 
 // sync runs in the background, and syncs the remote partitions from zookeeper
@@ -172,10 +173,31 @@ func (p *Partitions) UpdateLocal(local map[int]bool) {
 	}
 }
 
-// SelectedLocal returns the set of partitions that were selected to have
+// Selected returns the set of partitions that were selected to have
 // locally.
-func (p *Partitions) SelectedLocal() map[int]bool {
-	return p.selected
+func (p *Partitions) Selected() []int {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	selected := make([]int, 0, len(p.selected))
+	for partition, sel := range p.selected {
+		if sel {
+			selected = append(selected, partition)
+		}
+	}
+	return selected
+}
+
+// SetSelected sets the list of selected partitions to the one given.
+// Note: it's assumed that selected is used as a set (keys only map to true)
+func (p *Partitions) SetSelected(selected map[int]bool) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	p.selected = make(map[int]bool)
+	for partition := range selected {
+		p.selected[partition] = true
+	}
 }
 
 // NeededLocal returns the set of partitions that were selected to have locally,

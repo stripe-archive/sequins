@@ -101,7 +101,7 @@ Type   | Default
 :----: | -------
 string | _unset_
 
-If this path is specified, sequins will start goforit backed by the
+If this path is specified, sequins will start [Goforit][goforit] backed by the
 JSON file located at that path.  Goforit enables feature flagging
 within sequins and can be used to easily toggle remote refresh on
 and off.  Before each remote refresh, sequins will inspect this file for
@@ -344,3 +344,4 @@ If set, this adds the default pprof handlers to the debug HTTP server.
 [toml]: https://github.com/toml-lang/toml
 [confexample]: https://github.com/stripe/sequins/blob/master/sequins.conf.example
 [dogstatsd]: https://docs.datadoghq.com/guides/dogstatsd/
+[goforit]: https://github.com/stripe/goforit

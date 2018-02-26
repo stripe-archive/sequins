@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/statsd"
-	"github.com/davecgh/go-spew/spew"
 )
 
 const statsdAddress = "127.0.0.1:8200"
@@ -153,10 +152,8 @@ func parseFlagsJSON(r io.Reader) (map[string]Flag, error) {
 	var v JSONFormat
 	err := dec.Decode(&v)
 	if err != nil {
-		fmt.Printf("WTF? %s\n", err)
 		return nil, err
 	}
-	spew.Dump(v.Flags)
 	return flagsToMap(v.Flags), nil
 }
 

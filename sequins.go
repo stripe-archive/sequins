@@ -381,14 +381,13 @@ func (s *sequins) refreshAll(initialStartup bool) {
 	s.refreshLock.Lock()
 	defer s.refreshLock.Unlock()
 
-	remoteRefresh := s.remoteRefresh()
-	if !remoteRefresh && !initialStartup {
-		return
-	}
-
-	initialLocal := !remoteRefresh && initialStartup
-	if initialLocal {
+	var initialLocal bool
+	if !s.remoteRefresh() {
+		if !initialStartup {
+			return
+		}
 		log.Printf("Kicking off initial local-only refresh")
+		initialLocal = true
 	}
 
 	dbs, err := s.listDBs()

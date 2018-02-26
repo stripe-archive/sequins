@@ -160,7 +160,6 @@ func (s *sequins) init() error {
 		for range sighups {
 			// Refresh any feature flags on HUP
 			if s.goforit != nil {
-				log.Printf("HUP!\n")
 				err := goforit.RefreshFlags(s.goforit)
 				if err != nil {
 					log.Printf("Error refreshing flags on HUP: %s\n", err)

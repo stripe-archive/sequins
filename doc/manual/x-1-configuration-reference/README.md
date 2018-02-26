@@ -95,6 +95,24 @@ string | _unset_ (eg `"application/json"`)
 
 If this is set, sequins will set this Content-Type header on responses.
 
+### goforit_flag_json_path
+
+Type   | Default
+:----: | -------
+string | _unset_
+
+If this path is specified, sequins will start goforit backed by the
+JSON file located at that path.  Goforit enables feature flagging
+within sequins and can be used to easily toggle remote refresh on
+and off.  Before each remote refresh, sequins will inspect this file for
+the state of the flag sequins.prevent_download (or sequins.prevent_download
+.<CLUSTER NAME> if the instance is part of a cluster).  If the flag is
+not defined or is set to FALSE, remote refresh will proceed as expected.
+If it's set to TRUE, sequins will not refresh from remote.
+
+If the flag is TRUE on initial startup, sequins will backfill versions
+from the local store and serve the most recent version available there.
+
 ## [storage]
 
 ### compression

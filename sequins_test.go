@@ -373,61 +373,6 @@ func writeFlag(t *testing.T, file *os.File, flag string, status bool) {
 	require.NoError(t, err)
 }
 
-func TestInitialRefreshAllWhileRemoteDisabled(t *testing.T) {
-	scratch, err := ioutil.TempDir("", "sequins-")
-	require.NoError(t, err, "setup")
-
-	// version 1 local copy
-	dst := filepath.Join(scratch, "baby-names", "1")
-	require.NoError(t, directoryCopy(t, dst, "test_databases/healthy/baby-names/1"), "setup: copy data")
-
-	// start sequins, let it get the version
-	backend := backend.NewLocalBackend(scratch)
-	localStore, err := ioutil.TempDir("", "sequins-store-")
-	require.NoError(t, err)
-	flagsFile, err := os.Create(filepath.Join(localStore, "flags.json"))
-	require.NoError(t, err)
-	writeFlag(t, flagsFile, "sequins.prevent_download.sequins", false)
-	ts := getSequins(t, backend, localStore)
-
-	// check that we only have version 1
-	key := fmt.Sprintf("/baby-names/%s", babyNames[0].key)
-	req, _ := http.NewRequest("GET", key, nil)
-	w := httptest.NewRecorder()
-	ts.ServeHTTP(w, req)
-	assert.Equal(t, 200, w.Code, "fetching an existing key (%s) should 200", key)
-	assert.Equal(t, "1", w.HeaderMap.Get(versionHeader), "when fetching an existing key, the sequins version header should be set")
-	ts.shutdown()
-
-	// add a new version
-	dst = filepath.Join(scratch, "baby-names", "2")
-	require.NoError(t, directoryCopy(t, dst, "test_databases/healthy/baby-names/1"), "setup: copy data")
-
-	// start sequins, but with a flag set to disable fetching
-	writeFlag(t, flagsFile, "sequins.prevent_download.sequins", true)
-	require.NoError(t, ts.init())
-	waitForDBs(t, ts)
-
-	// check that we still only have version 1
-	w = httptest.NewRecorder()
-	ts.ServeHTTP(w, req)
-	assert.Equal(t, 200, w.Code, "fetching an existing key (%s) should 200", key)
-	assert.Equal(t, "1", w.HeaderMap.Get(versionHeader), "when fetching an existing key, the sequins version header should be set")
-	ts.shutdown()
-
-	// now enable remote fetching, and try again
-	writeFlag(t, flagsFile, "sequins.prevent_download.sequins", false)
-	require.NoError(t, ts.init())
-	waitForDBs(t, ts)
-	// Wait for DBs will not wait for new versions, so give it some time
-	time.Sleep(time.Second)
-	w = httptest.NewRecorder()
-	ts.ServeHTTP(w, req)
-	assert.Equal(t, 200, w.Code, "fetching an existing key (%s) should 200", key)
-	assert.Equal(t, "2", w.HeaderMap.Get(versionHeader), "when fetching an existing key, the sequins version header should be set")
-	ts.shutdown()
-}
-
 func TestNonInitialRefreshAllWhileRemoteDisabled(t *testing.T) {
 	scratch, err := ioutil.TempDir("", "sequins-")
 	require.NoError(t, err, "setup")

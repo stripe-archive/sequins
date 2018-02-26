@@ -127,6 +127,13 @@ func shardID(id string) configOption {
 	}
 }
 
+func featureFlags(file *os.File) configOption {
+	return func(config *sequinsConfig) {
+		config.GoforitFlagJsonPath = file.Name()
+		config.Sharding.ClusterName = ""
+	}
+}
+
 func (tc *testCluster) addSequins(opts ...configOption) *testSequins {
 	port := zktest.RandomPort()
 	path := filepath.Join(tc.source, fmt.Sprintf("node-%d", port))
@@ -1101,4 +1108,42 @@ func TestClusterPartitionAssignment(t *testing.T) {
 		id := host.getShardID(t)
 		require.Equal(t, expectedAssignments[i], host.getPartitions(v2), "partitions assignment for node (%s) should be correct", id)
 	}
+}
+
+func TestRestartingNodeWhileRemoteRefreshDisabled(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping cluster test in short mode.")
+	}
+	t.Parallel()
+
+	// Create a feature flags file where remote refreshes are allowed
+	flagsFile, err := ioutil.TempFile("", "sequins-test-cluster-flags-")
+	require.NoError(t, err)
+	defer os.Remove(flagsFile.Name())
+	writeFlag(t, flagsFile, "sequins.prevent_download", false)
+
+	tc := newTestCluster(t)
+	defer tc.tearDown()
+
+	tc.addSequinses(1, featureFlags(flagsFile))
+	tc.makeVersionAvailable(v1)
+	tc.expectProgression(v1, down, v1)
+	tc.startTest()
+
+	// download initial dataset
+	time.Sleep(expectTimeout)
+
+	// stop node
+	tc.sequinses[0].stop()
+
+	// prevent download
+	writeFlag(t, flagsFile, "sequins.prevent_download", true)
+
+	// make new version available
+	tc.makeVersionAvailable(v2)
+
+	// restart node while downloads prevented
+	tc.sequinses[0].start()
+
+	tc.assertProgression()
 }

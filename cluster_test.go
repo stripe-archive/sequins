@@ -127,13 +127,6 @@ func shardID(id string) configOption {
 	}
 }
 
-func featureFlags(file *os.File) configOption {
-	return func(config *sequinsConfig) {
-		config.GoforitFlagJsonPath = file.Name()
-		config.Sharding.ClusterName = ""
-	}
-}
-
 func (tc *testCluster) addSequins(opts ...configOption) *testSequins {
 	port := zktest.RandomPort()
 	path := filepath.Join(tc.source, fmt.Sprintf("node-%d", port))

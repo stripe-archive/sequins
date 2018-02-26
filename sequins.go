@@ -375,7 +375,8 @@ func (s *sequins) remoteRefresh() bool {
 
 // Refresh all datasets.
 //
-// An initial load can refrain from checking for new DBs/versions by setting initialLocal.
+// If initialStartup is set to TRUE and remoteRefresh() is disabled,
+// initial loads will refrain from checking for new DBs/versions
 func (s *sequins) refreshAll(initialStartup bool) {
 	s.refreshLock.Lock()
 	defer s.refreshLock.Unlock()

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/colinmarc/sequencefile"
+	"github.com/stripe/goforit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -76,24 +77,32 @@ func waitForDBs(t *testing.T, s *sequins) {
 	}
 }
 
-func getSequins(t *testing.T, backend backend.Backend, localStore string) *sequins {
-	if localStore == "" {
-		tmpDir, err := ioutil.TempDir("", "sequins-")
-		require.NoError(t, err)
+func getSequinsWithConditionalStart(
+	t *testing.T, backend backend.Backend, localStore string, start bool) *sequins {
+		if localStore == "" {
+			tmpDir, err := ioutil.TempDir("", "sequins-")
+			require.NoError(t, err)
 
-		localStore = tmpDir
-	}
+			localStore = tmpDir
+		}
 
-	config := defaultConfig()
-	config.Bind = "localhost:9599"
-	config.LocalStore = localStore
-	config.MaxParallelLoads = 1
+		config := defaultConfig()
+		config.Bind = "localhost:9599"
+		config.LocalStore = localStore
+		config.MaxParallelLoads = 1
 
-	s := newSequins(backend, config)
-	require.NoError(t, s.init())
+		s := newSequins(backend, config)
+		if start {
+			require.NoError(t, s.init())
+			waitForDBs(t, s)
+		}
 
-	waitForDBs(t, s)
-	return s
+		return s
+}
+
+func getSequins(
+	t *testing.T, backend backend.Backend, localStore string) *sequins {
+	return getSequinsWithConditionalStart(t, backend, localStore, true)
 }
 
 func testBasicSequins(t *testing.T, ts *sequins, expectedDBPath string) {
@@ -353,6 +362,42 @@ func createTestIndex(t *testing.T, scratch string, i int) {
 	require.NoError(t, err)
 }
 
+func TestInitialRefreshAllWhileRemoteDisabledRefreshesLocally(t *testing.T) {
+	scratch, err := ioutil.TempDir("", "sequins-")
+	require.NoError(t, err, "setup")
+
+	// version 1 local copy
+	dst := filepath.Join(scratch, "baby-names", "1")
+	require.NoError(t, directoryCopy(t, dst, "test_databases/healthy/baby-names/1"), "setup: copy data")
+
+	// backend that reveals 2 versions in remote
+	backend := &MockBackend{
+		delegate: backend.NewLocalBackend(scratch),
+		t: t,
+		versions: []string{"1", "2"},
+	}
+	ts := getSequinsWithConditionalStart(t, backend, "", false)
+
+	// start goforit w/ remote refresh disabled
+	flagsFile, err := ioutil.TempFile("", "sequins-test-cluster-flags-")
+	require.NoError(t, err)
+	defer os.Remove(flagsFile.Name())
+	writeFlag(t, flagsFile, "sequins.prevent_download.sequins", true)
+	ts.goforit = goforit.BackendFromJSONFile(flagsFile.Name())
+
+	// start sequins
+	goforit.RefreshFlags(ts.goforit)
+	require.NoError(t, ts.init())
+	time.Sleep(1000 * time.Millisecond)
+
+	// assert that we never tried to refresh the second version
+	require.Equal(t, []string{"1"}, getVersions(ts, "baby-names"), "there should be a single version")
+}
+
+func TestNonInitialRefreshAllWhileRemoteDisabledNoOps(t *testing.T) {
+
+}
+
 func TestSparkeyInput(t *testing.T) {
 	scratch, err := ioutil.TempDir("", "sequins-")
 	require.NoError(t, err, "setup")
@@ -411,4 +456,48 @@ func TestSparkeyInput(t *testing.T) {
 	require.NoError(t, err, "fetching db status should work and be valid")
 	assert.Equal(t, 200, w.Code, "fetching db status should work and be valid")
 	validateStatus(t, dbStatus, dst)
+}
+
+func getVersions(s *sequins, db_name string) []string {
+	var keys []string
+	for key, _ := range s.dbs[db_name].mux.versions {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
+func contains(array []string, value string) bool {
+	for _, elem := range array {
+		if elem == value {
+			return true
+		}
+	}
+	return false
+}
+
+type MockBackend struct {
+	delegate 						backend.Backend
+
+	t 									*testing.T
+	versions						[]string
+}
+
+func (backend *MockBackend) ListDBs() ([]string, error) {
+	return backend.delegate.ListDBs()
+}
+
+func (backend *MockBackend) ListVersions(db, after string, checkForSuccess bool) ([]string, error) {
+	return backend.versions, nil
+}
+
+func (backend *MockBackend) ListFiles(db, version string) ([]string, error) {
+	return backend.delegate.ListFiles(db, version)
+}
+
+func (backend *MockBackend) Open(db, version, file string) (io.ReadCloser, error) {
+	return backend.delegate.Open(db, version, file)
+}
+
+func (backend *MockBackend) DisplayPath(parts ...string) string {
+	return backend.delegate.DisplayPath(parts...)
 }

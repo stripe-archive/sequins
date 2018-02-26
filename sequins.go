@@ -137,7 +137,7 @@ func (s *sequins) init() error {
 	}
 
 	// Trigger loads before we start up.
-	s.refreshAll(!s.remoteRefresh())
+	s.refreshAll(true)
 	s.refreshLock.Lock()
 	defer s.refreshLock.Unlock()
 
@@ -148,9 +148,7 @@ func (s *sequins) init() error {
 		go func() {
 			log.Println("Automatically checking for new versions every", refresh.String())
 			for range s.refreshTicker.C {
-				if s.remoteRefresh() {
-					s.refreshAll(false)
-				}
+				s.refreshAll(false)
 			}
 		}()
 	}
@@ -169,9 +167,7 @@ func (s *sequins) init() error {
 				}
 			}
 
-			if s.remoteRefresh() {
-				s.refreshAll(false)
-			}
+			s.refreshAll(false)
 		}
 	}()
 
@@ -181,23 +177,6 @@ func (s *sequins) init() error {
 	s.http = trackQueries(s)
 
 	return nil
-}
-
-func (s *sequins) remoteRefresh() bool {
-	flagName := disableRemoteRefreshFlagPrefix
-	if s.config.Sharding.ClusterName != "" {
-		flagName += "." + s.config.Sharding.ClusterName
-	}
-	if s.goforit != nil && goforit.Enabled(context.Background(), flagName) {
-		log.Printf("Not allowing remote refresh: cluster=%s, flag=%s\n",
-			s.config.Sharding.ClusterName, flagName)
-		if s.stats != nil {
-			s.stats.Count(flagName, 1, []string{}, 1.0)
-		}
-		return false
-	} else {
-		return true
-	}
 }
 
 func (s *sequins) ensureShardID(zkWatcher *zk.Watcher, routableIpAddress string) (*sharding.Peers, error) {
@@ -378,13 +357,36 @@ func (s *sequins) listDBs() ([]string, error) {
 	return filterPaths(dbs), nil
 }
 
+func (s *sequins) remoteRefresh() bool {
+	flagName := disableRemoteRefreshFlagPrefix
+	if s.config.Sharding.ClusterName != "" {
+		flagName += "." + s.config.Sharding.ClusterName
+	}
+	if s.goforit != nil && goforit.Enabled(context.Background(), flagName) {
+		log.Printf("Not allowing remote refresh: cluster=%s, flag=%s\n",
+			s.config.Sharding.ClusterName, flagName)
+		if s.stats != nil {
+			s.stats.Count(flagName, 1, []string{}, 1.0)
+		}
+		return false
+	} else {
+		return true
+	}
+}
+
 // Refresh all datasets.
 //
 // An initial load can refrain from checking for new DBs/versions by setting initialLocal.
-func (s *sequins) refreshAll(initialLocal bool) {
+func (s *sequins) refreshAll(initialStartup bool) {
 	s.refreshLock.Lock()
 	defer s.refreshLock.Unlock()
 
+	remoteRefresh := s.remoteRefresh()
+	if !remoteRefresh && !initialStartup {
+		return
+	}
+
+	initialLocal := !remoteRefresh && initialStartup
 	if initialLocal {
 		log.Printf("Kicking off initial local-only refresh")
 	}

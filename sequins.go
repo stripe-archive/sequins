@@ -131,7 +131,7 @@ func (s *sequins) init() error {
 
 	// Kick off feature flag cache refresh if GoforitFlagJsonPath configured
 	if s.config.GoforitFlagJsonPath != "" {
-		log.Printf("Enabling Goforit: GoforitFlagJsonPath=%s", s.config.GoforitFlagJsonPath)
+		log.Printf("Enabling Goforit: GoforitFlagJsonPath=%q", s.config.GoforitFlagJsonPath)
 		s.goforit = goforit.BackendFromJSONFile(s.config.GoforitFlagJsonPath)
 		goforit.Init(goforitRefresh, s.goforit)
 	}
@@ -162,7 +162,7 @@ func (s *sequins) init() error {
 			if s.goforit != nil {
 				err := goforit.RefreshFlags(s.goforit)
 				if err != nil {
-					log.Printf("Error refreshing flags on HUP: %s\n", err)
+					log.Printf("Error refreshing flags on HUP: %s", err)
 				}
 			}
 
@@ -362,7 +362,7 @@ func (s *sequins) remoteRefresh() bool {
 		flagName += "." + s.config.Sharding.ClusterName
 	}
 	if s.goforit != nil && goforit.Enabled(context.Background(), flagName) {
-		log.Printf("Not allowing remote refresh: cluster=%s, flag=%s\n",
+		log.Printf("Not allowing remote refresh: cluster=%q, flag=%q",
 			s.config.Sharding.ClusterName, flagName)
 		if s.stats != nil {
 			s.stats.Count(flagName, 1, []string{}, 1.0)

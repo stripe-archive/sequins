@@ -72,7 +72,7 @@ func (db *db) backfillVersions(initialLocal bool) error {
 	var versions []string
 	var err error
 	if initialLocal {
-		log.Printf("Initial fetch of local versions only: db=%s\n", db.name)
+		log.Printf("Initial fetch of local versions only: db=%s", db.name)
 		versions, err = db.localVersions()
 	} else {
 		versions, err = db.listVersions("")

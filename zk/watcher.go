@@ -67,6 +67,8 @@ func Connect(zkServers []string, prefix string, connectTimeout, sessionTimeout t
 		watchedNodes:   make(map[string]watchedNode),
 	}
 
+	// QUESTION: do we need to call reconnect here? I don't think it is necessary because we will call
+	// reconnect() inside w.run() in another goroutine immediately.
 	err := w.reconnect()
 	if err != nil {
 		return nil, fmt.Errorf("Zookeeper error: %s", err)
@@ -91,7 +93,7 @@ func (w *Watcher) reconnect() error {
 	defer w.lock.Unlock()
 
 	servers := strings.Join(w.zkServers, ",")
-	log.Println("Connecting to zookeeper at", servers)
+	log.Println("Connecting to zookeeper at ", servers)
 	conn, events, err = zk.Connect(w.zkServers, w.sessionTimeout)
 	if err != nil {
 		return err
@@ -102,6 +104,10 @@ func (w *Watcher) reconnect() error {
 	}
 	w.conn = conn
 
+	// QUESTION: why do need to set connection timeout here?
+	// Aren't we already connected to ZooKeeper now?
+	// The sample code: https://github.com/samuel/go-zookeeper/blob/master/examples/basic.go
+	// doesn't have these extra steps to wait for events.
 	connectTimeout := time.NewTimer(w.connectTimeout)
 	select {
 	case <-connectTimeout.C:
@@ -118,6 +124,9 @@ func (w *Watcher) reconnect() error {
 	}
 
 	go func() {
+		// QUESTION: why do we need to range over events? childrenW() also returns an event chanel.
+		// Do we handle the same events in watchChildren(node string, wn watchedNode) too?
+		// I searched splunk and couldn't find the following err has been triggered in the past 30 days.
 		for ev := range events {
 			if ev.State != zk.StateConnected && ev.State != zk.StateConnecting {
 				if ev.Err != nil {
@@ -142,6 +151,7 @@ func (w *Watcher) runHooks() error {
 	w.hooksLock.Lock()
 	defer w.hooksLock.Unlock()
 
+	log.Println("Recreating ephemeral nodes")
 	for node := range w.ephemeralNodes {
 		err := w.createEphemeral(node)
 		if err != nil {
@@ -149,6 +159,7 @@ func (w *Watcher) runHooks() error {
 		}
 	}
 
+	log.Println("Re-adding watches")
 	for node, wn := range w.watchedNodes {
 		err := w.watchChildren(node, wn)
 		if err != nil {
@@ -159,6 +170,7 @@ func (w *Watcher) runHooks() error {
 	return nil
 }
 
+// QUESTION: Is this needed? I can't find anywhere wn.disconnected is read.
 func (w *Watcher) notifyDisconnected() {
 	for _, wn := range w.watchedNodes {
 		select {
@@ -297,8 +309,8 @@ func (w *Watcher) createEphemeral(node string) error {
 	for i := 0; i < maxCreateRetries; i++ {
 		_, err := w.conn.Create(node, []byte{}, zk.FlagEphemeral, defaultZkACL)
 		if err == nil {
-			break
-		} else if err != nil && err != zk.ErrNoNode && err != zk.ErrNodeExists {
+			return nil
+		} else if err != zk.ErrNoNode && err != zk.ErrNodeExists {
 			return err
 		}
 
@@ -310,7 +322,7 @@ func (w *Watcher) createEphemeral(node string) error {
 		}
 	}
 
-	return nil
+	return fmt.Errorf("failed to create ephemeral znode %s after %d retries", node, maxCreateRetries)
 }
 
 // RemoveEphemeral removes the given ephemeral node from the zookeeper cluster.
@@ -323,7 +335,9 @@ func (w *Watcher) RemoveEphemeral(node string) {
 	defer w.hooksLock.Unlock()
 
 	node = path.Join(w.prefix, node)
-	w.conn.Delete(node, -1)
+	if err := w.conn.Delete(node, -1); err != nil {
+		log.Printf("Failed to remove ephemeral znode %s", node)
+	}
 	delete(w.ephemeralNodes, node)
 }
 
@@ -430,6 +444,7 @@ func (w *Watcher) childrenW(node string) (children []string, stat *zk.Stat, even
 		}
 	}
 
+	err = fmt.Errorf("failed to watch children on %s after %d retries", node, maxCreateRetries)
 	return
 }
 
@@ -442,6 +457,7 @@ func (w *Watcher) RemoveWatch(node string) {
 	if wn, ok := w.watchedNodes[node]; ok {
 		delete(w.watchedNodes, node)
 		close(wn.cancel)
+		log.Printf("Removing watch on znode %s", node)
 	}
 }
 
@@ -468,7 +484,9 @@ func (w *Watcher) TriggerCleanup() {
 	w.lock.RLock()
 	defer w.lock.RUnlock()
 
+	log.Printf("Cleaning up znodes in %s", w.prefix)
 	w.cleanupTree(w.prefix)
+	log.Printf("Finished cleaning up znodes in %s", w.prefix)
 }
 
 func (w *Watcher) cleanupTree(node string) {
@@ -489,7 +507,9 @@ func (w *Watcher) cleanupTree(node string) {
 	}
 	wg.Wait()
 
-	w.conn.Delete(node, -1)
+	if err = w.conn.Delete(node, -1); err == nil {
+		log.Printf("Deleted znode %s", node)
+	}
 }
 
 func (w *Watcher) Close() {

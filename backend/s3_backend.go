@@ -48,8 +48,20 @@ func (s *S3Backend) ListVersions(db, after string, checkForSuccess bool) ([]stri
 			successFile := path.Join(s.path, db, version, "_SUCCESS")
 			symlinkFile := path.Join(s.path, db, version, "_SYMLINK")
 
-			if s.exists(successFile) || s.exists(symlinkFile) {
+			if s.exists(successFile) {
 				filtered = append(filtered, version)
+			} else if s.exists(symlinkFile) {
+				// For symlinked versions, we check that the
+				// target version has a success file.
+				targetVersion, err := s.getTargetVersion(db, version)
+				if err != nil {
+					continue
+				}
+
+				targetSuccessFile := path.Join(s.path, db, targetVersion, "_SUCCESS")
+				if s.exists(targetSuccessFile) {
+					filtered = append(filtered, version)
+				}
 			}
 		}
 
@@ -218,7 +230,8 @@ func (s *S3Backend) Open(db, version, file string) (io.ReadCloser, error) {
 }
 
 // getTargetVersion returns the target version of a symlinked version if the
-// _SYMLINK file exists or the same version otherwise.
+// _SYMLINK file exists or the same version otherwise. Whitespace is trimmed
+// when reading the file in case it was manually generated.
 func (s *S3Backend) getTargetVersion(db, version string) (string, error) {
 	src := path.Join(s.path, db, version, "_SYMLINK")
 	params := &s3.GetObjectInput{
@@ -237,7 +250,7 @@ func (s *S3Backend) getTargetVersion(db, version string) (string, error) {
 		return "", err
 	}
 
-	return string(b), nil
+	return strings.TrimSpace(string(b)), nil
 }
 
 func (s *S3Backend) DisplayPath(parts ...string) string {

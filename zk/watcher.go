@@ -93,7 +93,7 @@ func (w *Watcher) reconnect() error {
 	defer w.lock.Unlock()
 
 	servers := strings.Join(w.zkServers, ",")
-	log.Println("Connecting to zookeeper at ", servers)
+	log.Println("sequins ZK connecting to zookeeper at ", servers)
 	conn, events, err = zk.Connect(w.zkServers, w.sessionTimeout)
 	if err != nil {
 		return err
@@ -151,7 +151,7 @@ func (w *Watcher) runHooks() error {
 	w.hooksLock.Lock()
 	defer w.hooksLock.Unlock()
 
-	log.Println("Recreating ephemeral nodes")
+	log.Println("sequins ZK recreating ephemeral nodes")
 	for node := range w.ephemeralNodes {
 		err := w.createEphemeral(node)
 		if err != nil {
@@ -159,7 +159,7 @@ func (w *Watcher) runHooks() error {
 		}
 	}
 
-	log.Println("Re-adding watches")
+	log.Println("sequins ZK re-adding watches")
 	for node, wn := range w.watchedNodes {
 		err := w.watchChildren(node, wn)
 		if err != nil {
@@ -170,7 +170,6 @@ func (w *Watcher) runHooks() error {
 	return nil
 }
 
-// QUESTION: Is this needed? I can't find anywhere wn.disconnected is read.
 func (w *Watcher) notifyDisconnected() {
 	for _, wn := range w.watchedNodes {
 		select {
@@ -222,7 +221,7 @@ func (w *Watcher) isFlapping() bool {
 	w.flaps = newFlaps
 	flapCount := uint(len(newFlaps))
 
-	log.Printf("ZK flap check: flaps=%d flapMax=%d flapDuration=%v\n", flapCount, w.flapMax, w.flapDuration)
+	log.Printf("sequins ZK flap check: flaps=%d flapMax=%d flapDuration=%v\n", flapCount, w.flapMax, w.flapDuration)
 	return flapCount > w.flapMax
 }
 
@@ -236,7 +235,7 @@ Reconnect:
 			if w.isFlapping() {
 				w.lock.Lock()
 				defer w.lock.Unlock()
-				log.Println("ZK flapping, shutting down watcher")
+				log.Println("sequins ZK flapping, shutting down watcher")
 				w.flapNotify <- true
 				w.shutdown = nil
 				return
@@ -253,7 +252,7 @@ Reconnect:
 
 			err := w.reconnect()
 			if err != nil && w.conn.State() == zk.StateDisconnected {
-				log.Println("Error reconnecting to zookeeper:", err)
+				log.Println("sequins ZK error reconnecting to zookeeper:", err)
 				continue Reconnect
 			}
 		} else {
@@ -264,7 +263,7 @@ Reconnect:
 		case <-w.shutdown:
 			break Reconnect
 		case err := <-w.errs:
-			log.Println("Disconnecting from zookeeper because of error:", err)
+			log.Println("sequins ZK disconnecting from zookeeper because of error:", err)
 			w.cancelWatches()
 			continue Reconnect
 		}
@@ -336,7 +335,7 @@ func (w *Watcher) RemoveEphemeral(node string) {
 
 	node = path.Join(w.prefix, node)
 	if err := w.conn.Delete(node, -1); err != nil {
-		log.Printf("Failed to remove ephemeral znode %s", node)
+		log.Printf("sequins ZK failed to remove ephemeral znode %s", node)
 	}
 	delete(w.ephemeralNodes, node)
 }
@@ -457,7 +456,7 @@ func (w *Watcher) RemoveWatch(node string) {
 	if wn, ok := w.watchedNodes[node]; ok {
 		delete(w.watchedNodes, node)
 		close(wn.cancel)
-		log.Printf("Removing watch on znode %s", node)
+		log.Printf("sequins ZK removing watch on znode %s", node)
 	}
 }
 
@@ -484,9 +483,9 @@ func (w *Watcher) TriggerCleanup() {
 	w.lock.RLock()
 	defer w.lock.RUnlock()
 
-	log.Printf("Cleaning up znodes in %s", w.prefix)
+	log.Printf("sequins ZK cleaning up znodes in %s", w.prefix)
 	w.cleanupTree(w.prefix)
-	log.Printf("Finished cleaning up znodes in %s", w.prefix)
+	log.Printf("sequins ZK finished cleaning up znodes in %s", w.prefix)
 }
 
 func (w *Watcher) cleanupTree(node string) {
@@ -508,7 +507,7 @@ func (w *Watcher) cleanupTree(node string) {
 	wg.Wait()
 
 	if err = w.conn.Delete(node, -1); err == nil {
-		log.Printf("Deleted znode %s", node)
+		log.Printf("sequins ZK deleted znode %s", node)
 	}
 }
 
@@ -524,7 +523,7 @@ func (w *Watcher) Close() {
 
 // sendErr sends the error over the channel, or discards it if the error is full.
 func sendErr(where string, errs chan error, err error, path string, server string) {
-	log.Printf("Zookeeper error while %s: err=%q, path=%q, server=%q", where, err, path, server)
+	log.Printf("sequins ZK Zookeeper error while %s: err=%q, path=%q, server=%q", where, err, path, server)
 
 	select {
 	case errs <- err:

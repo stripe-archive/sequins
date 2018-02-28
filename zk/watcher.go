@@ -380,6 +380,8 @@ func (w *Watcher) watchChildren(node string, wn watchedNode) error {
 	}
 
 	go func() {
+		// Use current timestamp in nanoseconds as the go routine id
+		id := time.Now().Nanosecond()
 		// Normally, a watchChildren loop closes just so it can be reestablished
 		// once we're reconnected to zookeeper. In that case wn.cancel just gets an
 		// update, rather than being closed. If wn.cancel is closed, then
@@ -405,7 +407,8 @@ func (w *Watcher) watchChildren(node string, wn watchedNode) error {
 				return
 			case ev := <-events:
 				if ev.Err != nil {
-					sendErr("checking for watch results", w.errs, ev.Err, ev.Path, ev.Server)
+					where := fmt.Sprintf("checking for watch results in goroutine %d with zk session %d", id, w.conn.SessionID())
+					sendErr(where, w.errs, ev.Err, ev.Path, ev.Server)
 					<-wn.cancel
 					return
 				}
@@ -416,7 +419,8 @@ func (w *Watcher) watchChildren(node string, wn watchedNode) error {
 			w.lock.RUnlock()
 
 			if err != nil {
-				sendErr("re-adding watch", w.errs, err, node, "")
+				where := fmt.Sprintf("re-adding watch in goroutine %d with zk session %d", id, w.conn.SessionID())
+				sendErr(where, w.errs, err, node, "")
 				reconnecting = <-wn.cancel
 				return
 			}

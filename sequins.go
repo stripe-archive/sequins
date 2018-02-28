@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/juju/ratelimit"
 	"github.com/nightlyone/lockfile"
+	"github.com/stripe/goforit"
 	"github.com/tylerb/graceful"
 
 	"github.com/stripe/sequins/backend"
@@ -36,6 +38,17 @@ const defaultMaxLoads = 10
 // the cluster will be seen to "converge" when it's really just waiting for someone to release
 // the lock.
 const shardIDConvergenceMax = 3 * time.Second
+
+// Remote refresh of the underlying data store is toggle-able
+// through a simple integration with goforit.  Before each refresh,
+// Sequins will inspect a local JSON file (specified by
+// GoforitFlagJsonPath in the goforitConfig) for the state
+// of the flag sequins.prevent_download (or sequins.prevent_download.<CLUSTER NAME>
+// if CLUSTER NAME is defined).  If the flag is not defined or is set to FALSE,
+// remote refresh will proceed as expected. If it's set to TRUE, it won't.
+const disableRemoteRefreshFlagPrefix = "sequins.prevent_download"
+
+const goforitRefresh = goforit.DefaultInterval
 
 var errDirLocked = errors.New("failed to acquire lock")
 
@@ -66,6 +79,8 @@ type sequins struct {
 	storeLock lockfile.Lockfile
 
 	downloadRateLimitBucket *ratelimit.Bucket
+
+	goforit goforit.Backend
 }
 
 func newSequins(backend backend.Backend, config sequinsConfig) *sequins {
@@ -114,8 +129,15 @@ func (s *sequins) init() error {
 		s.downloadRateLimitBucket = ratelimit.NewBucketWithRate(float64(maxDownloadBandwidth), maxDownloadBandwidth)
 	}
 
+	// Kick off feature flag cache refresh if GoforitFlagJsonPath configured
+	if s.config.GoforitFlagJsonPath != "" {
+		log.Printf("Enabling Goforit: GoforitFlagJsonPath=%q", s.config.GoforitFlagJsonPath)
+		s.goforit = goforit.BackendFromJSONFile(s.config.GoforitFlagJsonPath)
+		goforit.Init(goforitRefresh, s.goforit)
+	}
+
 	// Trigger loads before we start up.
-	s.refreshAll()
+	s.refreshAll(true)
 	s.refreshLock.Lock()
 	defer s.refreshLock.Unlock()
 
@@ -126,7 +148,7 @@ func (s *sequins) init() error {
 		go func() {
 			log.Println("Automatically checking for new versions every", refresh.String())
 			for range s.refreshTicker.C {
-				s.refreshAll()
+				s.refreshAll(false)
 			}
 		}()
 	}
@@ -136,7 +158,15 @@ func (s *sequins) init() error {
 	signal.Notify(sighups, syscall.SIGHUP)
 	go func() {
 		for range sighups {
-			s.refreshAll()
+			// Refresh any feature flags on HUP
+			if s.goforit != nil {
+				err := goforit.RefreshFlags(s.goforit)
+				if err != nil {
+					log.Printf("Error refreshing flags on HUP: %s", err)
+				}
+			}
+
+			s.refreshAll(false)
 		}
 	}()
 
@@ -326,9 +356,39 @@ func (s *sequins) listDBs() ([]string, error) {
 	return filterPaths(dbs), nil
 }
 
-func (s *sequins) refreshAll() {
+func (s *sequins) remoteRefresh() bool {
+	flagName := disableRemoteRefreshFlagPrefix
+	if s.config.Sharding.ClusterName != "" {
+		flagName += "." + s.config.Sharding.ClusterName
+	}
+	if s.goforit != nil && goforit.Enabled(context.Background(), flagName) {
+		log.Printf("Not allowing remote refresh: cluster=%q, flag=%q",
+			s.config.Sharding.ClusterName, flagName)
+		if s.stats != nil {
+			s.stats.Count(flagName, 1, []string{}, 1.0)
+		}
+		return false
+	} else {
+		return true
+	}
+}
+
+// Refresh all datasets.
+//
+// If initialStartup is set to TRUE and remoteRefresh() is disabled,
+// initial loads will refrain from checking for new DBs/versions
+func (s *sequins) refreshAll(initialStartup bool) {
 	s.refreshLock.Lock()
 	defer s.refreshLock.Unlock()
+
+	var initialLocal bool
+	if !s.remoteRefresh() {
+		if !initialStartup {
+			return
+		}
+		log.Printf("Kicking off initial local-only refresh")
+		initialLocal = true
+	}
 
 	dbs, err := s.listDBs()
 	if err != nil {
@@ -350,7 +410,7 @@ func (s *sequins) refreshAll() {
 
 			backfills.Add(1)
 			go func() {
-				db.backfillVersions()
+				db.backfillVersions(initialLocal)
 				backfills.Done()
 			}()
 		} else {

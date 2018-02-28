@@ -28,6 +28,7 @@ type sequinsConfig struct {
 	RequireSuccessFile              bool     `toml:"require_success_file"`
 	ContentType                     string   `toml:"content_type"`
 	MaxDownloadBandwidthMBPerSecond int      `toml:"max_download_bandwidth_mb_per_second"`
+	GoforitFlagJsonPath             string   `toml:"goforit_flag_json_path"`
 
 	Storage  storageConfig  `toml:"storage"`
 	S3       s3Config       `toml:"s3"`

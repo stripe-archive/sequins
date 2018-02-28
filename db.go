@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -45,16 +46,37 @@ func (db *db) listVersions(after string) ([]string, error) {
 	return filterPaths(versions), nil
 }
 
+func (db *db) localVersions() ([]string, error) {
+	files, err := ioutil.ReadDir(db.localPathDir())
+	if err != nil {
+		return nil, err
+	}
+
+	var versions []string
+	for _, f := range files {
+		versions = append(versions, f.Name())
+	}
+	sort.Strings(versions)
+	return versions, nil
+}
+
 // backfillVersions is called at startup, and tries to grab any versions that
 // are either downloaded locally or available entirely at peers. This allows a
 // node to join a cluster with an existing version all set to go, and start up
 // serving that version (but exclusively proxy it). It also allows it to start
 // up with stale data, even if there's newer data available.
-func (db *db) backfillVersions() error {
+func (db *db) backfillVersions(initialLocal bool) error {
 	db.refreshLock.Lock()
 	defer db.refreshLock.Unlock()
 
-	versions, err := db.listVersions("")
+	var versions []string
+	var err error
+	if initialLocal {
+		log.Printf("Initial fetch of local versions only: db=%q", db.name)
+		versions, err = db.localVersions()
+	} else {
+		versions, err = db.listVersions("")
+	}
 	if err != nil {
 		return err
 	} else if len(versions) == 0 {
@@ -281,7 +303,11 @@ func (db *db) cleanupStore() {
 // localPath returns the path where local data for the given version should be
 // stored.
 func (db *db) localPath(version string) string {
-	return filepath.Join(db.sequins.config.LocalStore, "data", db.name, version)
+	return filepath.Join(db.localPathDir(), version)
+}
+
+func (db *db) localPathDir() string {
+	return filepath.Join(db.sequins.config.LocalStore, "data", db.name)
 }
 
 func (db *db) serveKey(w http.ResponseWriter, r *http.Request, key string) {

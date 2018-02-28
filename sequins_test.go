@@ -18,6 +18,7 @@ import (
 	"github.com/colinmarc/sequencefile"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/stripe/goforit"
 
 	"github.com/stripe/sequins/backend"
 )
@@ -80,7 +81,6 @@ func getSequins(t *testing.T, backend backend.Backend, localStore string) *sequi
 	if localStore == "" {
 		tmpDir, err := ioutil.TempDir("", "sequins-")
 		require.NoError(t, err)
-
 		localStore = tmpDir
 	}
 
@@ -88,11 +88,12 @@ func getSequins(t *testing.T, backend backend.Backend, localStore string) *sequi
 	config.Bind = "localhost:9599"
 	config.LocalStore = localStore
 	config.MaxParallelLoads = 1
+	config.GoforitFlagJsonPath = filepath.Join(localStore, "flags.json")
 
 	s := newSequins(backend, config)
 	require.NoError(t, s.init())
-
 	waitForDBs(t, s)
+
 	return s
 }
 
@@ -283,7 +284,7 @@ func TestSequinsThreadsafe(t *testing.T) {
 
 	for i := 1; i < 100; i++ {
 		createTestIndex(t, scratch, i)
-		ts.refreshAll()
+		ts.refreshAll(false)
 	}
 	wg.Wait()
 	os.RemoveAll(scratch)
@@ -351,6 +352,86 @@ func createTestIndex(t *testing.T, scratch string, i int) {
 	require.NoError(t, directoryCopy(t, path, "test_databases/healthy/baby-names/1"))
 	_, err := os.Create(filepath.Join(path, "_SUCCESS"))
 	require.NoError(t, err)
+}
+
+func writeFlag(t *testing.T, file *os.File, flag string, status bool) {
+	_, err := file.Seek(0, io.SeekStart)
+	require.NoError(t, err)
+
+	err = file.Truncate(0)
+	require.NoError(t, err)
+
+	rate := 0
+	if status {
+		rate = 1
+	}
+	s := fmt.Sprintf("{\"flags\": [{\"Name\": %q, \"Rate\": %d}]}", flag, rate)
+	_, err = file.WriteString(s)
+	require.NoError(t, err)
+
+	err = file.Sync()
+	require.NoError(t, err)
+}
+
+func TestNonInitialRefreshAllWhileRemoteDisabled(t *testing.T) {
+	scratch, err := ioutil.TempDir("", "sequins-")
+	require.NoError(t, err, "setup")
+
+	// version 1 local copy
+	dst := filepath.Join(scratch, "baby-names", "1")
+	require.NoError(t, directoryCopy(t, dst, "test_databases/healthy/baby-names/1"), "setup: copy data")
+
+	// start sequins, let it get the version
+	backend := backend.NewLocalBackend(scratch)
+	localStore, err := ioutil.TempDir("", "sequins-store-")
+	require.NoError(t, err)
+	flagsFile, err := os.Create(filepath.Join(localStore, "flags.json"))
+	require.NoError(t, err)
+	writeFlag(t, flagsFile, "sequins.prevent_download.sequins", false)
+	ts := getSequins(t, backend, localStore)
+
+	// check that we only have version 1
+	key := fmt.Sprintf("/baby-names/%s", babyNames[0].key)
+	req, _ := http.NewRequest("GET", key, nil)
+	w := httptest.NewRecorder()
+	ts.ServeHTTP(w, req)
+	assert.Equal(t, 200, w.Code, "fetching an existing key (%s) should 200", key)
+	assert.Equal(t, "1", w.HeaderMap.Get(versionHeader), "when fetching an existing key, the sequins version header should be set")
+
+	// set flag to disable remote fetching and refresh goforit
+	writeFlag(t, flagsFile, "sequins.prevent_download.sequins", true)
+	err = goforit.RefreshFlags(ts.goforit)
+	require.NoError(t, err)
+
+	// add a new version
+	dst = filepath.Join(scratch, "baby-names", "2")
+	require.NoError(t, directoryCopy(t, dst, "test_databases/healthy/baby-names/1"), "setup: copy data")
+
+	// invoke a refresh and wait for DBs to load
+	ts.refreshAll(false)
+	time.Sleep(time.Second)
+
+	// check that we still only have version 1
+	w = httptest.NewRecorder()
+	ts.ServeHTTP(w, req)
+	assert.Equal(t, 200, w.Code, "fetching an existing key (%s) should 200", key)
+	assert.Equal(t, "1", w.HeaderMap.Get(versionHeader), "when fetching an existing key, the sequins version header should be set")
+	ts.shutdown()
+
+	// now enable remote fetching, and try again
+	writeFlag(t, flagsFile, "sequins.prevent_download.sequins", false)
+	err = goforit.RefreshFlags(ts.goforit)
+	require.NoError(t, err)
+
+	// invoke a refresh and wait for DBs to load again
+	ts.refreshAll(false)
+	time.Sleep(time.Second)
+
+	w = httptest.NewRecorder()
+	ts.ServeHTTP(w, req)
+	assert.Equal(t, 200, w.Code, "fetching an existing key (%s) should 200", key)
+	assert.Equal(t, "2", w.HeaderMap.Get(versionHeader), "when fetching an existing key, the sequins version header should be set")
+	ts.shutdown()
 }
 
 func TestSparkeyInput(t *testing.T) {

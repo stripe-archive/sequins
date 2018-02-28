@@ -46,6 +46,13 @@ source = "hdfs://namenode:8020/path/to/sequins"
 # Unset by default. If this is set, sequins will set this Content-Type header on
 # responses.
 
+# goforit_flag_json_path = "/path/to/flags.json"
+# Unset by default. If this path is specified, sequins will
+# start goforit backed by the JSON file located at that path.
+# Goforit enables feature flagging within sequins and can be used
+# to easily toggle remote refresh on and off.  See
+# disableRemoteRefreshFlagPrefix in sequins.go for more details.
+
 [storage]
 
 # compression = "snappy"

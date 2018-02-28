@@ -1,7 +1,6 @@
 package zk
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"path"
@@ -67,8 +66,6 @@ func Connect(zkServers []string, prefix string, connectTimeout, sessionTimeout t
 		watchedNodes:   make(map[string]watchedNode),
 	}
 
-	// QUESTION: do we need to call reconnect here? I don't think it is necessary because we will call
-	// reconnect() inside w.run() in another goroutine immediately.
 	err := w.reconnect()
 	if err != nil {
 		return nil, fmt.Errorf("Zookeeper error: %s", err)
@@ -80,7 +77,6 @@ func Connect(zkServers []string, prefix string, connectTimeout, sessionTimeout t
 
 func (w *Watcher) reconnect() error {
 	var conn *zk.Conn
-	var events <-chan zk.Event
 	var err error
 
 	for i, s := range w.zkServers {
@@ -94,7 +90,7 @@ func (w *Watcher) reconnect() error {
 
 	servers := strings.Join(w.zkServers, ",")
 	log.Println("sequins ZK connecting to zookeeper at ", servers)
-	conn, events, err = zk.Connect(w.zkServers, w.sessionTimeout)
+	conn, _, err = zk.Connect(w.zkServers, w.sessionTimeout)
 	if err != nil {
 		return err
 	}
@@ -104,38 +100,10 @@ func (w *Watcher) reconnect() error {
 	}
 	w.conn = conn
 
-	// QUESTION: why do need to set connection timeout here?
-	// Aren't we already connected to ZooKeeper now?
-	// The sample code: https://github.com/samuel/go-zookeeper/blob/master/examples/basic.go
-	// doesn't have these extra steps to wait for events.
-	connectTimeout := time.NewTimer(w.connectTimeout)
-	select {
-	case <-connectTimeout.C:
-		return errors.New("connection timeout")
-	case event := <-events:
-		if event.State != zk.StateConnected && event.State != zk.StateConnecting {
-			return fmt.Errorf("connection error: %s", event)
-		}
-	}
-
 	err = w.createAll(w.prefix)
 	if err != nil {
 		return fmt.Errorf("creating base path: %s", err)
 	}
-
-	go func() {
-		// QUESTION: why do we need to range over events? childrenW() also returns an event chanel.
-		// Do we handle the same events in watchChildren(node string, wn watchedNode) too?
-		// I searched splunk and couldn't find the following err has been triggered in the past 30 days.
-		for ev := range events {
-			if ev.State != zk.StateConnected && ev.State != zk.StateConnecting {
-				if ev.Err != nil {
-					sendErr("reconnecting", w.errs, ev.Err, ev.Path, ev.Server)
-					return
-				}
-			}
-		}
-	}()
 
 	// Every time we connect, reset watches and recreate ephemeral nodes.
 	err = w.runHooks()

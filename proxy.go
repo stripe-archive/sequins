@@ -70,7 +70,7 @@ func (vs *version) proxy(r *http.Request, peers []string) (*http.Response, strin
 			req, err := vs.newProxyRequest(attemptCtx, r.URL.Path, peer)
 			if err != nil {
 				cancelAttempt()
-				log.Printf("Error initializing request to peer: %s", err)
+				log.Printf("Error initializing request to peer %s: %s", peer, err)
 			} else {
 				cancels[peer] = cancelAttempt
 				outstanding += 1
@@ -84,7 +84,7 @@ func (vs *version) proxy(r *http.Request, peers []string) (*http.Response, strin
 		case res := <-responses:
 			outstanding -= 1
 			if res.err != nil {
-				log.Printf("Error proxying request to peer: %s", res.err)
+				log.Printf("Error proxying request to peer %s: %s", res.peer, res.err)
 				cancels[res.peer]()
 			} else {
 				// Cancel any other outstanding attempts.

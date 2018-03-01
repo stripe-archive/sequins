@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/url"
 	"path/filepath"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -119,6 +120,24 @@ func main() {
 	if config.Debug.Bind != "" {
 		startDebugServer(config)
 	}
+
+	// This goroutine is supposed to wake up every 20 milliseconds. If it
+	// finds itself slept for an unusually long time, it writes a log entry
+	// to record the delay. The delay could be due to GC pause, scheduler
+	// issue or others. This may help us investigate the 504 issue that we
+	// have seen recently.
+	go func() {
+		lastWakeUpTime := time.Now()
+		for {
+			time.Sleep(20 * time.Millisecond)
+			now := time.Now()
+			delay := now.Sub(lastWakeUpTime) - 20*time.Millisecond
+			lastWakeUpTime = now
+			if delay > 20*time.Millisecond {
+				log.Printf("Detected %d milliseconds unusual delay", delay.Nanoseconds()/1000000)
+			}
+		}
+	}()
 
 	s.start()
 }

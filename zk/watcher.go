@@ -1,7 +1,6 @@
 package zk
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"path"
@@ -78,7 +77,6 @@ func Connect(zkServers []string, prefix string, connectTimeout, sessionTimeout t
 
 func (w *Watcher) reconnect() error {
 	var conn *zk.Conn
-	var events <-chan zk.Event
 	var err error
 
 	for i, s := range w.zkServers {
@@ -91,8 +89,8 @@ func (w *Watcher) reconnect() error {
 	defer w.lock.Unlock()
 
 	servers := strings.Join(w.zkServers, ",")
-	log.Println("Connecting to zookeeper at", servers)
-	conn, events, err = zk.Connect(w.zkServers, w.sessionTimeout)
+	log.Println("sequins ZK connecting to zookeeper at ", servers)
+	conn, _, err = zk.Connect(w.zkServers, w.sessionTimeout)
 	if err != nil {
 		return err
 	}
@@ -102,31 +100,10 @@ func (w *Watcher) reconnect() error {
 	}
 	w.conn = conn
 
-	connectTimeout := time.NewTimer(w.connectTimeout)
-	select {
-	case <-connectTimeout.C:
-		return errors.New("connection timeout")
-	case event := <-events:
-		if event.State != zk.StateConnected && event.State != zk.StateConnecting {
-			return fmt.Errorf("connection error: %s", event)
-		}
-	}
-
 	err = w.createAll(w.prefix)
 	if err != nil {
 		return fmt.Errorf("creating base path: %s", err)
 	}
-
-	go func() {
-		for ev := range events {
-			if ev.State != zk.StateConnected && ev.State != zk.StateConnecting {
-				if ev.Err != nil {
-					sendErr("reconnecting", w.errs, ev.Err, ev.Path, ev.Server)
-					return
-				}
-			}
-		}
-	}()
 
 	// Every time we connect, reset watches and recreate ephemeral nodes.
 	err = w.runHooks()
@@ -142,6 +119,7 @@ func (w *Watcher) runHooks() error {
 	w.hooksLock.Lock()
 	defer w.hooksLock.Unlock()
 
+	log.Println("sequins ZK recreating ephemeral nodes")
 	for node := range w.ephemeralNodes {
 		err := w.createEphemeral(node)
 		if err != nil {
@@ -149,6 +127,7 @@ func (w *Watcher) runHooks() error {
 		}
 	}
 
+	log.Println("sequins ZK re-adding watches")
 	for node, wn := range w.watchedNodes {
 		err := w.watchChildren(node, wn)
 		if err != nil {
@@ -210,7 +189,7 @@ func (w *Watcher) isFlapping() bool {
 	w.flaps = newFlaps
 	flapCount := uint(len(newFlaps))
 
-	log.Printf("ZK flap check: flaps=%d flapMax=%d flapDuration=%v\n", flapCount, w.flapMax, w.flapDuration)
+	log.Printf("sequins ZK flap check: flaps=%d flapMax=%d flapDuration=%v\n", flapCount, w.flapMax, w.flapDuration)
 	return flapCount > w.flapMax
 }
 
@@ -224,7 +203,7 @@ Reconnect:
 			if w.isFlapping() {
 				w.lock.Lock()
 				defer w.lock.Unlock()
-				log.Println("ZK flapping, shutting down watcher")
+				log.Println("sequins ZK flapping, shutting down watcher")
 				w.flapNotify <- true
 				w.shutdown = nil
 				return
@@ -241,7 +220,7 @@ Reconnect:
 
 			err := w.reconnect()
 			if err != nil && w.conn.State() == zk.StateDisconnected {
-				log.Println("Error reconnecting to zookeeper:", err)
+				log.Println("sequins ZK error reconnecting to zookeeper:", err)
 				continue Reconnect
 			}
 		} else {
@@ -252,7 +231,7 @@ Reconnect:
 		case <-w.shutdown:
 			break Reconnect
 		case err := <-w.errs:
-			log.Println("Disconnecting from zookeeper because of error:", err)
+			log.Println("sequins ZK disconnecting from zookeeper because of error:", err)
 			w.cancelWatches()
 			continue Reconnect
 		}
@@ -297,8 +276,8 @@ func (w *Watcher) createEphemeral(node string) error {
 	for i := 0; i < maxCreateRetries; i++ {
 		_, err := w.conn.Create(node, []byte{}, zk.FlagEphemeral, defaultZkACL)
 		if err == nil {
-			break
-		} else if err != nil && err != zk.ErrNoNode && err != zk.ErrNodeExists {
+			return nil
+		} else if err != zk.ErrNoNode && err != zk.ErrNodeExists {
 			return err
 		}
 
@@ -310,7 +289,7 @@ func (w *Watcher) createEphemeral(node string) error {
 		}
 	}
 
-	return nil
+	return fmt.Errorf("failed to create ephemeral znode %s after %d retries", node, maxCreateRetries)
 }
 
 // RemoveEphemeral removes the given ephemeral node from the zookeeper cluster.
@@ -323,7 +302,9 @@ func (w *Watcher) RemoveEphemeral(node string) {
 	defer w.hooksLock.Unlock()
 
 	node = path.Join(w.prefix, node)
-	w.conn.Delete(node, -1)
+	if err := w.conn.Delete(node, -1); err != nil {
+		log.Printf("sequins ZK failed to remove ephemeral znode %s", node)
+	}
 	delete(w.ephemeralNodes, node)
 }
 
@@ -367,6 +348,9 @@ func (w *Watcher) watchChildren(node string, wn watchedNode) error {
 	}
 
 	go func() {
+		// Use current timestamp in nanoseconds as the goroutine id for logging purpose
+		id := time.Now().Nanosecond()
+		sessionID := w.conn.SessionID()
 		// Normally, a watchChildren loop closes just so it can be reestablished
 		// once we're reconnected to zookeeper. In that case wn.cancel just gets an
 		// update, rather than being closed. If wn.cancel is closed, then
@@ -392,7 +376,9 @@ func (w *Watcher) watchChildren(node string, wn watchedNode) error {
 				return
 			case ev := <-events:
 				if ev.Err != nil {
-					sendErr("checking for watch results", w.errs, ev.Err, ev.Path, ev.Server)
+					where := fmt.Sprintf("checking for watch results in goroutine %d with zk session %d",
+						id, sessionID)
+					sendErr(where, w.errs, ev.Err, ev.Path, ev.Server)
 					<-wn.cancel
 					return
 				}
@@ -403,7 +389,9 @@ func (w *Watcher) watchChildren(node string, wn watchedNode) error {
 			w.lock.RUnlock()
 
 			if err != nil {
-				sendErr("re-adding watch", w.errs, err, node, "")
+				where := fmt.Sprintf("re-adding watch in goroutine %d with zk session %d",
+					id, w.conn.SessionID())
+				sendErr(where, w.errs, err, node, "")
 				reconnecting = <-wn.cancel
 				return
 			}
@@ -430,6 +418,7 @@ func (w *Watcher) childrenW(node string) (children []string, stat *zk.Stat, even
 		}
 	}
 
+	err = fmt.Errorf("failed to watch children on %s after %d retries", node, maxCreateRetries)
 	return
 }
 
@@ -442,6 +431,7 @@ func (w *Watcher) RemoveWatch(node string) {
 	if wn, ok := w.watchedNodes[node]; ok {
 		delete(w.watchedNodes, node)
 		close(wn.cancel)
+		log.Printf("sequins ZK removing watch on znode %s", node)
 	}
 }
 
@@ -468,7 +458,9 @@ func (w *Watcher) TriggerCleanup() {
 	w.lock.RLock()
 	defer w.lock.RUnlock()
 
+	log.Printf("sequins ZK cleaning up znodes in %s", w.prefix)
 	w.cleanupTree(w.prefix)
+	log.Printf("sequins ZK finished cleaning up znodes in %s", w.prefix)
 }
 
 func (w *Watcher) cleanupTree(node string) {
@@ -489,7 +481,9 @@ func (w *Watcher) cleanupTree(node string) {
 	}
 	wg.Wait()
 
-	w.conn.Delete(node, -1)
+	if err = w.conn.Delete(node, -1); err == nil {
+		log.Printf("sequins ZK deleted znode %s", node)
+	}
 }
 
 func (w *Watcher) Close() {
@@ -504,7 +498,7 @@ func (w *Watcher) Close() {
 
 // sendErr sends the error over the channel, or discards it if the error is full.
 func sendErr(where string, errs chan error, err error, path string, server string) {
-	log.Printf("Zookeeper error while %s: err=%q, path=%q, server=%q", where, err, path, server)
+	log.Printf("sequins ZK Zookeeper error while %s: err=%q, path=%q, server=%q", where, err, path, server)
 
 	select {
 	case errs <- err:

@@ -452,18 +452,26 @@ func (w *Watcher) createAll(node string) error {
 	return nil
 }
 
-// TriggerCleanup walks the prefix and deletes any non-ephemeral, empty
-// nodes under it. It ignores any errors encountered.
-func (w *Watcher) TriggerCleanup() {
+// TriggerCleanup walks the prefix, skipping the nodes in the excluded list,
+// and deletes any non-ephemeral, empty nodes under it.
+// It ignores any errors encountered.
+func (w *Watcher) TriggerCleanup(excluded []string) {
 	w.lock.RLock()
 	defer w.lock.RUnlock()
 
 	log.Printf("sequins ZK cleaning up znodes in %s", w.prefix)
-	w.cleanupTree(w.prefix)
+	excludedNodes := make(map[string]bool)
+	for _, node := range excluded {
+		excludedNodes[path.Join(w.prefix, node)] = true
+	}
+	w.cleanupTree(w.prefix, excludedNodes)
 	log.Printf("sequins ZK finished cleaning up znodes in %s", w.prefix)
 }
 
-func (w *Watcher) cleanupTree(node string) {
+func (w *Watcher) cleanupTree(node string, excludedNodes map[string]bool) {
+	if _, ok := excludedNodes[node]; ok {
+		return
+	}
 	children, stat, err := w.conn.Children(node)
 	if err != nil {
 		return
@@ -472,7 +480,7 @@ func (w *Watcher) cleanupTree(node string) {
 	}
 
 	for _, child := range children {
-		w.cleanupTree(path.Join(node, child))
+		w.cleanupTree(path.Join(node, child), excludedNodes)
 	}
 
 	if err = w.conn.Delete(node, -1); err == nil {

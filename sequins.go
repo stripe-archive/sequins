@@ -257,8 +257,6 @@ func (s *sequins) initCluster() error {
 		log.Fatal("Dying due to ZK flapping")
 	}()
 
-	go zkWatcher.TriggerCleanup()
-
 	hostname := s.config.Sharding.AdvertisedHostname
 	if hostname == "" {
 		hostname, err = os.Hostname()
@@ -450,7 +448,27 @@ func (s *sequins) refreshAll(initialStartup bool) {
 
 	// Cleanup any zkNodes for deleted versions and dbs.
 	if s.zkWatcher != nil {
-		s.zkWatcher.TriggerCleanup()
+		go func() {
+			var excluded []string
+			// Find all db versions in S3. Exclude them from being cleaned up.
+			// It is known the sequins znode cleanup races with adding watches to new versions of datasets.
+			// We saw 'node does not exist' errors frequently in the sequins log.
+			// By the time a db version is removed from S3, it is unlikely sequins nodes are still trying to
+			// add watches to it in ZK. Therefore, its znode can be a candidate to remove.
+			for dbName, db := range newDBs {
+				versions, err := db.listVersions("")
+				// If we failed to get versions from a db, to be safe we don't clean up znodes of any versions
+				// for the db.
+				if err != nil {
+					excluded = append(excluded, dbName)
+					continue
+				}
+				for _, version := range versions {
+					excluded = append(excluded, path.Join(dbName, version))
+				}
+			}
+			s.zkWatcher.TriggerCleanup(excluded)
+		}()
 	}
 }
 

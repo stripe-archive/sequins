@@ -3,6 +3,7 @@ package zk
 import (
 	"errors"
 	"fmt"
+	"path"
 	"sort"
 	"testing"
 	"time"
@@ -178,20 +179,20 @@ func TestZKTiggerCleanup(t *testing.T) {
 	defer w.Close()
 	defer tzk.Stop()
 
-	w.createEphemeral("/dataset1/1/node1")
-	w.createAll("/dataset2/1")
-	w.createAll("/dataset3/1")
-	w.createAll("/dataset3/2")
+	w.createEphemeral(path.Join(w.prefix, "partitions", "dataset1/1/node1"))
+	w.createAll(path.Join(w.prefix, "partitions", "dataset2/1"))
+	w.createAll(path.Join(w.prefix, "partitions", "dataset3/1"))
+	w.createAll(path.Join(w.prefix, "partitions", "dataset3/2"))
 
-	excluded := []string{"/dataset2", "/dataset3/2"}
+	excluded := []string{"dataset2", "dataset3/2"}
 	w.TriggerCleanup(excluded)
 
-	exist, _, _ := w.conn.Exists("/dataset1/1")
-	assert.True(t, exist, "/dataset1/1 should exist")
-	exist, _, _ = w.conn.Exists("/dataset2")
-	assert.True(t, exist, "/dataset2 should exist")
-	exist, _, _ = w.conn.Exists("/dataset3/2")
-	assert.True(t, exist, "/dataset3/2 should exist")
-	exist, _, _ = w.conn.Exists("/dataset3/1")
-	assert.True(t, exist, "/dataset3/1 should not exist")
+	exist, _, _ := w.conn.Exists(path.Join(w.prefix, "partitions", "dataset1/1/node1"))
+	assert.True(t, exist, "dataset1/1/node1 should exist")
+	exist, _, _ = w.conn.Exists(path.Join(w.prefix, "partitions", "dataset2/1"))
+	assert.True(t, exist, "dataset2/1 should exist")
+	exist, _, _ = w.conn.Exists(path.Join(w.prefix, "partitions", "dataset3/2"))
+	assert.True(t, exist, "dataset3/2 should exist")
+	exist, _, _ = w.conn.Exists(path.Join(w.prefix, "partitions", "dataset3/1"))
+	assert.False(t, exist, "dataset3/1 should not exist")
 }

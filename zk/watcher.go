@@ -462,8 +462,8 @@ func (w *Watcher) TriggerCleanup(excluded []string) {
 	log.Printf("sequins ZK cleaning up znodes in %s", w.prefix)
 	excludedNodes := make(map[string]bool)
 	for _, node := range excluded {
-		log.Println("sequins ZK excluded znode: ", path.Join(w.prefix, node))
-		excludedNodes[path.Join(w.prefix, node)] = true
+		log.Println("sequins ZK excluded znode ", path.Join(w.prefix, "partitions", node))
+		excludedNodes[path.Join(w.prefix, "partitions", node)] = true
 	}
 	w.cleanupTree(w.prefix, excludedNodes)
 	log.Printf("sequins ZK finished cleaning up znodes in %s", w.prefix)
@@ -471,7 +471,7 @@ func (w *Watcher) TriggerCleanup(excluded []string) {
 
 func (w *Watcher) cleanupTree(node string, excludedNodes map[string]bool) {
 	if _, ok := excludedNodes[node]; ok {
-		log.Println("sequins ZK skip znode: ", node)
+		log.Println("sequins ZK skip znode ", node)
 		return
 	}
 	children, stat, err := w.conn.Children(node)

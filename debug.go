@@ -45,6 +45,12 @@ type sequinsStats struct {
 		P25   float64
 	}
 
+	// Count requests to each DB per second
+	ByDB map[string]float64
+	// Track per minute--this allows us to have good confidence that we aren't missing
+	// any values, even if they're rare.
+	byDB map[string]int64
+
 	latencyHist *hdrhistogram.Histogram
 	queries     chan *queryStats
 
@@ -102,6 +108,8 @@ func newStats(localStorePath string) *sequinsStats {
 	s := &sequinsStats{
 		latencyHist: hdrhistogram.New(0, int64(10*time.Second/time.Microsecond), 5),
 		queries:     make(chan *queryStats, 1024),
+		byDB:        make(map[string]int64),
+		ByDB:        make(map[string]float64),
 	}
 
 	go s.updateRequestStats()
@@ -111,9 +119,10 @@ func newStats(localStorePath string) *sequinsStats {
 
 func (s *sequinsStats) updateRequestStats() {
 	ticker := time.NewTicker(time.Second)
+	lastMinute := time.Now()
 	for {
 		select {
-		case <-ticker.C:
+		case t := <-ticker.C:
 			s.snapshotRequestStats()
 
 			s.latencyHist.Reset()
@@ -127,6 +136,12 @@ func (s *sequinsStats) updateRequestStats() {
 			s.Qps.status501 = 0
 			s.Qps.status502 = 0
 			s.Qps.status504 = 0
+
+			if t.Minute() != lastMinute.Minute() {
+				lastMinute = t
+				s.snapshotDBStats()
+			}
+
 		case q := <-s.queries:
 			s.latencyHist.RecordValue(int64(q.duration / time.Microsecond))
 
@@ -150,6 +165,16 @@ func (s *sequinsStats) updateRequestStats() {
 				s.Qps.status504++
 			default:
 				log.Println("Untrackable http status:", q.status)
+			}
+
+			splits := strings.SplitN(q.path, "/", 2)
+			if len(splits) != 2 {
+				log.Println("Can't find DB from path:", q.path)
+			} else {
+				db := splits[0]
+				if validPathRegexp.MatchString(db) {
+					s.byDB[db]++
+				}
 			}
 		}
 	}
@@ -180,6 +205,16 @@ func (s *sequinsStats) snapshotRequestStats() {
 	s.Latency.P75 = float64(s.latencyHist.ValueAtQuantile(75.0)) / ms
 	s.Latency.P50 = float64(s.latencyHist.ValueAtQuantile(50.0)) / ms
 	s.Latency.P25 = float64(s.latencyHist.ValueAtQuantile(25.0)) / ms
+}
+
+func (s *sequinsStats) snapshotDBStats() {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	for db, count := range s.byDB {
+		s.ByDB[db] = float64(count) / 60
+		s.byDB[db] = 0
+	}
 }
 
 func (s *sequinsStats) updateDiskStats(path string) {

@@ -174,5 +174,9 @@ source = "hdfs://namenode:8020/path/to/sequins"
 # pprof = false
 # If set, this adds the default pprof handlers to the debug HTTP server.
 
-# request_log = "/var/log/sequins-requests.log"
-# Unset by default. If set, requests will be logged to the provided file.
+# request_log_enable = false
+# If set, this enables request logging. Must also set request_log_file.
+
+# request_log_file = "/var/log/sequins-requests.log"
+# Unset by default. If set, this will be the destination for any request logging.
+# Request logging can then be enabled with either request_log, or a feature flag.

@@ -16,6 +16,8 @@ import (
 	"github.com/codahale/hdrhistogram"
 )
 
+const requestLogEnableFlagPrefix = "sequins.request_log"
+
 var expStats *sequinsStats
 
 type sequinsStats struct {
@@ -232,9 +234,9 @@ func trackQueries(s *sequins) http.Handler {
 	trackStats := debug.Bind != "" && debug.Expvars
 
 	var requestLog chan *queryStats
-	if debug.RequestLog != "" {
+	if debug.RequestLogFile != "" {
 		requestLog = make(chan *queryStats, 1024)
-		go logRequests(debug.RequestLog, requestLog)
+		go logRequests(s, requestLog)
 	}
 
 	if trackStats || requestLog != nil {
@@ -297,17 +299,25 @@ func (t *queryTracker) done(path string) {
 	}
 }
 
-func logRequests(path string, stats chan *queryStats) {
+func logRequests(s *sequins, stats chan *queryStats) {
+	path := s.config.Debug.RequestLogFile
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
 		log.Printf("Can't create request log: %s\n", err)
 		return
 	}
 	defer file.Close()
-	log.Printf("Logging requests to %s\n", path)
+
+	flag := "sequins.request_log"
+	if s.config.Sharding.ClusterName != "" {
+		flag = flag + "." + s.config.Sharding.ClusterName
+	}
 
 	logger := log.New(file, "", log.LstdFlags|log.LUTC)
 	for q := range stats {
-		logger.Printf("%q %d\n", q.path, q.status)
+		flagEnabled, _ := s.checkFlag(requestLogEnableFlagPrefix)
+		if s.config.Debug.RequestLogEnable || flagEnabled {
+			logger.Printf("%q %d\n", q.path, q.status)
+		}
 	}
 }

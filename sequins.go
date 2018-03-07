@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -355,15 +354,11 @@ func (s *sequins) listDBs() ([]string, error) {
 }
 
 func (s *sequins) remoteRefresh() bool {
-	flagName := disableRemoteRefreshFlagPrefix
-	if s.config.Sharding.ClusterName != "" {
-		flagName += "." + s.config.Sharding.ClusterName
-	}
-	if s.goforit != nil && goforit.Enabled(context.Background(), flagName) {
+	if enabled, flag := s.checkFlag(disableRemoteRefreshFlagPrefix); enabled {
 		log.Printf("Not allowing remote refresh: cluster=%q, flag=%q",
-			s.config.Sharding.ClusterName, flagName)
+			s.config.Sharding.ClusterName, flag)
 		if s.stats != nil {
-			s.stats.Count(flagName, 1, []string{}, 1.0)
+			s.stats.Count(flag, 1, []string{}, 1.0)
 		}
 		return false
 	} else {
@@ -504,4 +499,20 @@ func (s *sequins) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	db.serveKey(w, r, key)
+}
+
+// Check if a feature flag is enabled. Adds the cluster to the flag prefix.
+// Returns whether the flag is enabled, and if so the full flag name.
+func (s *sequins) checkFlag(prefix string) (bool, string) {
+	if s.goforit == nil {
+		return false, ""
+	}
+
+	name := prefix
+	cluster := s.config.Sharding.ClusterName
+	if cluster != "" {
+		name = name + "." + cluster
+	}
+
+	return goforit.Enabled(nil, name), name
 }

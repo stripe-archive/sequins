@@ -104,7 +104,8 @@ func TestRequestLog(t *testing.T) {
 	config.Bind = "localhost:9599"
 	config.LocalStore = localStore
 	config.MaxParallelLoads = 1
-	config.Debug.RequestLog = requestLog.Name()
+	config.Debug.RequestLogEnable = true
+	config.Debug.RequestLogFile = requestLog.Name()
 	s := newSequins(localBackend, config)
 	require.NoError(t, s.init())
 	waitForDBs(t, s)

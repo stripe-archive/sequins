@@ -1625,10 +1625,10 @@
 			"revisionTime": "2018-01-30T19:37:22Z"
 		},
 		{
-			"checksumSHA1": "yplPuRAwWroEt3ZCrUzpH/Wle2U=",
+			"checksumSHA1": "XKmfF+j2Q3jdu55JK4fUTWDu8zo=",
 			"path": "github.com/stripe/goforit",
-			"revision": "13c1dbb8ac77804cccf5dd67fc8ebaad639bb2e1",
-			"revisionTime": "2018-02-22T19:01:40Z"
+			"revision": "61ceff5cf83da8e488a0cfff963709d93e055b7d",
+			"revisionTime": "2018-03-06T23:25:03Z"
 		},
 		{
 			"checksumSHA1": "dcOJtT2YpM6/qNQUa+IGGjFUy0k=",

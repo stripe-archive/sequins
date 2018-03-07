@@ -400,8 +400,7 @@ func TestNonInitialRefreshAllWhileRemoteDisabled(t *testing.T) {
 
 	// set flag to disable remote fetching and refresh goforit
 	writeFlag(t, flagsFile, "sequins.prevent_download.sequins", true)
-	err = goforit.RefreshFlags(ts.goforit)
-	require.NoError(t, err)
+	goforit.RefreshFlags(ts.goforit)
 
 	// add a new version
 	dst = filepath.Join(scratch, "baby-names", "2")
@@ -420,8 +419,7 @@ func TestNonInitialRefreshAllWhileRemoteDisabled(t *testing.T) {
 
 	// now enable remote fetching, and try again
 	writeFlag(t, flagsFile, "sequins.prevent_download.sequins", false)
-	err = goforit.RefreshFlags(ts.goforit)
-	require.NoError(t, err)
+	goforit.RefreshFlags(ts.goforit)
 
 	// invoke a refresh and wait for DBs to load again
 	ts.refreshAll(false)

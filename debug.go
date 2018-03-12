@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-go/statsd"
 	"github.com/codahale/hdrhistogram"
 )
 
@@ -222,11 +223,57 @@ func (s *sequinsStats) String() string {
 	return string(b)
 }
 
+// Tracks queries to each db
+type dbTracker struct {
+	stats  *statsd.Client
+	counts map[string]uint
+	paths  chan string
+}
+
+func newDBTracker(stats *statsd.Client) *dbTracker {
+	d := &dbTracker{stats, map[string]uint{}, make(chan string, 1024)}
+	go d.trackDBs()
+	return d
+}
+
+func (t *dbTracker) sendStats(counts map[string]uint) {
+	for db, count := range counts {
+		if count != 0 {
+			t.stats.Count("db.requests", int64(count), []string{"db:" + db}, 1)
+		}
+	}
+}
+
+func (t *dbTracker) trackDBs() {
+	ticker := time.NewTicker(time.Minute)
+	for {
+		select {
+		case <-ticker.C:
+			go t.sendStats(t.counts)
+			t.counts = map[string]uint{}
+		case path := <-t.paths:
+			parts := strings.SplitN(path, "/", 2)
+			if len(parts) == 2 && parts[0] != "" {
+				db := parts[0]
+				t.counts[db]++
+			}
+		}
+	}
+}
+
+func (t *dbTracker) trackDB(path string) {
+	select {
+	case t.paths <- path:
+	default:
+	}
+}
+
 // trackingHandler is an http.Handler that tracks request times.
 type trackingHandler struct {
 	*sequins
 	trackStats bool
 	requestLog chan *queryStats
+	dbTracker  *dbTracker
 }
 
 func trackQueries(s *sequins) http.Handler {
@@ -240,7 +287,7 @@ func trackQueries(s *sequins) http.Handler {
 	}
 
 	if trackStats || requestLog != nil {
-		return &trackingHandler{s, trackStats, requestLog}
+		return &trackingHandler{s, trackStats, requestLog, newDBTracker(s.stats)}
 	} else {
 		return s
 	}
@@ -297,6 +344,8 @@ func (t *queryTracker) done(path string) {
 	case t.handler.requestLog <- q:
 	default:
 	}
+
+	t.handler.dbTracker.trackDB(path)
 }
 
 func logRequests(s *sequins, stats chan *queryStats) {

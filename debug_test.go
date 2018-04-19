@@ -61,7 +61,7 @@ func readRequestLog(logPath string) (requestLogs, error) {
 	for {
 		var datePart, timePart string
 		var log requestLog
-		_, err := fmt.Fscanf(f, "%s %s %q %d\n", &datePart, &timePart, &log.path, &log.status)
+		_, err := fmt.Fscanf(f, "%s %s CANONICAL-SEQUINS-REQUEST-LINE %q %d\n", &datePart, &timePart, &log.path, &log.status)
 		if err == io.EOF {
 			return logs, nil
 		}

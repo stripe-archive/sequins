@@ -137,7 +137,7 @@ func defaultConfig() sequinsConfig {
 			Expvars:          true,
 			Pprof:            false,
 			RequestLogEnable: false,
-			RequestLogFile:   "",
+			RequestLogFile:   "stdout",
 		},
 		Test: testConfig{
 			UpgradeDelay:         duration{time.Duration(0)},

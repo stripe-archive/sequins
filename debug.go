@@ -349,24 +349,29 @@ func (t *queryTracker) done(path string) {
 }
 
 func logRequests(s *sequins, stats chan *queryStats) {
+	var logger *log.Logger
 	path := s.config.Debug.RequestLogFile
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
-	if err != nil {
-		log.Printf("Can't create request log: %s\n", err)
-		return
+	if path != "stdout" {
+		file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			log.Printf("Can't create request log: %s\n", err)
+			return
+		}
+		defer file.Close()
+		logger = log.New(file, "", log.LstdFlags|log.LUTC)
+	} else {
+		logger = log.New(os.Stdout, "", log.LstdFlags|log.LUTC)
 	}
-	defer file.Close()
 
 	flag := "sequins.request_log"
 	if s.config.Sharding.ClusterName != "" {
 		flag = flag + "." + s.config.Sharding.ClusterName
 	}
 
-	logger := log.New(file, "", log.LstdFlags|log.LUTC)
 	for q := range stats {
 		flagEnabled, _ := s.checkFlag(requestLogEnableFlagPrefix)
 		if s.config.Debug.RequestLogEnable || flagEnabled {
-			logger.Printf("%q %d\n", q.path, q.status)
+			logger.Printf("CANONICAL-SEQUINS-REQUEST-LINE %q %d\n", q.path, q.status)
 		}
 	}
 }

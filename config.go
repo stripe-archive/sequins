@@ -23,6 +23,7 @@ type sequinsConfig struct {
 	Bind                            string   `toml:"bind"`
 	MaxParallelLoads                int      `toml:"max_parallel_loads"`
 	ThrottleLoads                   duration `toml:"throttle_loads"`
+	WriteBufferSize                 int      `toml:"write_buffer_size"`
 	LocalStore                      string   `toml:"local_store"`
 	RefreshPeriod                   duration `toml:"refresh_period"`
 	RequireSuccessFile              bool     `toml:"require_success_file"`
@@ -102,6 +103,7 @@ func defaultConfig() sequinsConfig {
 		Bind:               "0.0.0.0:9599",
 		LocalStore:         "/var/sequins/",
 		MaxParallelLoads:   0,
+		WriteBufferSize:    32 * 1024, // what io.Copy uses internally
 		RefreshPeriod:      duration{time.Duration(0)},
 		RequireSuccessFile: false,
 		ContentType:        "",

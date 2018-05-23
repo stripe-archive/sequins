@@ -7,9 +7,7 @@ import (
 	"github.com/ncw/directio"
 )
 
-const bufSize = 32 * 1024 // what io.Copy uses internally
-
-func WriteFileAligned(dst string, r io.Reader) (err error) {
+func WriteFileAligned(dst string, r io.Reader, bufSize int) (err error) {
 	var w *os.File
 	w, err = directio.OpenFile(dst, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
@@ -21,10 +19,10 @@ func WriteFileAligned(dst string, r io.Reader) (err error) {
 			err = err2
 		}
 	}()
-	return writeAligned(w, r)
+	return writeAligned(w, r, bufSize)
 }
 
-func writeAligned(w io.Writer, r io.Reader) error {
+func writeAligned(w io.Writer, r io.Reader, bufSize int) error {
 	buf := directio.AlignedBlock(bufSize)
 	n := 0
 	for {

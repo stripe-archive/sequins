@@ -188,7 +188,7 @@ func (vs *version) sparkeyDownload(src, dst, fileType string, transform func(io.
 		trStream = transform(trStream)
 	}
 
-	err = WriteFileAligned(dst, trStream)
+	err = WriteFileAligned(dst, trStream, vs.sequins.config.WriteBufferSize)
 	if err != nil {
 		return fmt.Errorf("copying sparkey %s file %s: %s", fileType, disp, err)
 	}

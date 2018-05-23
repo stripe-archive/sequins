@@ -17,12 +17,13 @@ func (noopCloser) Close() error {
 }
 
 func TestWriteAlignedNeedsAlignment(t *testing.T) {
+	bufSize := 4096
 	buf := make([]byte, 2*bufSize+3)
 	for i := 0; i < len(buf); i++ {
 		buf[i] = byte(i % 256)
 	}
 	b := &bytes.Buffer{}
-	err := writeAligned(b, bytes.NewReader(buf))
+	err := writeAligned(b, bytes.NewReader(buf), bufSize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,12 +50,13 @@ func TestWriteAlignedNeedsAlignment(t *testing.T) {
 }
 
 func TestWriteAlignedNoAlignment(t *testing.T) {
+	bufSize := 4096
 	buf := make([]byte, 2*bufSize+bufSize+directio.AlignSize)
 	for i := 0; i < len(buf); i++ {
 		buf[i] = byte(i % 256)
 	}
 	b := &bytes.Buffer{}
-	err := writeAligned(b, bytes.NewReader(buf))
+	err := writeAligned(b, bytes.NewReader(buf), bufSize)
 	if err != nil {
 		t.Fatal(err)
 	}

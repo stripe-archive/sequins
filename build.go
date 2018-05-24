@@ -174,8 +174,6 @@ func (vs *version) rateLimitedDownloadStream(r io.Reader) io.Reader {
 
 // Download a sparkey file into a local file
 func (vs *version) sparkeyDownload(src, dst, fileType string, transform func(io.Reader) io.Reader) error {
-	success := false
-
 	disp := vs.sequins.backend.DisplayPath(vs.db.name, vs.name, src)
 	log.Printf("downloading sparkey %s file %s\n", fileType, disp)
 
@@ -185,28 +183,16 @@ func (vs *version) sparkeyDownload(src, dst, fileType string, transform func(io.
 	}
 	defer stream.Close()
 
-	out, err := os.Create(dst)
-	if err != nil {
-		return fmt.Errorf("creating sparkey %s file for %s: %s", fileType, disp, err)
-	}
-	defer func() {
-		out.Close()
-		if !success {
-			os.Remove(dst)
-		}
-	}()
-
 	var trStream = vs.rateLimitedDownloadStream(stream)
 	if transform != nil {
 		trStream = transform(trStream)
 	}
 
-	_, err = io.Copy(out, trStream)
+	err = WriteFileAligned(dst, trStream, vs.sequins.config.WriteBufferSize)
 	if err != nil {
-		return fmt.Errorf("reading sparkey %s file %s: %s", fileType, disp, err)
+		return fmt.Errorf("copying sparkey %s file %s: %s", fileType, disp, err)
 	}
 
-	success = true
 	return nil
 }
 

@@ -1619,6 +1619,12 @@
 			"revisionTime": "2017-10-26T09:04:26Z"
 		},
 		{
+			"checksumSHA1": "0veOWS3q7y2YvcazpZ+D3GAYiN0=",
+			"path": "github.com/ncw/directio",
+			"revision": "17018d97cb6f2cd62f84c69903d327e596b7a93e",
+			"revisionTime": "2017-06-29T08:19:26Z"
+		},
+		{
 			"checksumSHA1": "1EnbYalrCwjXws9L0Z7ONMXV/0M=",
 			"path": "github.com/samuel/go-zookeeper/zk",
 			"revision": "c4fab1ac1bec58281ad0667dc3f0907a9476ac47",

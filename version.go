@@ -20,7 +20,7 @@ const versionHeader = "X-Sequins-Version"
 var (
 	errNoAvailablePeers   = errors.New("no available peers")
 	errProxiedIncorrectly = errors.New("this server doesn't have the requested partition")
-	errMixedFiles         = errors.New("Mixed Sparkey and Sequencefile directory")
+	errMixedFiles         = errors.New("Mixed Sparkey and Sequencefile dir")
 )
 
 // A version represents a single version of a particular sequins db: in

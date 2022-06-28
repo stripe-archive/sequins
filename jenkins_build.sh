@@ -1,5 +1,7 @@
 #!/bin/sh
 
+whoami
+
 set -eux
 
 cd /go/src/github.com/stripe/sequins

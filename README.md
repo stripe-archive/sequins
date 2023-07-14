@@ -1,3 +1,7 @@
+> <img src="https://stripe.dev/images/badges/archived.png" width="250">
+>
+> This project is inactive and is no longer being maintained.
+
 <div align="center"><img src="doc/sequins.png" width="400px"/></div>
 
 Sequins is a key/value database for serving static batch data.
